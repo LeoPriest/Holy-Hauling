@@ -1,6 +1,6 @@
 # Identity
 
-You are helping [YOUR NAME] with [WHAT YOU DO].
+You are helping Ron with the Holy Hauling App.
 
 ## Rules
 - Write in plain, clear language
