@@ -8,7 +8,7 @@ export interface Job {
   job_location: string | null
   job_date_requested: string | null
   scope_notes: string | null
-  assigned_to: string | null
+  crew: string[]
   customer_phone?: string | null
   quote_context?: string | null
 }
@@ -43,5 +43,33 @@ export function usePatchJobStatus() {
         qc.invalidateQueries({ queryKey: ['jobs'] })
       }
     },
+  })
+}
+
+export function useAddJobAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ jobId, userId }: { jobId: string; userId: string }) => {
+      const r = await apiFetch(`/jobs/${jobId}/assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      })
+      if (!r.ok) throw new Error('Failed to add assignment')
+      return r.json() as Promise<Job>
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+}
+
+export function useRemoveJobAssignment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ jobId, userId }: { jobId: string; userId: string }) => {
+      const r = await apiFetch(`/jobs/${jobId}/assignments/${userId}`, { method: 'DELETE' })
+      if (!r.ok) throw new Error('Failed to remove assignment')
+      return r.json() as Promise<Job>
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
   })
 }
