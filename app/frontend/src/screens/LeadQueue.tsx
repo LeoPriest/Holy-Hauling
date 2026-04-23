@@ -6,6 +6,7 @@ import { StaleLeadBanner } from '../components/StaleLeadBanner'
 import { useLeads } from '../hooks/useLeads'
 import { useSettings } from '../hooks/useSettings'
 import { useStaleLeads } from '../hooks/useStaleLeads'
+import { useUsers } from '../hooks/useUsers'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 
@@ -25,6 +26,7 @@ export function LeadQueue() {
 
   const { data: settings } = useSettings()
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
+  const { data: teamMembers = [] } = useUsers()
 
   const unackedCount = leads.filter(l => !l.acknowledged_at).length
 
@@ -102,13 +104,24 @@ export function LeadQueue() {
           <option value="manual">Manual</option>
         </select>
 
-        <input
-          type="text"
-          className="border rounded-lg px-3 py-1.5 text-sm bg-white w-32"
-          placeholder="Handler…"
+        <select
+          className="border rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white w-36"
           value={assignedFilter}
           onChange={e => setAssignedFilter(e.target.value)}
-        />
+        >
+          <option value="">All handlers</option>
+          {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {
+            const members = teamMembers.filter(m => m.role === role)
+            if (members.length === 0) return null
+            return (
+              <optgroup key={role} label={role.charAt(0).toUpperCase() + role.slice(1)}>
+                {members.map(m => (
+                  <option key={m.id} value={m.username}>{m.username}</option>
+                ))}
+              </optgroup>
+            )
+          })}
+        </select>
       </div>
 
       {/* Count */}

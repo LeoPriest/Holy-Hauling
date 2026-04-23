@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useAcknowledgeLead } from '../../hooks/useLeads'
+import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
+import { useUsers } from '../../hooks/useUsers'
 import type { AiReview, Lead } from '../../types/lead'
 
 interface Props {
@@ -9,6 +10,8 @@ interface Props {
 
 export function BriefPanel({ lead, aiReview }: Props) {
   const acknowledge = useAcknowledgeLead()
+  const patch = usePatchLead()
+  const { data: teamMembers = [] } = useUsers()
   const [copied, setCopied] = useState(false)
 
   const intakeShot = lead.screenshots?.find(s => s.screenshot_type === 'intake')
@@ -85,6 +88,31 @@ export function BriefPanel({ lead, aiReview }: Props) {
             <p className="text-sm text-gray-400 italic">Phone not captured</p>
           )}
           <p className="text-xs text-gray-400">{lead.source_category_label}</p>
+        </div>
+      </section>
+
+      {/* Assigned to */}
+      <section>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Assigned To</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-3">
+          <select
+            className="w-full text-sm text-gray-900 dark:text-white dark:bg-gray-800 focus:outline-none"
+            value={lead.assigned_to ?? ''}
+            onChange={e => patch.mutate({ id: lead.id, data: { assigned_to: e.target.value || null } })}
+          >
+            <option value="">— Unassigned —</option>
+            {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {
+              const members = teamMembers.filter(m => m.role === role && m.is_active)
+              if (members.length === 0) return null
+              return (
+                <optgroup key={role} label={role.charAt(0).toUpperCase() + role.slice(1)}>
+                  {members.map(m => (
+                    <option key={m.id} value={m.username}>{m.username}</option>
+                  ))}
+                </optgroup>
+              )
+            })}
+          </select>
         </div>
       </section>
 
