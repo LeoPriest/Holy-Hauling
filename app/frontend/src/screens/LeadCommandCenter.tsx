@@ -72,14 +72,6 @@ export function LeadCommandCenter() {
           </div>
         </div>
 
-        <button
-          onClick={toggleTheme}
-          className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg shrink-0"
-          title="Toggle dark mode"
-        >
-          🌓
-        </button>
-
         {lead.status === 'booked' && (
           <button
             onClick={() => navigate('/jobs')}

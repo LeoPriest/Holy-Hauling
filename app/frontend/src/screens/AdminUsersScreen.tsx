@@ -115,10 +115,6 @@ export function AdminUsersScreen() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={toggleTheme}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg"
-          >🌓</button>
-          <button
             onClick={() => setShowAdd(true)}
             className="bg-indigo-600 text-white rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-indigo-700"
           >

@@ -272,13 +272,6 @@ export function JobsScreen() {
               📥
             </button>
           )}
-          <button
-            onClick={toggleTheme}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg"
-            title="Toggle dark mode"
-          >
-            🌓
-          </button>
           <span className="text-xs text-gray-500 dark:text-gray-400">{user?.username}</span>
           <button onClick={logout} className="text-xs text-red-500 hover:text-red-700 dark:text-red-400">
             Sign out

@@ -52,15 +52,6 @@ export function LeadQueue() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Dark mode toggle */}
-          <button
-            onClick={toggleTheme}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
-            title="Toggle dark mode"
-          >
-            🌓
-          </button>
-
           {/* Jobs board */}
           <button
             onClick={() => navigate('/jobs')}

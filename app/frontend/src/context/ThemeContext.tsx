@@ -8,7 +8,10 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue>({ isDark: false, toggleTheme: () => {} })
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('hh_theme') === 'dark')
+  const [isDark, setIsDark] = useState(() => {
+    const stored = localStorage.getItem('hh_theme')
+    return stored ? stored === 'dark' : true  // default dark
+  })
 
   useEffect(() => {
     if (isDark) {

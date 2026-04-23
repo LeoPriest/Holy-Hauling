@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSettings, usePatchSettings, useTestAlert } from '../hooks/useSettings'
 import type { SettingsPatch, TestAlertRequest } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 
 type TestKey = `${TestAlertRequest['channel']}_${TestAlertRequest['recipient']}`
 type TestState = { sent: boolean; reason?: string | null }
@@ -13,6 +14,7 @@ export function SettingsScreen() {
   const patch = usePatchSettings()
   const testAlert = useTestAlert()
   const { user } = useAuth()
+  const { isDark, toggleTheme } = useTheme()
   const isReadOnly = user?.role === 'facilitator'
 
   const [form, setForm] = useState<SettingsPatch>({})
@@ -56,24 +58,47 @@ export function SettingsScreen() {
     })
   }
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading…</div>
+  if (isLoading) return <div className="p-6 text-gray-400 dark:text-gray-500">Loading…</div>
+
+  const inputClass = 'border dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-800 text-lg">←</button>
-        <h1 className="font-bold text-gray-900 text-lg">Settings</h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <button onClick={() => navigate('/')} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-lg">←</button>
+        <h1 className="font-bold text-gray-900 dark:text-white text-lg">Settings</h1>
       </header>
 
       <div className="p-4 space-y-6 pb-20">
 
+        {/* Appearance */}
+        <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Appearance</h2>
+          <FieldRow label="Dark mode">
+            <button
+              onClick={toggleTheme}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                isDark ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+              role="switch"
+              aria-checked={isDark}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  isDark ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </FieldRow>
+        </section>
+
         {/* Alert Thresholds */}
-        <section className="bg-white rounded-xl border p-4 space-y-3">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 space-y-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Alert Thresholds</h2>
           <FieldRow label="T1 warning (minutes)">
             <input
               type="number" min={1} max={120}
-              className="border rounded-lg px-3 py-1.5 text-sm w-20 text-right"
+              className={inputClass + ' w-20 text-right'}
               value={form.t1_minutes ?? ''}
               onChange={e => set('t1_minutes', Number(e.target.value))}
             />
@@ -81,7 +106,7 @@ export function SettingsScreen() {
           <FieldRow label="T2 escalation (minutes)">
             <input
               type="number" min={1} max={240}
-              className="border rounded-lg px-3 py-1.5 text-sm w-20 text-right"
+              className={inputClass + ' w-20 text-right'}
               value={form.t2_minutes ?? ''}
               onChange={e => set('t2_minutes', Number(e.target.value))}
             />
@@ -89,12 +114,12 @@ export function SettingsScreen() {
         </section>
 
         {/* Quiet Hours */}
-        <section className="bg-white rounded-xl border p-4 space-y-3">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 space-y-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quiet Hours</h2>
           <FieldRow label="Enable quiet hours">
             <input
               type="checkbox"
-              className="w-4 h-4"
+              className="w-4 h-4 accent-indigo-600"
               checked={form.quiet_hours_enabled ?? false}
               onChange={e => set('quiet_hours_enabled', e.target.checked)}
             />
@@ -102,7 +127,7 @@ export function SettingsScreen() {
           <FieldRow label="Start (HH:MM)">
             <input
               type="time"
-              className="border rounded-lg px-3 py-1.5 text-sm"
+              className={inputClass}
               value={form.quiet_hours_start ?? '22:00'}
               onChange={e => set('quiet_hours_start', e.target.value)}
             />
@@ -110,7 +135,7 @@ export function SettingsScreen() {
           <FieldRow label="End (HH:MM)">
             <input
               type="time"
-              className="border rounded-lg px-3 py-1.5 text-sm"
+              className={inputClass}
               value={form.quiet_hours_end ?? '07:00'}
               onChange={e => set('quiet_hours_end', e.target.value)}
             />
@@ -118,12 +143,12 @@ export function SettingsScreen() {
         </section>
 
         {/* Primary Facilitator */}
-        <section className="bg-white rounded-xl border p-4 space-y-3">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 space-y-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Primary Facilitator</h2>
           <FieldRow label="SMS number">
             <input
               type="tel"
-              className="border rounded-lg px-3 py-1.5 text-sm flex-1"
+              className={inputClass + ' flex-1'}
               placeholder="+15551234567"
               value={form.primary_sms ?? ''}
               onChange={e => set('primary_sms', e.target.value)}
@@ -132,7 +157,7 @@ export function SettingsScreen() {
           <FieldRow label="Email">
             <input
               type="email"
-              className="border rounded-lg px-3 py-1.5 text-sm flex-1"
+              className={inputClass + ' flex-1'}
               placeholder="you@example.com"
               value={form.primary_email ?? ''}
               onChange={e => set('primary_email', e.target.value)}
@@ -141,12 +166,12 @@ export function SettingsScreen() {
         </section>
 
         {/* Backup Handler */}
-        <section className="bg-white rounded-xl border p-4 space-y-3">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 space-y-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Backup Handler</h2>
           <FieldRow label="Name">
             <input
               type="text"
-              className="border rounded-lg px-3 py-1.5 text-sm flex-1"
+              className={inputClass + ' flex-1'}
               placeholder="Jordan"
               value={form.backup_name ?? ''}
               onChange={e => set('backup_name', e.target.value)}
@@ -155,7 +180,7 @@ export function SettingsScreen() {
           <FieldRow label="SMS number">
             <input
               type="tel"
-              className="border rounded-lg px-3 py-1.5 text-sm flex-1"
+              className={inputClass + ' flex-1'}
               placeholder="+15559876543"
               value={form.backup_sms ?? ''}
               onChange={e => set('backup_sms', e.target.value)}
@@ -164,7 +189,7 @@ export function SettingsScreen() {
           <FieldRow label="Email">
             <input
               type="email"
-              className="border rounded-lg px-3 py-1.5 text-sm flex-1"
+              className={inputClass + ' flex-1'}
               placeholder="backup@example.com"
               value={form.backup_email ?? ''}
               onChange={e => set('backup_email', e.target.value)}
@@ -173,7 +198,7 @@ export function SettingsScreen() {
         </section>
 
         {/* Test Alerts */}
-        <section className="bg-white rounded-xl border p-4 space-y-3">
+        <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 space-y-3">
           <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Test Alerts</h2>
           {(['sms', 'email'] as const).flatMap(channel =>
             (['primary', 'backup'] as const).map(recipient => {
@@ -181,19 +206,19 @@ export function SettingsScreen() {
               const result = testResults[key]
               return (
                 <div key={key} className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-600 capitalize">
+                  <span className="text-sm text-gray-600 dark:text-gray-300 capitalize">
                     {channel.toUpperCase()} → {recipient}
                   </span>
                   <div className="flex items-center gap-2">
                     {result && (
-                      <span className={`text-xs ${result.sent ? 'text-emerald-600' : 'text-red-600'}`}>
+                      <span className={`text-xs ${result.sent ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {result.sent ? '✓ Sent' : `✗ ${result.reason ?? 'Failed'}`}
                       </span>
                     )}
                     <button
                       onClick={() => handleTestAlert(channel, recipient)}
                       disabled={testAlert.isPending}
-                      className="text-xs border rounded-lg px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50"
+                      className="text-xs border dark:border-gray-600 rounded-lg px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300 disabled:opacity-50"
                     >
                       Send test
                     </button>
@@ -216,7 +241,7 @@ export function SettingsScreen() {
           className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
             saved
               ? 'bg-emerald-600 text-white'
-              : 'bg-gray-900 text-white hover:bg-gray-700'
+              : 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200'
           } disabled:opacity-50`}
         >
           {patch.isPending ? 'Saving…' : saved ? '✓ Saved' : 'Save Settings'}
@@ -229,7 +254,7 @@ export function SettingsScreen() {
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-sm text-gray-600 shrink-0">{label}</span>
+      <span className="text-sm text-gray-600 dark:text-gray-300 shrink-0">{label}</span>
       {children}
     </div>
   )
