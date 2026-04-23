@@ -5,9 +5,12 @@ import pytest
 import pytest_asyncio
 from datetime import datetime, timezone
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
+from app.models.user import User
+from app.services.auth_service import hash_pin
 
 TEST_DB = "sqlite+aiosqlite:///:memory:"
 
@@ -39,8 +42,6 @@ async def auth_client():
 
 
 async def _seed_user(factory, username="admin", pin="0000", role="admin", is_active=True):
-    from app.models.user import User
-    from app.services.auth_service import hash_pin
     async with factory() as s:
         user = User(
             username=username,
@@ -116,11 +117,39 @@ async def test_get_me_deactivated_rejects_token(auth_client):
     login_r = await client.post("/auth/login", json={"username": "bob", "pin": "5678"})
     token = login_r.json()["token"]
     async with factory() as s:
-        from sqlalchemy import select
-        from app.models.user import User
         result = await s.execute(select(User).where(User.id == user.id))
         u = result.scalar_one()
         u.is_active = False
         await s.commit()
     r = await client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_require_role_allows_matching_role(auth_client):
+    client, factory = auth_client
+    await _seed_user(factory, username="alice", pin="1234", role="facilitator")
+    login_r = await client.post("/auth/login", json={"username": "alice", "pin": "1234"})
+    token = login_r.json()["token"]
+    # /auth/me uses require_auth only; test the dependency directly
+    from app.dependencies import require_role
+    from app.models.user import User as UserModel
+    user = UserModel(id="x", username="alice", credential_hash="x", role="facilitator",
+                     is_active=True, created_at=datetime.now(timezone.utc))
+    dep = require_role("facilitator", "admin")
+    # dep is an async function that takes current_user; call it directly
+    result = await dep(current_user=user)
+    assert result.username == "alice"
+
+
+@pytest.mark.asyncio
+async def test_require_role_rejects_wrong_role(auth_client):
+    from fastapi import HTTPException
+    from app.dependencies import require_role
+    from app.models.user import User as UserModel
+    user = UserModel(id="x", username="crew1", credential_hash="x", role="crew",
+                     is_active=True, created_at=datetime.now(timezone.utc))
+    dep = require_role("admin")
+    with pytest.raises(HTTPException) as exc_info:
+        await dep(current_user=user)
+    assert exc_info.value.status_code == 403

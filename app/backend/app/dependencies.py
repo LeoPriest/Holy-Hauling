@@ -21,9 +21,10 @@ async def require_auth(
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = auth_service.decode_token(credentials.credentials)
-    except JWTError:
+        user_id = payload["user_id"]
+    except (JWTError, KeyError):
         raise HTTPException(status_code=401, detail="Invalid token")
-    result = await db.execute(select(User).where(User.id == payload["user_id"]))
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or deactivated")
@@ -31,7 +32,6 @@ async def require_auth(
 
 
 def require_role(*roles: str):
-    """Returns a FastAPI dependency that enforces one of the given roles."""
     async def _check(current_user: User = Depends(require_auth)) -> User:
         if current_user.role not in roles:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
