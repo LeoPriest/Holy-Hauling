@@ -167,11 +167,13 @@ async def _alert_channel(
             await db.commit()
         return
 
-    # Send
+    # Send — only write the dedup record if the send succeeded
     if channel == "sms":
-        _send_sms(to, msg)
+        err = _send_sms(to, msg)
     else:
-        _send_email(to, subject, msg)
+        err = _send_email(to, subject, msg)
+    if err:
+        return  # transient failure — don't write a dedup record; retry next tick
 
     db.add(LeadAlert(
         id=str(uuid.uuid4()),
@@ -187,7 +189,7 @@ async def _alert_channel(
 
 async def _process_stale_leads(db: AsyncSession, settings: SettingsOut) -> None:
     """Core check logic — accepts a session so tests can inject the test DB."""
-    now_naive = datetime.utcnow()
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
     t1_cutoff = now_naive - timedelta(minutes=settings.t1_minutes)
     t2_cutoff = now_naive - timedelta(minutes=settings.t2_minutes)
     quiet = _is_quiet_now(settings)

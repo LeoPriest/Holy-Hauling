@@ -39,7 +39,7 @@ async def _make_stale_lead(client, db_session, minutes_ago: int) -> str:
     r = await client.post("/leads", json=_BASE_LEAD)
     assert r.status_code == 201
     lead_id = r.json()["id"]
-    stale_time = datetime.utcnow() - timedelta(minutes=minutes_ago)
+    stale_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=minutes_ago)
     await db_session.execute(
         text("UPDATE leads SET updated_at = :t WHERE id = :id"),
         {"t": stale_time, "id": lead_id},
@@ -60,8 +60,8 @@ async def test_fresh_lead_not_alerted(client, db_session):
 async def test_t1_lead_fires_alert(client, db_session):
     lead_id = await _make_stale_lead(client, db_session, minutes_ago=20)
     settings = SettingsOut(t1_minutes=15, t2_minutes=30, primary_sms="+15550001111", primary_email="p@test.com")
-    with patch("app.services.alert_service._send_sms") as mock_sms, \
-         patch("app.services.alert_service._send_email") as mock_email:
+    with patch("app.services.alert_service._send_sms", return_value=None) as mock_sms, \
+         patch("app.services.alert_service._send_email", return_value=None) as mock_email:
         await _process_stale_leads(db_session, settings)
     mock_sms.assert_called_once()
     mock_email.assert_called_once()
@@ -70,8 +70,8 @@ async def test_t1_lead_fires_alert(client, db_session):
 async def test_t1_alert_not_sent_twice(client, db_session):
     lead_id = await _make_stale_lead(client, db_session, minutes_ago=20)
     settings = SettingsOut(t1_minutes=15, t2_minutes=30, primary_sms="+15550001111")
-    with patch("app.services.alert_service._send_sms") as mock_sms, \
-         patch("app.services.alert_service._send_email"):
+    with patch("app.services.alert_service._send_sms", return_value=None) as mock_sms, \
+         patch("app.services.alert_service._send_email", return_value=None):
         await _process_stale_leads(db_session, settings)
         await _process_stale_leads(db_session, settings)
     assert mock_sms.call_count == 1  # dedup prevents second send
@@ -80,8 +80,8 @@ async def test_t1_alert_not_sent_twice(client, db_session):
 async def test_t2_escalates_lead_status(client, db_session):
     lead_id = await _make_stale_lead(client, db_session, minutes_ago=35)
     settings = SettingsOut(t1_minutes=15, t2_minutes=30)
-    with patch("app.services.alert_service._send_sms"), \
-         patch("app.services.alert_service._send_email"):
+    with patch("app.services.alert_service._send_sms", return_value=None), \
+         patch("app.services.alert_service._send_email", return_value=None):
         await _process_stale_leads(db_session, settings)
     r = await client.get(f"/leads/{lead_id}")
     assert r.json()["status"] == "escalated"
