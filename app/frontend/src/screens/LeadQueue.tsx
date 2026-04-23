@@ -58,6 +58,15 @@ export function LeadQueue() {
             🌓
           </button>
 
+          {/* Jobs board */}
+          <button
+            onClick={() => navigate('/jobs')}
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
+            title="Jobs"
+          >
+            📋
+          </button>
+
           {/* Users — admin only */}
           {user?.role === 'admin' && (
             <button

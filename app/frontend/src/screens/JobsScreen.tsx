@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useJobs, usePatchJobStatus, useAddJobAssignment, useRemoveJobAssignment } from '../hooks/useJobs'
 import { useUsers } from '../hooks/useUsers'
@@ -9,6 +10,7 @@ const STATUS_BUTTONS = [
 ]
 
 export function JobsScreen() {
+  const navigate = useNavigate()
   const { user, logout } = useAuth()
   const { data: jobs = [], isLoading } = useJobs()
   const { data: users = [] } = useUsers()
@@ -21,6 +23,15 @@ export function JobsScreen() {
       <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <h1 className="font-bold text-gray-900 dark:text-white text-lg">Jobs</h1>
         <div className="flex items-center gap-3">
+          {(user?.role === 'admin' || user?.role === 'facilitator') && (
+            <button
+              onClick={() => navigate('/')}
+              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg"
+              title="Lead Queue"
+            >
+              📥
+            </button>
+          )}
           <button
             onClick={() => {
               const next = document.documentElement.classList.toggle('dark') ? 'dark' : 'light'
