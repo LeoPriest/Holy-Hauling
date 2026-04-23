@@ -228,16 +228,20 @@ async def update_lead_status(db: AsyncSession, lead_id: str, data: LeadStatusUpd
     await db.commit()
     await db.refresh(lead)
 
-    # Push notification triggers — fire-and-forget
+    # Push notification triggers — fire-and-forget; DB errors must not block the status update
+    import logging as _logging
     from app.services.push_service import send_push_to_roles
     customer = lead.customer_name or "customer"
     svc = lead.service_type.value if lead.service_type is not None else "job"
-    if data.status == LeadStatus.booked:
-        await send_push_to_roles(db, ["supervisor", "crew"],
-                                  f"New job assigned: {customer} — {svc}")
-    elif data.status == LeadStatus.escalated:
-        await send_push_to_roles(db, ["supervisor"],
-                                  f"Job escalated: {customer} — action needed")
+    try:
+        if data.status == LeadStatus.booked:
+            await send_push_to_roles(db, ["supervisor", "crew"],
+                                      f"New job assigned: {customer} — {svc}")
+        elif data.status == LeadStatus.escalated:
+            await send_push_to_roles(db, ["supervisor"],
+                                      f"Job escalated: {customer} — action needed")
+    except Exception as exc:
+        _logging.getLogger(__name__).error("Push trigger failed: %s", exc)
 
     return lead
 

@@ -116,3 +116,4 @@ async def test_push_fires_on_booked_lead(push_client):
         mock_push.assert_called_once()
         roles_arg = mock_push.call_args.args[1]
         assert "supervisor" in roles_arg
+        assert "crew" in roles_arg
