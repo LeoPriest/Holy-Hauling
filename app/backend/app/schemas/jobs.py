@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
 from typing import Optional
 
 from pydantic import BaseModel
@@ -9,9 +8,9 @@ from pydantic import BaseModel
 class JobOut(BaseModel):
     id: str
     customer_name: Optional[str] = None
-    service_type: str
+    service_type: Optional[str] = None
     job_location: Optional[str] = None
-    job_date_requested: Optional[date] = None
+    job_date_requested: Optional[str] = None
     scope_notes: Optional[str] = None
     assigned_to: Optional[str] = None
     customer_phone: Optional[str] = None
