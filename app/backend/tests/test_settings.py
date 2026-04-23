@@ -24,7 +24,8 @@ async def test_patch_settings_updates_values(client):
 
 
 async def test_patch_settings_persists(client):
-    await client.patch("/settings", json={"backup_name": "Jordan"})
+    r_patch = await client.patch("/settings", json={"backup_name": "Jordan"})
+    assert r_patch.status_code == 200
     r = await client.get("/settings")
     assert r.json()["backup_name"] == "Jordan"
 
