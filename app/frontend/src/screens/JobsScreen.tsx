@@ -77,7 +77,7 @@ export function JobsScreen() {
               </div>
             </div>
 
-            {/* Crew badges — read-only, visible to all roles */}
+            {/* Crew badges — read-only view for non-supervisors; supervisors see interactive assignment UI below */}
             {job.crew.length > 0 && user?.role !== 'supervisor' && (
               <div className="flex gap-1 flex-wrap mb-3">
                 {job.crew.map(name => (
@@ -145,8 +145,9 @@ export function JobsScreen() {
                           {username}
                           <button
                             onClick={() => u && removeAssignment.mutate({ jobId: job.id, userId: u.id })}
-                            className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 font-bold leading-none"
-                            title={`Remove ${username}`}
+                            disabled={!u}
+                            className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 font-bold leading-none disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={u ? `Remove ${username}` : `${username} (user not found)`}
                           >
                             ×
                           </button>

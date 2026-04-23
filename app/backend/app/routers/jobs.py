@@ -109,10 +109,11 @@ async def remove_assignment(
     assignment = result.scalar_one_or_none()
     if assignment is None:
         raise HTTPException(status_code=404, detail="Assignment not found")
-    await db.delete(assignment)
-    await db.commit()
-    result = await db.execute(select(Lead).where(Lead.id == lead_id))
-    lead = result.scalar_one_or_none()
+    # Verify lead exists before deleting
+    lead_result = await db.execute(select(Lead).where(Lead.id == lead_id))
+    lead = lead_result.scalar_one_or_none()
     if lead is None:
         raise HTTPException(status_code=404, detail="Job not found")
+    await db.delete(assignment)
+    await db.commit()
     return await _to_job_out(db, lead, current_user.role)
