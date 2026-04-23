@@ -21,5 +21,5 @@ class User(Base):
     created_by = Column(String, nullable=True)  # user_id of admin who created this user
 
     push_subscriptions = relationship(
-        "PushSubscription", back_populates="user", cascade="all, delete-orphan"
+        "PushSubscription", back_populates="user", cascade="all, delete-orphan", lazy="select"
     )
