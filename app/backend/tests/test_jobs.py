@@ -152,3 +152,11 @@ async def test_patch_job_status_completed_releases_lead(supervisor_client):
         result = await s.execute(select(Lead).where(Lead.id == lead.id))
         db_lead = result.scalar_one()
         assert db_lead.status.value == "released"
+
+
+@pytest.mark.asyncio
+async def test_patch_non_booked_lead_returns_409(supervisor_client):
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="new")
+    r = await client.patch(f"/jobs/{lead.id}/status", json={"status": "en_route"})
+    assert r.status_code == 409

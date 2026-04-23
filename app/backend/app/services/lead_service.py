@@ -193,19 +193,22 @@ _JOB_STATUS_TO_LEAD_STATUS = {
 
 
 async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, actor: str | None = None) -> Lead:
+    from fastapi import HTTPException
     lead = await get_lead(db, lead_id)
+    if lead.status != LeadStatus.booked:
+        raise HTTPException(status_code=409, detail="Job is not in booked status")
     old_status = lead.status
-    db.add(LeadEvent(
-        id=_id(), lead_id=lead_id,
-        event_type="status_changed",
-        from_status=old_status.value,
-        to_status=job_status,
-        actor=actor,
-    ))
     new_lead_status = _JOB_STATUS_TO_LEAD_STATUS.get(job_status)
     if new_lead_status:
         lead.status = new_lead_status
         lead.updated_at = _now()
+    db.add(LeadEvent(
+        id=_id(), lead_id=lead_id,
+        event_type="status_changed",
+        from_status=old_status.value,
+        to_status=new_lead_status.value if new_lead_status else old_status.value,
+        actor=actor,
+    ))
     await db.commit()
     await db.refresh(lead)
     return lead

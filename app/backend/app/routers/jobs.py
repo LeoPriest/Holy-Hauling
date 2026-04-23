@@ -19,7 +19,7 @@ def _to_job_out(lead: Lead, role: str) -> JobOut:
     return JobOut(
         id=lead.id,
         customer_name=lead.customer_name,
-        service_type=lead.service_type.value if hasattr(lead.service_type, "value") else str(lead.service_type),
+        service_type=lead.service_type.value if lead.service_type is not None else None,
         job_location=lead.job_location,
         job_date_requested=date_str,
         scope_notes=lead.scope_notes,

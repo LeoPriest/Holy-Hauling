@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
+
+JobStatus = Literal["en_route", "started", "completed"]
 
 
 class JobOut(BaseModel):
@@ -20,4 +22,4 @@ class JobOut(BaseModel):
 
 
 class JobStatusUpdate(BaseModel):
-    status: str
+    status: JobStatus
