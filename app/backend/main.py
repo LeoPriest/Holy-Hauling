@@ -28,7 +28,7 @@ import app.models.lead_alert    # noqa: F401
 import app.models.user  # noqa: F401
 import app.models.push_subscription  # noqa: F401
 
-from app.routers import chat, ingest, leads, settings as settings_router
+from app.routers import auth as auth_router, chat, ingest, leads, settings as settings_router
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.path.join(_BASE_DIR, "uploads")
@@ -215,6 +215,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router.router)
 app.include_router(leads.router)
 app.include_router(ingest.router)
 app.include_router(chat.router)
