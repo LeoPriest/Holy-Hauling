@@ -186,3 +186,44 @@ export interface ChatMessage {
   content: string
   created_at: string
 }
+
+export interface ChatResponse {
+  messages: ChatMessage[]
+  quote_context_update?: string | null
+}
+
+export interface Settings {
+  t1_minutes: number
+  t2_minutes: number
+  quiet_hours_start: string
+  quiet_hours_end: string
+  quiet_hours_enabled: boolean
+  primary_sms: string
+  primary_email: string
+  backup_name: string
+  backup_sms: string
+  backup_email: string
+}
+
+export interface SettingsPatch {
+  t1_minutes?: number
+  t2_minutes?: number
+  quiet_hours_start?: string
+  quiet_hours_end?: string
+  quiet_hours_enabled?: boolean
+  primary_sms?: string
+  primary_email?: string
+  backup_name?: string
+  backup_sms?: string
+  backup_email?: string
+}
+
+export interface TestAlertRequest {
+  channel: 'sms' | 'email'
+  recipient: 'primary' | 'backup'
+}
+
+export interface TestAlertResult {
+  sent: boolean
+  reason?: string | null
+}

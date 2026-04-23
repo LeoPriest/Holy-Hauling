@@ -1,4 +1,4 @@
-import type { AiReview, ChatMessage, IngestResult, Lead, LeadCreate, LeadEvent, LeadStatus, LeadUpdate, OcrResult, Screenshot } from '../types/lead'
+import type { AiReview, ChatMessage, ChatResponse, IngestResult, Lead, LeadCreate, LeadEvent, LeadStatus, LeadUpdate, OcrResult, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
 
 const BASE = '/leads'
 
@@ -164,7 +164,7 @@ export async function sendChatMessage(
   leadId: string,
   message: string,
   aiReviewId?: string,
-): Promise<ChatMessage[]> {
+): Promise<ChatResponse> {
   const r = await fetch(`/leads/${leadId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -174,5 +174,31 @@ export async function sendChatMessage(
     const body = await r.json().catch(() => null)
     throw new Error(body?.detail ?? `Chat failed: ${r.status}`)
   }
+  return r.json()
+}
+
+export async function fetchSettings(): Promise<Settings> {
+  const r = await fetch('/settings')
+  if (!r.ok) throw new Error('Failed to fetch settings')
+  return r.json()
+}
+
+export async function patchSettings(data: SettingsPatch): Promise<Settings> {
+  const r = await fetch('/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!r.ok) throw new Error('Failed to save settings')
+  return r.json()
+}
+
+export async function testAlert(data: TestAlertRequest): Promise<TestAlertResult> {
+  const r = await fetch('/settings/test-alert', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!r.ok) throw new Error('Test alert request failed')
   return r.json()
 }
