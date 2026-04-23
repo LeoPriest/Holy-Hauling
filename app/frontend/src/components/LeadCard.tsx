@@ -7,9 +7,10 @@ interface Props {
   lead: Lead
   onClick: (id: string) => void
   staleness?: 't1' | 't2' | null
+  idleMinutes?: number
 }
 
-export function LeadCard({ lead, onClick, staleness }: Props) {
+export function LeadCard({ lead, onClick, staleness, idleMinutes }: Props) {
   const staleLeftBorder =
     staleness === 't2' ? 'border-l-4 border-l-red-500' :
     staleness === 't1' ? 'border-l-4 border-l-amber-400' :
@@ -31,7 +32,9 @@ export function LeadCard({ lead, onClick, staleness }: Props) {
               <span className="text-xs font-bold text-red-600 uppercase tracking-wide">Escalated</span>
             )}
             {staleness === 't1' && (
-              <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">⚠ Idle</span>
+              <span className="text-xs font-bold text-amber-600 uppercase tracking-wide">
+                ⚠ {idleMinutes != null ? `${idleMinutes}m` : ''} no activity
+              </span>
             )}
             {lead.urgency_flag && (
               <span className="text-xs font-bold text-orange-500 uppercase tracking-wide">Urgent</span>

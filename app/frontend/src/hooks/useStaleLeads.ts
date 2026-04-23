@@ -32,23 +32,27 @@ export function useStaleLeads(leads: Lead[], settings: Settings | undefined) {
     setIsSnoozed(true)
   }
 
-  const { t1Ids, t2Ids } = useMemo(() => {
-    if (!settings) return { t1Ids: new Set<string>(), t2Ids: new Set<string>() }
+  const { t1Ids, t2Ids, idleMinuteMap } = useMemo(() => {
+    if (!settings) return { t1Ids: new Set<string>(), t2Ids: new Set<string>(), idleMinuteMap: new Map<string, number>() }
     const t1Ms = settings.t1_minutes * 60_000
     const t2Ms = settings.t2_minutes * 60_000
     const t1Ids = new Set<string>()
     const t2Ids = new Set<string>()
+    const idleMinuteMap = new Map<string, number>()
     for (const lead of leads) {
       if (!ACTIVE_STATUSES.has(lead.status)) continue
       const idleMs = now - new Date(lead.updated_at).getTime()
+      const idleMin = Math.floor(idleMs / 60_000)
       if (idleMs >= t2Ms) {
         t2Ids.add(lead.id)
+        idleMinuteMap.set(lead.id, idleMin)
       } else if (idleMs >= t1Ms) {
         t1Ids.add(lead.id)
+        idleMinuteMap.set(lead.id, idleMin)
       }
     }
-    return { t1Ids, t2Ids }
+    return { t1Ids, t2Ids, idleMinuteMap }
   }, [leads, settings, now])
 
-  return { t1Ids, t2Ids, isSnoozed, snooze }
+  return { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze }
 }

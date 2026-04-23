@@ -24,7 +24,7 @@ export function LeadQueue() {
   })
 
   const { data: settings } = useSettings()
-  const { t1Ids, t2Ids, isSnoozed, snooze } = useStaleLeads(leads, settings)
+  const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
 
   const unackedCount = leads.filter(l => !l.acknowledged_at).length
 
@@ -133,6 +133,7 @@ export function LeadQueue() {
             lead={lead}
             onClick={id => navigate(`/leads/${id}`)}
             staleness={t2Ids.has(lead.id) ? 't2' : t1Ids.has(lead.id) ? 't1' : null}
+            idleMinutes={idleMinuteMap.get(lead.id)}
           />
         ))}
       </main>
