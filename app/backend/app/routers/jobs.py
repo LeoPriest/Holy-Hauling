@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 async def _get_crew(db: AsyncSession, lead_id: str) -> list[str]:
+    # N+1 per lead — acceptable for V1 with small booked-job counts
     result = await db.execute(
         select(User.username)
         .join(JobAssignment, User.id == JobAssignment.user_id)
@@ -87,7 +89,10 @@ async def add_assignment(
     )
     if result.scalar_one_or_none() is None:
         db.add(JobAssignment(lead_id=lead_id, user_id=data.user_id, assigned_by=current_user.username))
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
     return await _to_job_out(db, lead, current_user.role)
 
 
@@ -107,5 +112,7 @@ async def remove_assignment(
     await db.delete(assignment)
     await db.commit()
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
-    lead = result.scalar_one()
+    lead = result.scalar_one_or_none()
+    if lead is None:
+        raise HTTPException(status_code=404, detail="Job not found")
     return await _to_job_out(db, lead, current_user.role)

@@ -1,6 +1,7 @@
 import os
 os.environ.setdefault("JWT_SECRET", "test-secret-32-characters-long!!!")
 
+import uuid
 import pytest
 import pytest_asyncio
 from datetime import datetime, timezone
@@ -186,13 +187,10 @@ def test_job_assignment_create_schema():
     assert schema.user_id == "u-123"
 
 
-import uuid as _uuid
-
-
 async def _seed_user(factory, role="crew", username="test-crew"):
     async with factory() as s:
         user = User(
-            id=str(_uuid.uuid4()),
+            id=str(uuid.uuid4()),
             username=username,
             credential_hash="x",
             role=role,
@@ -287,4 +285,21 @@ async def test_remove_nonexistent_assignment_returns_404(supervisor_client):
     client, factory = supervisor_client
     lead = await _seed_lead(factory, status="booked")
     r = await client.delete(f"/jobs/{lead.id}/assignments/nonexistent-user")
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_add_assignment_user_not_found_returns_404(supervisor_client):
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="booked")
+    r = await client.post(f"/jobs/{lead.id}/assignments", json={"user_id": "nonexistent-user-id"})
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_add_assignment_to_non_booked_lead_returns_404(supervisor_client):
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="new")
+    crew_user = await _seed_user(factory)
+    r = await client.post(f"/jobs/{lead.id}/assignments", json={"user_id": crew_user.id})
     assert r.status_code == 404
