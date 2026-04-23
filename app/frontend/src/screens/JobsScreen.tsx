@@ -139,7 +139,7 @@ export function JobsScreen() {
                   >
                     <option value="" disabled>Add member…</option>
                     {users
-                      .filter(u => u.is_active && (u.role === 'crew' || u.role === 'supervisor'))
+                      .filter(u => u.is_active)
                       .filter(u => !job.crew.includes(u.username))
                       .map(u => (
                         <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
