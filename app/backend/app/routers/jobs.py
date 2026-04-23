@@ -64,7 +64,7 @@ async def patch_job_status(
     lead_id: str,
     data: JobStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("supervisor")),
+    current_user: User = Depends(require_role("supervisor", "admin")),
 ):
     lead = await lead_service.update_job_status(db, lead_id, data.status, actor=current_user.username)
     return await _to_job_out(db, lead, current_user.role)
@@ -75,7 +75,7 @@ async def add_assignment(
     lead_id: str,
     data: JobAssignmentCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("supervisor")),
+    current_user: User = Depends(require_role("supervisor", "admin", "facilitator")),
 ):
     result = await db.execute(select(Lead).where(Lead.id == lead_id, Lead.status == LeadStatus.booked))
     lead = result.scalar_one_or_none()
@@ -101,7 +101,7 @@ async def remove_assignment(
     lead_id: str,
     user_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("supervisor")),
+    current_user: User = Depends(require_role("supervisor", "admin", "facilitator")),
 ):
     result = await db.execute(
         select(JobAssignment).where(JobAssignment.lead_id == lead_id, JobAssignment.user_id == user_id)

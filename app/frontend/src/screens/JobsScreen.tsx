@@ -77,8 +77,8 @@ export function JobsScreen() {
               </div>
             </div>
 
-            {/* Crew badges — read-only view for non-supervisors; supervisors see interactive assignment UI below */}
-            {job.crew.length > 0 && user?.role !== 'supervisor' && (
+            {/* Read-only crew badges — crew role only */}
+            {job.crew.length > 0 && user?.role === 'crew' && (
               <div className="flex gap-1 flex-wrap mb-3">
                 {job.crew.map(name => (
                   <span
@@ -91,70 +91,70 @@ export function JobsScreen() {
               </div>
             )}
 
-            {user?.role === 'supervisor' && (
-              <div className="space-y-3">
-                {/* Status buttons */}
-                <div className="flex gap-2 flex-wrap">
-                  {STATUS_BUTTONS.map(btn => (
-                    <button
-                      key={btn.value}
-                      onClick={() => patchStatus.mutate({ id: job.id, status: btn.value })}
-                      disabled={patchStatus.isPending}
-                      className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                        btn.value === 'completed'
-                          ? 'bg-green-600 text-white hover:bg-green-700'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {btn.label}
-                    </button>
-                  ))}
-                </div>
+            {/* Status buttons — supervisor and admin */}
+            {(user?.role === 'supervisor' || user?.role === 'admin') && (
+              <div className="flex gap-2 flex-wrap mb-3">
+                {STATUS_BUTTONS.map(btn => (
+                  <button
+                    key={btn.value}
+                    onClick={() => patchStatus.mutate({ id: job.id, status: btn.value })}
+                    disabled={patchStatus.isPending}
+                    className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                      btn.value === 'completed'
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-                {/* Crew assignment */}
-                <div className="border-t dark:border-gray-700 pt-3">
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Assign crew</p>
-                  <div className="flex gap-2 flex-wrap items-center">
-                    <select
-                      className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      defaultValue=""
-                      onChange={e => {
-                        if (e.target.value) {
-                          addAssignment.mutate({ jobId: job.id, userId: e.target.value })
-                          e.target.value = ''
-                        }
-                      }}
-                    >
-                      <option value="" disabled>Add member…</option>
-                      {users
-                        .filter(u => u.is_active && (u.role === 'crew' || u.role === 'supervisor'))
-                        .filter(u => !job.crew.includes(u.username))
-                        .map(u => (
-                          <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
-                        ))
+            {/* Crew assignment — supervisor, admin, facilitator */}
+            {(user?.role === 'supervisor' || user?.role === 'admin' || user?.role === 'facilitator') && (
+              <div className="border-t dark:border-gray-700 pt-3">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Assign crew</p>
+                <div className="flex gap-2 flex-wrap items-center">
+                  <select
+                    className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    defaultValue=""
+                    onChange={e => {
+                      if (e.target.value) {
+                        addAssignment.mutate({ jobId: job.id, userId: e.target.value })
+                        e.target.value = ''
                       }
-                    </select>
+                    }}
+                  >
+                    <option value="" disabled>Add member…</option>
+                    {users
+                      .filter(u => u.is_active && (u.role === 'crew' || u.role === 'supervisor'))
+                      .filter(u => !job.crew.includes(u.username))
+                      .map(u => (
+                        <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
+                      ))
+                    }
+                  </select>
 
-                    {job.crew.map(username => {
-                      const u = users.find(u => u.username === username)
-                      return (
-                        <span
-                          key={username}
-                          className="inline-flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-0.5 rounded-full"
+                  {job.crew.map(username => {
+                    const u = users.find(u => u.username === username)
+                    return (
+                      <span
+                        key={username}
+                        className="inline-flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-0.5 rounded-full"
+                      >
+                        {username}
+                        <button
+                          onClick={() => u && removeAssignment.mutate({ jobId: job.id, userId: u.id })}
+                          disabled={!u}
+                          className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 font-bold leading-none disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={u ? `Remove ${username}` : `${username} (user not found)`}
                         >
-                          {username}
-                          <button
-                            onClick={() => u && removeAssignment.mutate({ jobId: job.id, userId: u.id })}
-                            disabled={!u}
-                            className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 font-bold leading-none disabled:opacity-40 disabled:cursor-not-allowed"
-                            title={u ? `Remove ${username}` : `${username} (user not found)`}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      )
-                    })}
-                  </div>
+                          ×
+                        </button>
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
             )}
