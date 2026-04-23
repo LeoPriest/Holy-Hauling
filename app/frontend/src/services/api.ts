@@ -2,6 +2,14 @@ import type { AiReview, ChatMessage, ChatResponse, IngestResult, Lead, LeadCreat
 
 const BASE = '/leads'
 
+export function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = localStorage.getItem('hh_token')
+  const existing = (init.headers as Record<string, string>) ?? {}
+  const headers: Record<string, string> = { ...existing }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return fetch(url, { ...init, headers })
+}
+
 export async function fetchLeads(params?: {
   status?: LeadStatus
   source_type?: string
@@ -11,19 +19,19 @@ export async function fetchLeads(params?: {
   if (params?.status) q.set('status', params.status)
   if (params?.source_type) q.set('source_type', params.source_type)
   if (params?.assigned_to) q.set('assigned_to', params.assigned_to)
-  const r = await fetch(`${BASE}?${q}`)
+  const r = await apiFetch(`${BASE}?${q}`)
   if (!r.ok) throw new Error('Failed to fetch leads')
   return r.json()
 }
 
 export async function fetchLead(id: string): Promise<Lead> {
-  const r = await fetch(`${BASE}/${id}`)
+  const r = await apiFetch(`${BASE}/${id}`)
   if (!r.ok) throw new Error('Lead not found')
   return r.json()
 }
 
 export async function createLead(data: LeadCreate): Promise<Lead> {
-  const r = await fetch(BASE, {
+  const r = await apiFetch(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -34,7 +42,7 @@ export async function createLead(data: LeadCreate): Promise<Lead> {
 
 export async function patchLead(id: string, data: LeadUpdate, actor?: string): Promise<Lead> {
   const q = actor ? `?actor=${encodeURIComponent(actor)}` : ''
-  const r = await fetch(`${BASE}/${id}${q}`, {
+  const r = await apiFetch(`${BASE}/${id}${q}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -49,7 +57,7 @@ export async function updateLeadStatus(
   actor?: string,
   note?: string,
 ): Promise<Lead> {
-  const r = await fetch(`${BASE}/${id}/status`, {
+  const r = await apiFetch(`${BASE}/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, actor, note }),
@@ -60,13 +68,13 @@ export async function updateLeadStatus(
 
 export async function acknowledgeLead(id: string, actor?: string): Promise<Lead> {
   const q = actor ? `?actor=${encodeURIComponent(actor)}` : ''
-  const r = await fetch(`${BASE}/${id}/acknowledge${q}`, { method: 'POST' })
+  const r = await apiFetch(`${BASE}/${id}/acknowledge${q}`, { method: 'POST' })
   if (!r.ok && r.status !== 409) throw new Error('Failed to acknowledge')
   return r.json()
 }
 
 export async function addNote(leadId: string, body: string, actor?: string): Promise<LeadEvent> {
-  const r = await fetch(`${BASE}/${leadId}/notes`, {
+  const r = await apiFetch(`${BASE}/${leadId}/notes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ body, actor }),
@@ -78,19 +86,19 @@ export async function addNote(leadId: string, body: string, actor?: string): Pro
 export async function uploadScreenshot(leadId: string, file: File): Promise<Screenshot> {
   const form = new FormData()
   form.append('file', file)
-  const r = await fetch(`${BASE}/${leadId}/screenshots`, { method: 'POST', body: form })
+  const r = await apiFetch(`${BASE}/${leadId}/screenshots`, { method: 'POST', body: form })
   if (!r.ok) throw new Error('Failed to upload screenshot')
   return r.json()
 }
 
 export async function fetchLeadEvents(id: string): Promise<LeadEvent[]> {
-  const r = await fetch(`${BASE}/${id}/events`)
+  const r = await apiFetch(`${BASE}/${id}/events`)
   if (!r.ok) throw new Error('Failed to fetch events')
   return r.json()
 }
 
 export async function triggerExtraction(leadId: string, screenshotId: string): Promise<OcrResult> {
-  const r = await fetch(`${BASE}/${leadId}/screenshots/${screenshotId}/extract`, { method: 'POST' })
+  const r = await apiFetch(`${BASE}/${leadId}/screenshots/${screenshotId}/extract`, { method: 'POST' })
   if (!r.ok) {
     const body = await r.json().catch(() => null)
     throw new Error(body?.detail ?? `Extraction failed: ${r.status}`)
@@ -99,7 +107,7 @@ export async function triggerExtraction(leadId: string, screenshotId: string): P
 }
 
 export async function getExtractionResult(leadId: string, screenshotId: string): Promise<OcrResult> {
-  const r = await fetch(`${BASE}/${leadId}/screenshots/${screenshotId}/extract`)
+  const r = await apiFetch(`${BASE}/${leadId}/screenshots/${screenshotId}/extract`)
   if (!r.ok) throw new Error('No extraction result')
   return r.json()
 }
@@ -111,14 +119,14 @@ export async function ingestScreenshot(
   const form = new FormData()
   form.append('file', file)
   form.append('source_type', sourceType)
-  const r = await fetch('/ingest/screenshot', { method: 'POST', body: form })
+  const r = await apiFetch('/ingest/screenshot', { method: 'POST', body: form })
   if (!r.ok) throw new Error(`Ingest failed: ${r.status}`)
   return r.json()
 }
 
 export async function triggerAiReview(leadId: string, actor?: string): Promise<AiReview> {
   const q = actor ? `?actor=${encodeURIComponent(actor)}` : ''
-  const r = await fetch(`${BASE}/${leadId}/ai-review${q}`, { method: 'POST' })
+  const r = await apiFetch(`${BASE}/${leadId}/ai-review${q}`, { method: 'POST' })
   if (!r.ok) {
     const body = await r.json().catch(() => null)
     throw new Error(body?.detail ?? `AI review failed: ${r.status}`)
@@ -127,13 +135,13 @@ export async function triggerAiReview(leadId: string, actor?: string): Promise<A
 }
 
 export async function getLatestAiReview(leadId: string): Promise<AiReview> {
-  const r = await fetch(`${BASE}/${leadId}/ai-review`)
+  const r = await apiFetch(`${BASE}/${leadId}/ai-review`)
   if (!r.ok) throw new Error('No AI review found')
   return r.json()
 }
 
 export async function deleteLead(id: string): Promise<void> {
-  const r = await fetch(`${BASE}/${id}`, { method: 'DELETE' })
+  const r = await apiFetch(`${BASE}/${id}`, { method: 'DELETE' })
   if (!r.ok) {
     const body = await r.json().catch(() => null)
     throw new Error(body?.detail ?? `Delete failed: ${r.status}`)
@@ -145,7 +153,7 @@ export async function applyExtractionFields(
   screenshotId: string,
   fields: Record<string, string>,
 ): Promise<Lead> {
-  const r = await fetch(`${BASE}/${leadId}/screenshots/${screenshotId}/apply`, {
+  const r = await apiFetch(`${BASE}/${leadId}/screenshots/${screenshotId}/apply`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fields),
@@ -155,7 +163,7 @@ export async function applyExtractionFields(
 }
 
 export async function fetchChatMessages(leadId: string): Promise<ChatMessage[]> {
-  const r = await fetch(`/leads/${leadId}/chat`)
+  const r = await apiFetch(`/leads/${leadId}/chat`)
   if (!r.ok) throw new Error('Failed to fetch chat')
   return r.json()
 }
@@ -165,7 +173,7 @@ export async function sendChatMessage(
   message: string,
   aiReviewId?: string,
 ): Promise<ChatResponse> {
-  const r = await fetch(`/leads/${leadId}/chat`, {
+  const r = await apiFetch(`/leads/${leadId}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, ai_review_id: aiReviewId ?? null }),
@@ -178,13 +186,13 @@ export async function sendChatMessage(
 }
 
 export async function fetchSettings(): Promise<Settings> {
-  const r = await fetch('/settings')
+  const r = await apiFetch('/settings')
   if (!r.ok) throw new Error('Failed to fetch settings')
   return r.json()
 }
 
 export async function patchSettings(data: SettingsPatch): Promise<Settings> {
-  const r = await fetch('/settings', {
+  const r = await apiFetch('/settings', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -194,7 +202,7 @@ export async function patchSettings(data: SettingsPatch): Promise<Settings> {
 }
 
 export async function testAlert(data: TestAlertRequest): Promise<TestAlertResult> {
-  const r = await fetch('/settings/test-alert', {
+  const r = await apiFetch('/settings/test-alert', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

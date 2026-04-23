@@ -10,6 +10,11 @@ export default defineConfig({
       '/settings': 'http://localhost:8000',
       '/health': 'http://localhost:8000',
       '/uploads': 'http://localhost:8000',
+      '/auth': 'http://localhost:8000',
+      '/admin': 'http://localhost:8000',
+      '/users': 'http://localhost:8000',
+      '/push': 'http://localhost:8000',
+      '/jobs': 'http://localhost:8000',
     },
   },
 })
