@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -20,20 +20,14 @@ async def ingest_screenshot(
     file: UploadFile = File(...),
     source_type: str = Form("thumbtack_screenshot"),
     actor: Optional[str] = Form(None),
-    _: User = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Primary intake path. Upload a screenshot to create a lead stub, run OCR,
-    and auto-apply high-confidence extracted fields — all in one request.
-    Returns the lead and extraction result for facilitator review.
-    """
     try:
         src = LeadSourceType(source_type)
     except ValueError:
-        from fastapi import HTTPException
         raise HTTPException(400, f"Invalid source_type: {source_type}")
-    return await ingest_service.ingest_screenshot(db, file, src, actor=actor)
+    return await ingest_service.ingest_screenshot(db, file, src, actor=actor or current_user.username)
 
 
 @router.post("/webhook/thumbtack", response_model=WebhookIngestResult)

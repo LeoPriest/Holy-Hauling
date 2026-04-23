@@ -91,10 +91,10 @@ async def update_status(
 async def acknowledge_lead(
     lead_id: str,
     actor: Optional[str] = Query(None),
-    _: User = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    return await lead_service.acknowledge_lead(db, lead_id, actor=actor)
+    return await lead_service.acknowledge_lead(db, lead_id, actor=actor or current_user.username)
 
 
 @router.post("/{lead_id}/notes", response_model=LeadEventOut, status_code=201)
@@ -174,10 +174,10 @@ async def apply_extraction_fields(
 async def trigger_ai_review(
     lead_id: str,
     actor: Optional[str] = Query(None),
-    _: User = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    return await ai_review_service.trigger_review(db, lead_id, actor=actor)
+    return await ai_review_service.trigger_review(db, lead_id, actor=actor or current_user.username)
 
 
 @router.get("/{lead_id}/ai-review", response_model=AiReviewOut)

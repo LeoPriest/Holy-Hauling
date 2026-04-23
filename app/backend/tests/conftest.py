@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 TEST_DB = "sqlite+aiosqlite:///:memory:"
 
 
-def _mock_admin():
+async def _mock_admin():
     from datetime import datetime, timezone
     from app.models.user import User
     return User(
