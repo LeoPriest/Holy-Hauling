@@ -84,7 +84,7 @@ export function LeadCommandCenter() {
             disabled={updateStatus.isPending}
             className="text-xs bg-white border border-gray-300 text-gray-600 rounded-lg px-3 py-2 hover:bg-red-50 hover:border-red-300 hover:text-red-600 disabled:opacity-50 shrink-0 font-medium transition-colors"
           >
-            Mark Lost
+            Mark Released
           </button>
         )}
         <button

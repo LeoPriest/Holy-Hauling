@@ -23,8 +23,8 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   ready_for_booking: 'Ready to Book',
   escalated: 'Escalated',
   booked: 'Booked',
-  released: 'Won ✓',
-  lost: 'Lost',
+  released: 'Completed',
+  lost: 'Released',
 }
 
 const EVENT_LABELS: Record<string, string> = {

@@ -20,8 +20,8 @@ const labels: Record<LeadStatus, string> = {
   ready_for_booking: 'Ready to Book',
   escalated: 'Escalated',
   booked: 'Booked',
-  released: 'Won ✓',
-  lost: 'Lost',
+  released: 'Completed',
+  lost: 'Released',
 }
 
 export function StatusBadge({ status }: { status: LeadStatus }) {
