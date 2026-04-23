@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext'
 
 export function LeadQueue() {
   const navigate = useNavigate()
+  const [view, setView] = useState<'active' | 'released'>('active')
   const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
   const [sourceFilter, setSourceFilter] = useState<LeadSourceType | ''>('')
   const [assignedFilter, setAssignedFilter] = useState('')
@@ -25,6 +26,10 @@ export function LeadQueue() {
     assigned_to: assignedFilter.trim() || undefined,
   })
 
+  const displayLeads = view === 'active'
+    ? leads.filter(l => l.status !== 'released')
+    : leads.filter(l => l.status === 'released')
+
   const { data: settings } = useSettings()
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
@@ -35,7 +40,7 @@ export function LeadQueue() {
     localStorage.setItem('hh_theme', next)
   }
 
-  const unackedCount = leads.filter(l => !l.acknowledged_at).length
+  const unackedCount = leads.filter(l => !l.acknowledged_at && l.status !== 'released').length
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -109,31 +114,58 @@ export function LeadQueue() {
         </div>
       </header>
 
-      {/* Stale lead banner */}
-      <StaleLeadBanner
-        t1Count={t1Ids.size}
-        t2Count={t2Ids.size}
-        isSnoozed={isSnoozed}
-        onSnooze={snooze}
-      />
+      {/* View tabs */}
+      <div className="flex border-b bg-white dark:bg-gray-800 dark:border-gray-700 px-4">
+        <button
+          onClick={() => { setView('active'); setStatusFilter('') }}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            view === 'active'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          Active
+        </button>
+        <button
+          onClick={() => { setView('released'); setStatusFilter('') }}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            view === 'released'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          Released
+        </button>
+      </div>
+
+      {/* Stale lead banner — active tab only */}
+      {view === 'active' && (
+        <StaleLeadBanner
+          t1Count={t1Ids.size}
+          t2Count={t2Ids.size}
+          isSnoozed={isSnoozed}
+          onSnooze={snooze}
+        />
+      )}
 
       {/* Filters */}
-      <div className="px-4 py-3 flex gap-2 flex-wrap border-b bg-white">
-        <select
-          className="border rounded-lg px-3 py-1.5 text-sm bg-white"
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as LeadStatus | '')}
-        >
-          <option value="">All Statuses</option>
-          <option value="new">New</option>
-          <option value="in_review">In Review</option>
-          <option value="waiting_on_customer">Waiting</option>
-          <option value="ready_for_quote">Ready to Quote</option>
-          <option value="ready_for_booking">Ready to Book</option>
-          <option value="escalated">Escalated</option>
-          <option value="booked">Booked</option>
-          <option value="released">Released</option>
-        </select>
+      <div className="px-4 py-3 flex gap-2 flex-wrap border-b bg-white dark:bg-gray-800 dark:border-gray-700">
+        {view === 'active' && (
+          <select
+            className="border rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value as LeadStatus | '')}
+          >
+            <option value="">All Statuses</option>
+            <option value="new">New</option>
+            <option value="in_review">In Review</option>
+            <option value="waiting_on_customer">Waiting</option>
+            <option value="ready_for_quote">Ready to Quote</option>
+            <option value="ready_for_booking">Ready to Book</option>
+            <option value="escalated">Escalated</option>
+            <option value="booked">Booked</option>
+          </select>
+        )}
 
         <select
           className="border rounded-lg px-3 py-1.5 text-sm bg-white"
@@ -171,7 +203,7 @@ export function LeadQueue() {
 
       {/* Count */}
       <div className="px-4 pt-3 pb-1">
-        <p className="text-xs text-gray-400">{leads.length} lead{leads.length !== 1 ? 's' : ''}</p>
+        <p className="text-xs text-gray-400">{displayLeads.length} lead{displayLeads.length !== 1 ? 's' : ''}</p>
       </div>
 
       {/* List */}
@@ -182,10 +214,12 @@ export function LeadQueue() {
         {!isLoading && error && (
           <p className="text-sm text-red-500 text-center py-10">Could not load leads. Is the backend running?</p>
         )}
-        {!isLoading && !error && leads.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-10">No leads. Tap 📷 New from Screenshot to add one.</p>
+        {!isLoading && !error && displayLeads.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-10">
+            {view === 'active' ? 'No active leads. Tap 📷 New from Screenshot to add one.' : 'No released jobs yet.'}
+          </p>
         )}
-        {leads.map(lead => (
+        {displayLeads.map(lead => (
           <LeadCard
             key={lead.id}
             lead={lead}
