@@ -1,5 +1,6 @@
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -28,7 +29,7 @@ import app.models.lead_alert    # noqa: F401
 import app.models.user  # noqa: F401
 import app.models.push_subscription  # noqa: F401
 
-from app.routers import auth as auth_router, chat, ingest, leads, settings as settings_router
+from app.routers import admin_users, auth as auth_router, chat, ingest, leads, settings as settings_router, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.path.join(_BASE_DIR, "uploads")
@@ -184,6 +185,26 @@ def _validate_grounding_file() -> None:
         print("[startup] AI review will return 503 until this is fixed.")
 
 
+async def _seed_default_admin(conn) -> None:
+    import uuid as _uuid
+    from app.services.auth_service import hash_pin as _hash_pin
+    result = await conn.execute(text("SELECT COUNT(*) FROM users"))
+    count = result.scalar()
+    if count == 0:
+        now = datetime.now(timezone.utc).isoformat()
+        await conn.execute(text(
+            "INSERT INTO users (id, username, credential_hash, role, is_active, created_at) "
+            "VALUES (:id, :username, :hash, :role, 1, :now)"
+        ), {
+            "id": str(_uuid.uuid4()),
+            "username": "admin",
+            "hash": _hash_pin("0000"),
+            "role": "admin",
+            "now": now,
+        })
+        print("[startup] default admin seeded (username: admin, PIN: 0000 — change immediately)")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _validate_grounding_file()
@@ -195,6 +216,7 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_quote_context(conn)
         await _migrate_screenshots_add_screenshot_type(conn)
         await conn.run_sync(Base.metadata.create_all)
+        await _seed_default_admin(conn)
 
     from app.services.alert_service import check_stale_leads
     _scheduler.add_job(check_stale_leads, "interval", minutes=5, id="check_stale_leads", replace_existing=True)
@@ -216,6 +238,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router.router)
+app.include_router(admin_users.router)
+app.include_router(users.router)
 app.include_router(leads.router)
 app.include_router(ingest.router)
 app.include_router(chat.router)
