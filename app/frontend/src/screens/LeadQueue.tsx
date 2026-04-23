@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LeadCard } from '../components/LeadCard'
 import { IngestProgressFlow } from '../components/IngestProgressFlow'
+import { StaleLeadBanner } from '../components/StaleLeadBanner'
 import { useLeads } from '../hooks/useLeads'
+import { useSettings } from '../hooks/useSettings'
+import { useStaleLeads } from '../hooks/useStaleLeads'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 
@@ -20,6 +23,9 @@ export function LeadQueue() {
     assigned_to: assignedFilter.trim() || undefined,
   })
 
+  const { data: settings } = useSettings()
+  const { t1Ids, t2Ids, isSnoozed, snooze } = useStaleLeads(leads, settings)
+
   const unackedCount = leads.filter(l => !l.acknowledged_at).length
 
   return (
@@ -35,6 +41,13 @@ export function LeadQueue() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => navigate('/settings')}
+            className="text-gray-400 hover:text-gray-700 text-xl px-1"
+            title="Settings"
+          >
+            ⚙
+          </button>
+          <button
             onClick={() => setShowManual(true)}
             className="text-sm text-gray-500 hover:text-gray-700 font-medium px-2 py-1"
           >
@@ -48,6 +61,14 @@ export function LeadQueue() {
           </button>
         </div>
       </header>
+
+      {/* Stale lead banner */}
+      <StaleLeadBanner
+        t1Count={t1Ids.size}
+        t2Count={t2Ids.size}
+        isSnoozed={isSnoozed}
+        onSnooze={snooze}
+      />
 
       {/* Filters */}
       <div className="px-4 py-3 flex gap-2 flex-wrap border-b bg-white">
@@ -107,7 +128,12 @@ export function LeadQueue() {
           <p className="text-sm text-gray-400 text-center py-10">No leads. Tap 📷 New from Screenshot to add one.</p>
         )}
         {leads.map(lead => (
-          <LeadCard key={lead.id} lead={lead} onClick={id => navigate(`/leads/${id}`)} />
+          <LeadCard
+            key={lead.id}
+            lead={lead}
+            onClick={id => navigate(`/leads/${id}`)}
+            staleness={t2Ids.has(lead.id) ? 't2' : t1Ids.has(lead.id) ? 't1' : null}
+          />
         ))}
       </main>
 
