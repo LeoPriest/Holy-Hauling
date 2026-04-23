@@ -4,12 +4,14 @@ import { useChatMessages, useSendChatMessage } from '../hooks/useLeads'
 interface Props {
   leadId: string
   aiReviewId?: string
+  onContextUpdate?: (text: string) => void
 }
 
-export function AiChatThread({ leadId, aiReviewId }: Props) {
+export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
   const { data: messages = [], isLoading } = useChatMessages(leadId)
   const sendMessage = useSendChatMessage()
   const [input, setInput] = useState('')
+  const [contextFlash, setContextFlash] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -22,7 +24,16 @@ export function AiChatThread({ leadId, aiReviewId }: Props) {
     if (!text) return
     sendMessage.mutate(
       { leadId, message: text, aiReviewId },
-      { onSuccess: () => setInput('') },
+      {
+        onSuccess: (data) => {
+          setInput('')
+          if (data.quote_context_update && onContextUpdate) {
+            onContextUpdate(data.quote_context_update)
+            setContextFlash(true)
+            setTimeout(() => setContextFlash(false), 3000)
+          }
+        },
+      },
     )
   }
 
@@ -62,6 +73,14 @@ export function AiChatThread({ leadId, aiReviewId }: Props) {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Context update flash */}
+      {contextFlash && (
+        <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 mt-2 flex items-center gap-1.5">
+          <span>↑</span>
+          <span>Context updated above — re-run AI Review to apply.</span>
+        </div>
+      )}
 
       {/* Error */}
       {sendMessage.isError && (

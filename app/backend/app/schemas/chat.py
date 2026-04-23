@@ -20,3 +20,8 @@ class ChatMessageOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ChatResponse(BaseModel):
+    messages: list[ChatMessageOut]
+    quote_context_update: Optional[str] = None

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePatchLead } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
 import { AiChatThread } from '../../components/AiChatThread'
@@ -24,9 +24,27 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
   const [context, setContext] = useState(lead.quote_context ?? '')
   const [saved, setSaved] = useState(false)
 
+  // Sync if lead.quote_context changes from outside (e.g. chat auto-update)
+  useEffect(() => {
+    setContext(lead.quote_context ?? '')
+  }, [lead.quote_context])
+
   const handleSaveContext = () => {
     patch.mutate(
       { id: leadId, data: { quote_context: context || null } },
+      {
+        onSuccess: () => {
+          setSaved(true)
+          setTimeout(() => setSaved(false), 2000)
+        },
+      },
+    )
+  }
+
+  const handleContextUpdate = (text: string) => {
+    setContext(text)
+    patch.mutate(
+      { id: leadId, data: { quote_context: text } },
       {
         onSuccess: () => {
           setSaved(true)
@@ -101,7 +119,11 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
         <button
           onClick={handleSaveContext}
           disabled={patch.isPending}
-          className="mt-2 text-xs bg-gray-800 text-white rounded-lg px-4 py-1.5 hover:bg-gray-700 disabled:opacity-50"
+          className={`mt-2 text-xs rounded-lg px-4 py-1.5 disabled:opacity-50 transition-colors ${
+            saved
+              ? 'bg-emerald-600 text-white'
+              : 'bg-gray-800 text-white hover:bg-gray-700'
+          }`}
         >
           {patch.isPending ? 'Saving…' : saved ? '✓ Saved' : 'Save Context'}
         </button>
@@ -141,7 +163,11 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
           Challenge / Refine Pricing
         </h3>
-        <AiChatThread leadId={leadId} aiReviewId={aiReview?.id} />
+        <AiChatThread
+          leadId={leadId}
+          aiReviewId={aiReview?.id}
+          onContextUpdate={handleContextUpdate}
+        />
       </section>
 
     </div>

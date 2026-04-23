@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
+
+_CONTEXT_UPDATE_RE = re.compile(r'\[CONTEXT_UPDATE\](.*?)\[/CONTEXT_UPDATE\]', re.DOTALL)
 
 import anthropic
 from fastapi import HTTPException
@@ -70,6 +73,14 @@ def _build_system_prompt(lead: Lead, latest_review: Optional[AiReview]) -> str:
         "The facilitator is reviewing a live lead and wants to challenge or refine the AI pricing assessment. "
         "Respond in 2–4 sentences. Be direct and specific — give dollar ranges when you can. "
         "This is an internal tool; never write as if speaking to the customer.\n\n"
+        "If this conversation reveals new operational details that were not already in the lead data "
+        "(e.g. stairs count, elevator type, heavy or specialty items, building access issues, "
+        "wrapping needs, confirmed dates), append a context block at the very end of your response:\n"
+        "[CONTEXT_UPDATE]\n"
+        "<1-2 sentences of new scope context for the AI review re-run>\n"
+        "[/CONTEXT_UPDATE]\n"
+        "Only include this block when there is genuinely new, specific scope information. "
+        "Omit it when answering general pricing questions or when no new scope details were shared.\n\n"
         f"HOLY HAULING SOPs:\n{grounding_content}\n\n"
         f"CURRENT LEAD:\n{lead_summary}"
         f"{pricing_context}"
@@ -94,7 +105,7 @@ async def send_message(
     lead_id: str,
     message: str,
     ai_review_id: Optional[str] = None,
-) -> list[LeadChatMessage]:
+) -> tuple[list[LeadChatMessage], Optional[str]]:
     lead_result = await db.execute(select(Lead).where(Lead.id == lead_id))
     lead = lead_result.scalar_one_or_none()
     if not lead:
@@ -139,23 +150,30 @@ async def send_message(
     try:
         response = await client.messages.create(
             model=model,
-            max_tokens=512,
+            max_tokens=600,
             system=system,
             messages=chat_messages,
         )
-        reply = response.content[0].text
+        raw_reply = response.content[0].text
     except Exception as exc:
         raise HTTPException(502, f"Chat AI call failed: {exc}") from exc
+
+    # Extract context update block before saving — keep stored content clean
+    match = _CONTEXT_UPDATE_RE.search(raw_reply)
+    quote_context_update: Optional[str] = None
+    if match:
+        quote_context_update = match.group(1).strip()
+        raw_reply = _CONTEXT_UPDATE_RE.sub('', raw_reply).strip()
 
     assistant_msg = LeadChatMessage(
         id=str(uuid.uuid4()),
         lead_id=lead_id,
         ai_review_id=ai_review_id,
         role="assistant",
-        content=reply,
+        content=raw_reply,
         created_at=datetime.now(timezone.utc),
     )
     db.add(assistant_msg)
     await db.commit()
 
-    return [user_msg, assistant_msg]
+    return [user_msg, assistant_msg], quote_context_update
