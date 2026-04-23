@@ -98,7 +98,10 @@ export function BriefPanel({ lead, aiReview }: Props) {
           <select
             className="w-full text-sm text-gray-900 dark:text-white dark:bg-gray-800 focus:outline-none"
             value={lead.assigned_to ?? ''}
-            onChange={e => patch.mutate({ id: lead.id, data: { assigned_to: e.target.value || null } })}
+            onChange={e => patch.mutate(
+              { id: lead.id, data: { assigned_to: e.target.value || null } },
+              { onError: (err) => console.error('Failed to update assigned_to:', err) }
+            )}
           >
             <option value="">— Unassigned —</option>
             {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {

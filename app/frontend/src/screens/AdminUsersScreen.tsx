@@ -74,6 +74,7 @@ export function AdminUsersScreen() {
   const [editRole, setEditRole] = useState<Role>('crew')
   const [editPin, setEditPin] = useState('')
   const [editActive, setEditActive] = useState(true)
+  const [editError, setEditError] = useState('')
 
   async function handleCreate() {
     setCreateError('')
@@ -90,10 +91,15 @@ export function AdminUsersScreen() {
 
   async function handlePatch() {
     if (!editUser) return
-    const body: Record<string, unknown> = { role: editRole, is_active: editActive }
-    if (editPin) body.pin = editPin
-    await patchMutation.mutateAsync({ id: editUser.id, body })
-    setEditUser(null)
+    setEditError('')
+    try {
+      const body: Record<string, unknown> = { role: editRole, is_active: editActive }
+      if (editPin) body.pin = editPin
+      await patchMutation.mutateAsync({ id: editUser.id, body })
+      setEditUser(null)
+    } catch (e: unknown) {
+      setEditError(e instanceof Error ? e.message : 'Error')
+    }
   }
 
   if (isLoading) return <div className="p-8 text-gray-400 dark:text-gray-500">Loading…</div>
@@ -223,6 +229,7 @@ export function AdminUsersScreen() {
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">Active</span>
             </label>
+            {editError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{editError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={handlePatch}
@@ -232,7 +239,7 @@ export function AdminUsersScreen() {
                 Save
               </button>
               <button
-                onClick={() => setEditUser(null)}
+                onClick={() => { setEditUser(null); setEditError('') }}
                 className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-semibold"
               >
                 Cancel
