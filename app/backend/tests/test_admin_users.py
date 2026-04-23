@@ -67,6 +67,18 @@ async def facilitator_client():
     await engine.dispose()
 
 
+@pytest_asyncio.fixture
+async def crew_client():
+    from main import app
+    engine, Factory = await _make_fixture("crew")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac, Factory
+    app.dependency_overrides.clear()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
 async def _seed_user(factory, username="alice", role="crew", is_active=True):
     async with factory() as s:
         user = User(
@@ -147,13 +159,15 @@ async def test_get_users_active_only(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_get_users_as_crew_forbidden(facilitator_client):
-    from main import app
-    crew_user = User(
-        id="crew-id", username="crew", credential_hash="x",
-        role="crew", is_active=True, created_at=datetime.now(timezone.utc),
-    )
-    app.dependency_overrides[require_auth] = lambda: crew_user
-    client, _ = facilitator_client
+async def test_get_users_as_crew_forbidden(crew_client):
+    client, _ = crew_client
     r = await client.get("/users")
     assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_patch_self_forbidden(admin_client):
+    client, _ = admin_client
+    # mock admin has id="mock-id"
+    r = await client.patch("/admin/users/mock-id", json={"role": "crew"})
+    assert r.status_code == 400

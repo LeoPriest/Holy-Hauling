@@ -51,6 +51,8 @@ async def patch_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot modify your own account")
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
