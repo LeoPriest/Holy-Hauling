@@ -187,9 +187,7 @@ async def update_lead(
     return lead
 
 
-_JOB_STATUS_TO_LEAD_STATUS = {
-    "completed": LeadStatus.released,
-}
+_JOB_PHASE_ORDER = {"en_route": 1, "started": 2, "completed": 3}
 
 
 async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, actor: str | None = None) -> Lead:
@@ -197,16 +195,33 @@ async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, act
     lead = await get_lead(db, lead_id)
     if lead.status != LeadStatus.booked:
         raise HTTPException(status_code=409, detail="Job is not in booked status")
+
+    # Derive current phase from timestamps to prevent regression
+    if lead.started_at and _JOB_PHASE_ORDER.get(job_status, 0) < _JOB_PHASE_ORDER["started"]:
+        raise HTTPException(status_code=409, detail="Cannot go back to a previous job phase")
+    if lead.en_route_at and job_status == "en_route" and not lead.started_at:
+        # Re-stamping en_route is allowed (supervisor correction)
+        pass
+
     old_status = lead.status
-    new_lead_status = _JOB_STATUS_TO_LEAD_STATUS.get(job_status)
-    if new_lead_status:
-        lead.status = new_lead_status
-        lead.updated_at = _now()
+    now = _now()
+
+    if job_status == "en_route":
+        lead.en_route_at = now
+    elif job_status == "started":
+        if not lead.en_route_at:
+            lead.en_route_at = now  # auto-stamp en_route if skipped
+        lead.started_at = now
+    elif job_status == "completed":
+        lead.status = LeadStatus.released
+
+    lead.updated_at = now
     db.add(LeadEvent(
         id=_id(), lead_id=lead_id,
         event_type="status_changed",
         from_status=old_status.value,
-        to_status=new_lead_status.value if new_lead_status else old_status.value,
+        to_status=lead.status.value,
+        note=f"job_phase={job_status}",
         actor=actor,
     ))
     await db.commit()

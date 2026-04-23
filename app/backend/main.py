@@ -160,6 +160,22 @@ async def _migrate_leads_add_v8_columns(conn) -> None:
         print(f"[startup] leads v8 columns added: {', '.join(added)}")
 
 
+async def _migrate_leads_add_job_timing_columns(conn) -> None:
+    """Add en_route_at and started_at columns for job phase tracking."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    existing = _existing_columns(rows)
+    added = []
+    for col in ("en_route_at", "started_at"):
+        if col not in existing:
+            await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {col} DATETIME"))
+            added.append(col)
+    if added:
+        print(f"[startup] leads: added job timing columns: {', '.join(added)}")
+
+
 async def _migrate_screenshots_add_ocr_status(conn) -> None:
     """Add ocr_status column added in Slice 3 to existing screenshots tables."""
     result = await conn.execute(text("PRAGMA table_info(screenshots)"))
@@ -215,6 +231,7 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_v7_columns(conn)
         await _migrate_leads_add_v8_columns(conn)
         await _migrate_leads_add_quote_context(conn)
+        await _migrate_leads_add_job_timing_columns(conn)
         await _migrate_screenshots_add_screenshot_type(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _seed_default_admin(conn)

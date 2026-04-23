@@ -17,6 +17,9 @@ class JobOut(BaseModel):
     crew: list[str] = []
     customer_phone: Optional[str] = None
     quote_context: Optional[str] = None
+    job_phase: Optional[str] = None   # "en_route" | "started" | None
+    en_route_at: Optional[str] = None  # ISO datetime
+    started_at: Optional[str] = None   # ISO datetime
 
     model_config = {"from_attributes": True}
 

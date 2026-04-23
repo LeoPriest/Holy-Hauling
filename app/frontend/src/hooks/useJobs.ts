@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../services/api'
 
@@ -11,6 +12,9 @@ export interface Job {
   crew: string[]
   customer_phone?: string | null
   quote_context?: string | null
+  job_phase: 'en_route' | 'started' | null
+  en_route_at: string | null
+  started_at: string | null
 }
 
 export function useJobs() {
@@ -72,4 +76,26 @@ export function useRemoveJobAssignment() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
   })
+}
+
+/** Returns a live HH:MM elapsed string, updated every 30 s. Returns null if no timestamp. */
+export function useElapsedTime(isoString: string | null): string | null {
+  const [elapsed, setElapsed] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isoString) { setElapsed(null); return }
+
+    const compute = () => {
+      const ms = Date.now() - new Date(isoString).getTime()
+      const h = Math.floor(ms / 3_600_000)
+      const m = Math.floor((ms % 3_600_000) / 60_000)
+      setElapsed(h > 0 ? `${h}h ${m}m` : `${m}m`)
+    }
+
+    compute()
+    const id = setInterval(compute, 30_000)
+    return () => clearInterval(id)
+  }, [isoString])
+
+  return elapsed
 }

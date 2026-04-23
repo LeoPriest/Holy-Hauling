@@ -26,6 +26,14 @@ async def _get_crew(db: AsyncSession, lead_id: str) -> list[str]:
     return [row[0] for row in result.fetchall()]
 
 
+def _job_phase(lead: Lead) -> str | None:
+    if lead.started_at:
+        return "started"
+    if lead.en_route_at:
+        return "en_route"
+    return None
+
+
 async def _to_job_out(db: AsyncSession, lead: Lead, role: str) -> JobOut:
     crew = await _get_crew(db, lead.id)
     date_str = lead.job_date_requested.isoformat() if lead.job_date_requested else None
@@ -39,6 +47,9 @@ async def _to_job_out(db: AsyncSession, lead: Lead, role: str) -> JobOut:
         crew=crew,
         customer_phone=lead.customer_phone if role != "crew" else None,
         quote_context=lead.quote_context if role != "crew" else None,
+        job_phase=_job_phase(lead),
+        en_route_at=lead.en_route_at.isoformat() if lead.en_route_at else None,
+        started_at=lead.started_at.isoformat() if lead.started_at else None,
     )
 
 

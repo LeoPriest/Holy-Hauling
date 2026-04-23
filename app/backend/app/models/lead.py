@@ -72,6 +72,10 @@ class Lead(Base):
     # Facilitator-entered supplemental notes fed into AI review for quoting accuracy
     quote_context = Column(Text, nullable=True)
 
+    # Job phase timestamps — set when supervisor presses En Route / Started
+    en_route_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     acknowledged_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
