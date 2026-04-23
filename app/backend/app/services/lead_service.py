@@ -187,6 +187,30 @@ async def update_lead(
     return lead
 
 
+_JOB_STATUS_TO_LEAD_STATUS = {
+    "completed": LeadStatus.released,
+}
+
+
+async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, actor: str | None = None) -> Lead:
+    lead = await get_lead(db, lead_id)
+    old_status = lead.status
+    db.add(LeadEvent(
+        id=_id(), lead_id=lead_id,
+        event_type="status_changed",
+        from_status=old_status.value,
+        to_status=job_status,
+        actor=actor,
+    ))
+    new_lead_status = _JOB_STATUS_TO_LEAD_STATUS.get(job_status)
+    if new_lead_status:
+        lead.status = new_lead_status
+        lead.updated_at = _now()
+    await db.commit()
+    await db.refresh(lead)
+    return lead
+
+
 async def update_lead_status(db: AsyncSession, lead_id: str, data: LeadStatusUpdate) -> Lead:
     lead = await get_lead(db, lead_id)
     old_status = lead.status
