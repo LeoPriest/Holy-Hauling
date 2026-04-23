@@ -160,3 +160,8 @@ async def test_patch_non_booked_lead_returns_409(supervisor_client):
     lead = await _seed_lead(factory, status="new")
     r = await client.patch(f"/jobs/{lead.id}/status", json={"status": "en_route"})
     assert r.status_code == 409
+
+
+def test_job_assignment_model_importable():
+    from app.models.job_assignment import JobAssignment
+    assert JobAssignment.__tablename__ == "job_assignments"
