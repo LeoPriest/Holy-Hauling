@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import smtplib
-from datetime import datetime
+from datetime import datetime, time
 from email.mime.text import MIMEText
 from typing import Optional
 
@@ -15,7 +15,6 @@ def _is_quiet_now(settings: SettingsOut) -> bool:
     if not settings.quiet_hours_enabled:
         return False
     try:
-        from datetime import time
         now_t = datetime.now().time()
         start = time.fromisoformat(settings.quiet_hours_start)
         end = time.fromisoformat(settings.quiet_hours_end)
