@@ -19,8 +19,10 @@ import app.models.screenshot  # noqa: F401
 import app.models.ocr_result  # noqa: F401
 import app.models.ai_review  # noqa: F401
 import app.models.lead_chat_message  # noqa: F401
+import app.models.app_setting   # noqa: F401
+import app.models.lead_alert    # noqa: F401
 
-from app.routers import chat, ingest, leads
+from app.routers import chat, ingest, leads, settings as settings_router
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.path.join(_BASE_DIR, "uploads")
@@ -203,6 +205,7 @@ app.add_middleware(
 app.include_router(leads.router)
 app.include_router(ingest.router)
 app.include_router(chat.router)
+app.include_router(settings_router.router)
 app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 
 
