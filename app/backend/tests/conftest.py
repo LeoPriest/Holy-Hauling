@@ -7,6 +7,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 TEST_DB = "sqlite+aiosqlite:///:memory:"
 
 
+def _mock_admin():
+    from datetime import datetime, timezone
+    from app.models.user import User
+    return User(
+        id="test-admin-id",
+        username="test-admin",
+        credential_hash="placeholder",
+        role="admin",
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
+
+
 @pytest_asyncio.fixture
 async def client(tmp_path):
     import app.services.lead_service as svc
@@ -14,6 +27,7 @@ async def client(tmp_path):
     os.makedirs(svc.SCREENSHOTS_DIR, exist_ok=True)
 
     from app.database import Base, get_db
+    from app.dependencies import require_auth
     from main import app
 
     engine = create_async_engine(TEST_DB)
@@ -27,7 +41,8 @@ async def client(tmp_path):
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
-    app.state.test_session_factory = TestSession  # expose for db_session fixture
+    app.dependency_overrides[require_auth] = _mock_admin  # all existing tests run as admin
+    app.state.test_session_factory = TestSession
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac

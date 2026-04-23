@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies import require_auth
 from app.models.lead import LeadSourceType
+from app.models.user import User
 from app.schemas.ingest import IngestResult, ThumbTackWebhookPayload, WebhookIngestResult
 from app.services import ingest_service
 
@@ -18,6 +20,7 @@ async def ingest_screenshot(
     file: UploadFile = File(...),
     source_type: str = Form("thumbtack_screenshot"),
     actor: Optional[str] = Form(None),
+    _: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -36,6 +39,7 @@ async def ingest_screenshot(
 @router.post("/webhook/thumbtack", response_model=WebhookIngestResult)
 async def webhook_thumbtack(
     payload: ThumbTackWebhookPayload,
+    _: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
     """
