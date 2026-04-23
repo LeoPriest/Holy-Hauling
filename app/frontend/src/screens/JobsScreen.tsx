@@ -29,6 +29,11 @@ function threshold(ms: number, warnMs: number, critMs: number): 'red' | 'orange'
   return 'normal'
 }
 
+function fmtTime(iso: string | null): string | null {
+  if (!iso) return null
+  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
 interface JobCardProps {
   job: Job
   userRole: string | undefined
@@ -88,6 +93,18 @@ function JobCard({ job, userRole, users, patchStatus, addAssignment, removeAssig
           )}
         </div>
       </div>
+
+      {/* Phase timestamp log */}
+      {(job.en_route_at || job.started_at) && (
+        <div className="flex gap-3 flex-wrap text-xs text-gray-400 dark:text-gray-500 mb-3">
+          {job.en_route_at && (
+            <span>🚗 {fmtTime(job.en_route_at)}</span>
+          )}
+          {job.started_at && (
+            <span>🔨 {fmtTime(job.started_at)}</span>
+          )}
+        </div>
+      )}
 
       {/* Read-only crew badges — crew role only */}
       {job.crew.length > 0 && userRole === 'crew' && (
