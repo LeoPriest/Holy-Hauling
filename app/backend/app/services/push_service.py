@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.push_subscription import PushSubscription
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -15,27 +19,29 @@ _VAPID_CLAIM_EMAIL = os.getenv("VAPID_CLAIM_EMAIL", "mailto:admin@holyhauling.co
 
 async def save_subscription(
     db: AsyncSession, user_id: str, endpoint: str, p256dh: str, auth: str
-):
-    from datetime import datetime, timezone
-    from app.models.push_subscription import PushSubscription
-
-    sub = PushSubscription(
-        user_id=user_id,
-        endpoint=endpoint,
-        p256dh=p256dh,
-        auth=auth,
-        created_at=datetime.now(timezone.utc),
+) -> PushSubscription:
+    result = await db.execute(
+        select(PushSubscription).where(PushSubscription.endpoint == endpoint)
     )
-    db.add(sub)
+    sub = result.scalar_one_or_none()
+    if sub is None:
+        sub = PushSubscription(
+            user_id=user_id,
+            endpoint=endpoint,
+            p256dh=p256dh,
+            auth=auth,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(sub)
+    else:
+        sub.p256dh = p256dh
+        sub.auth = auth
     await db.commit()
     await db.refresh(sub)
     return sub
 
 
 async def send_push_to_roles(db: AsyncSession, roles: list[str], message: str) -> None:
-    from app.models.push_subscription import PushSubscription
-    from app.models.user import User
-
     result = await db.execute(
         select(PushSubscription)
         .join(User, PushSubscription.user_id == User.id)
