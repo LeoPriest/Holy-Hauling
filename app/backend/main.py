@@ -25,6 +25,8 @@ import app.models.ai_review  # noqa: F401
 import app.models.lead_chat_message  # noqa: F401
 import app.models.app_setting   # noqa: F401
 import app.models.lead_alert    # noqa: F401
+import app.models.user  # noqa: F401
+import app.models.push_subscription  # noqa: F401
 
 from app.routers import chat, ingest, leads, settings as settings_router
 
