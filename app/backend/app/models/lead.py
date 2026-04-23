@@ -28,6 +28,7 @@ class LeadStatus(str, enum.Enum):
     escalated = "escalated"
     booked = "booked"
     released = "released"
+    lost = "lost"
 
 
 class ServiceType(str, enum.Enum):

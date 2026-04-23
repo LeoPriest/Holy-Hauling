@@ -26,9 +26,10 @@ export function LeadQueue() {
     assigned_to: assignedFilter.trim() || undefined,
   })
 
+  const closedStatuses = new Set(['released', 'lost'])
   const displayLeads = view === 'active'
-    ? leads.filter(l => l.status !== 'released')
-    : leads.filter(l => l.status === 'released')
+    ? leads.filter(l => !closedStatuses.has(l.status))
+    : leads.filter(l => closedStatuses.has(l.status))
 
   const { data: settings } = useSettings()
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
@@ -40,7 +41,7 @@ export function LeadQueue() {
     localStorage.setItem('hh_theme', next)
   }
 
-  const unackedCount = leads.filter(l => !l.acknowledged_at && l.status !== 'released').length
+  const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -134,7 +135,7 @@ export function LeadQueue() {
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
           }`}
         >
-          Released
+          Closed
         </button>
       </div>
 
@@ -216,7 +217,7 @@ export function LeadQueue() {
         )}
         {!isLoading && !error && displayLeads.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-10">
-            {view === 'active' ? 'No active leads. Tap 📷 New from Screenshot to add one.' : 'No released jobs yet.'}
+            {view === 'active' ? 'No active leads. Tap 📷 New from Screenshot to add one.' : 'No closed leads yet.'}
           </p>
         )}
         {displayLeads.map(lead => (

@@ -12,7 +12,7 @@ import type { Lead, LeadStatus, OcrField, OcrResult } from '../../types/lead'
 
 const ALL_STATUSES: LeadStatus[] = [
   'new', 'in_review', 'waiting_on_customer', 'ready_for_quote',
-  'ready_for_booking', 'escalated', 'booked', 'released',
+  'ready_for_booking', 'escalated', 'booked', 'released', 'lost',
 ]
 
 const STATUS_LABELS: Record<LeadStatus, string> = {
@@ -23,7 +23,8 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   ready_for_booking: 'Ready to Book',
   escalated: 'Escalated',
   booked: 'Booked',
-  released: 'Released',
+  released: 'Won ✓',
+  lost: 'Lost',
 }
 
 const EVENT_LABELS: Record<string, string> = {

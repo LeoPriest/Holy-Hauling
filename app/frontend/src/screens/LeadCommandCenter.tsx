@@ -3,7 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AgeIndicator } from '../components/AgeIndicator'
 import { GateIndicator } from '../components/GateIndicator'
 import { StatusBadge } from '../components/StatusBadge'
-import { useLead, useLatestAiReview, useTriggerAiReview } from '../hooks/useLeads'
+import { useLead, useLatestAiReview, useTriggerAiReview, useUpdateStatus } from '../hooks/useLeads'
+import { useAuth } from '../context/AuthContext'
 import { BriefPanel } from './panels/BriefPanel'
 import { LogPanel } from './panels/LogPanel'
 import { QuotePanel } from './panels/QuotePanel'
@@ -15,9 +16,11 @@ export function LeadCommandCenter() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('brief')
 
+  const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
   const { data: aiReview } = useLatestAiReview(id!)
   const triggerReview = useTriggerAiReview()
+  const updateStatus = useUpdateStatus()
 
   if (isLoading) {
     return (
@@ -73,6 +76,15 @@ export function LeadCommandCenter() {
             className="text-xs bg-green-600 text-white rounded-lg px-3 py-2 hover:bg-green-700 shrink-0 font-medium"
           >
             View in Jobs
+          </button>
+        )}
+        {lead.status !== 'released' && lead.status !== 'lost' && (
+          <button
+            onClick={() => updateStatus.mutate({ id: id!, status: 'lost', actor: user?.username })}
+            disabled={updateStatus.isPending}
+            className="text-xs bg-white border border-gray-300 text-gray-600 rounded-lg px-3 py-2 hover:bg-red-50 hover:border-red-300 hover:text-red-600 disabled:opacity-50 shrink-0 font-medium transition-colors"
+          >
+            Mark Lost
           </button>
         )}
         <button

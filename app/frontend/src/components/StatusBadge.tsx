@@ -8,7 +8,8 @@ const colors: Record<LeadStatus, string> = {
   ready_for_booking: 'bg-green-100 text-green-800',
   escalated: 'bg-orange-100 text-orange-800',
   booked: 'bg-green-200 text-green-900',
-  released: 'bg-gray-100 text-gray-500',
+  released: 'bg-emerald-100 text-emerald-700',
+  lost: 'bg-gray-100 text-gray-500',
 }
 
 const labels: Record<LeadStatus, string> = {
@@ -19,7 +20,8 @@ const labels: Record<LeadStatus, string> = {
   ready_for_booking: 'Ready to Book',
   escalated: 'Escalated',
   booked: 'Booked',
-  released: 'Released',
+  released: 'Won ✓',
+  lost: 'Lost',
 }
 
 export function StatusBadge({ status }: { status: LeadStatus }) {

@@ -7,6 +7,7 @@ export type LeadStatus =
   | 'escalated'
   | 'booked'
   | 'released'
+  | 'lost'
 
 export type LeadSourceType =
   | 'thumbtack_api'
