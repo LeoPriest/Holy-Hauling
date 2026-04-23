@@ -9,6 +9,7 @@ import { useStaleLeads } from '../hooks/useStaleLeads'
 import { useUsers } from '../hooks/useUsers'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
+import { useAuth } from '../context/AuthContext'
 
 export function LeadQueue() {
   const navigate = useNavigate()
@@ -27,14 +28,20 @@ export function LeadQueue() {
   const { data: settings } = useSettings()
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
+  const { user, logout } = useAuth()
+
+  function toggleDark() {
+    const next = document.documentElement.classList.toggle('dark') ? 'dark' : 'light'
+    localStorage.setItem('hh_theme', next)
+  }
 
   const unackedCount = leads.filter(l => !l.acknowledged_at).length
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
 
       {/* Header */}
-      <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div>
           <h1 className="font-bold text-gray-900 text-lg leading-tight">Lead Queue</h1>
           {unackedCount > 0 && (
@@ -42,6 +49,35 @@ export function LeadQueue() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleDark}
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
+            title="Toggle dark mode"
+          >
+            🌓
+          </button>
+
+          {/* Users — admin only */}
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => navigate('/admin/users')}
+              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
+              title="Team"
+            >
+              👥
+            </button>
+          )}
+
+          {/* Sign out */}
+          <button
+            onClick={logout}
+            className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 px-1"
+            title="Sign out"
+          >
+            Sign out
+          </button>
+
           <button
             onClick={() => navigate('/settings')}
             className="text-gray-400 hover:text-gray-700 text-xl px-1"

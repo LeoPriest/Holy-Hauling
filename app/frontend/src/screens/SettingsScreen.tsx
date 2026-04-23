@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSettings, usePatchSettings, useTestAlert } from '../hooks/useSettings'
 import type { SettingsPatch, TestAlertRequest } from '../types/lead'
+import { useAuth } from '../context/AuthContext'
 
 type TestKey = `${TestAlertRequest['channel']}_${TestAlertRequest['recipient']}`
 type TestState = { sent: boolean; reason?: string | null }
@@ -11,6 +12,8 @@ export function SettingsScreen() {
   const { data: settings, isLoading } = useSettings()
   const patch = usePatchSettings()
   const testAlert = useTestAlert()
+  const { user } = useAuth()
+  const isReadOnly = user?.role === 'facilitator'
 
   const [form, setForm] = useState<SettingsPatch>({})
   const [saved, setSaved] = useState(false)
@@ -202,9 +205,14 @@ export function SettingsScreen() {
         </section>
 
         {/* Save */}
+        {isReadOnly && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+            Settings are read-only for your role. Contact an admin to make changes.
+          </p>
+        )}
         <button
           onClick={handleSave}
-          disabled={patch.isPending}
+          disabled={patch.isPending || isReadOnly}
           className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${
             saved
               ? 'bg-emerald-600 text-white'
