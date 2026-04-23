@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
 import { useUsers } from '../../hooks/useUsers'
 import type { AiReview, Lead } from '../../types/lead'
@@ -8,6 +8,140 @@ interface Props {
   aiReview: AiReview | undefined
 }
 
+// ── Inline editable field ─────────────────────────────────────────────────────
+
+interface EditableFieldProps {
+  value: string | null | undefined
+  onSave: (val: string | null) => void
+  placeholder?: string
+  type?: 'text' | 'tel' | 'date' | 'textarea' | 'select'
+  options?: { value: string; label: string }[]
+  display?: (val: string) => string
+}
+
+function EditableField({
+  value,
+  onSave,
+  placeholder = 'Tap to add…',
+  type = 'text',
+  options,
+  display,
+}: EditableFieldProps) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? '')
+  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement & HTMLSelectElement>(null)
+
+  const open = () => {
+    setDraft(value ?? '')
+    setEditing(true)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const save = () => {
+    setEditing(false)
+    const trimmed = draft.trim()
+    const next = trimmed === '' ? null : trimmed
+    if (next !== (value ?? null)) onSave(next)
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    setDraft(value ?? '')
+  }
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && type !== 'textarea') save()
+    if (e.key === 'Escape') cancel()
+  }
+
+  const displayValue = value
+    ? (display ? display(value) : value)
+    : null
+
+  if (!editing) {
+    return (
+      <button
+        onClick={open}
+        className="w-full text-left group"
+      >
+        {displayValue ? (
+          <span className="text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+            {displayValue}
+          </span>
+        ) : (
+          <span className="text-sm text-gray-300 dark:text-gray-600 italic">
+            {placeholder}
+          </span>
+        )}
+      </button>
+    )
+  }
+
+  const inputClass =
+    'w-full text-sm border border-indigo-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white dark:border-indigo-500'
+
+  if (type === 'select' && options) {
+    return (
+      <select
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={onKey}
+        className={inputClass}
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    )
+  }
+
+  if (type === 'textarea') {
+    return (
+      <textarea
+        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+        value={draft}
+        rows={3}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={onKey}
+        className={inputClass + ' resize-none'}
+      />
+    )
+  }
+
+  return (
+    <input
+      ref={inputRef as React.RefObject<HTMLInputElement>}
+      type={type}
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={onKey}
+      className={inputClass}
+    />
+  )
+}
+
+// ── Panel ─────────────────────────────────────────────────────────────────────
+
+const SERVICE_OPTIONS = [
+  { value: 'unknown', label: 'Unknown' },
+  { value: 'moving', label: 'Moving' },
+  { value: 'hauling', label: 'Hauling' },
+  { value: 'both', label: 'Both' },
+]
+
+function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 px-4 py-2.5 border-b last:border-0 dark:border-gray-700">
+      <span className="text-xs text-gray-400 w-24 shrink-0 mt-1.5">{label}</span>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  )
+}
+
 export function BriefPanel({ lead, aiReview }: Props) {
   const acknowledge = useAcknowledgeLead()
   const patch = usePatchLead()
@@ -15,6 +149,9 @@ export function BriefPanel({ lead, aiReview }: Props) {
   const [copied, setCopied] = useState(false)
 
   const intakeShot = lead.screenshots?.find(s => s.screenshot_type === 'intake')
+
+  const save = (field: string, value: string | null) =>
+    patch.mutate({ id: lead.id, data: { [field]: value ?? undefined } })
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -65,30 +202,85 @@ export function BriefPanel({ lead, aiReview }: Props) {
         </div>
       )}
 
-      {/* Contact */}
+      {/* Editable lead fields */}
       <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Contact</h3>
-        <div className="bg-white rounded-xl border p-4 space-y-2">
-          <p className="font-semibold text-gray-900">
-            {lead.customer_name ?? <span className="italic text-gray-400 font-normal">No name captured</span>}
-          </p>
-          {lead.customer_phone ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-700">📞 {lead.customer_phone}</span>
-              <a href={`tel:${lead.customer_phone}`}
-                className="text-xs bg-green-600 text-white rounded-lg px-3 py-1 font-medium hover:bg-green-700">
-                Call
-              </a>
-              <a href={`sms:${lead.customer_phone}`}
-                className="text-xs bg-blue-600 text-white rounded-lg px-3 py-1 font-medium hover:bg-blue-700">
-                Text
-              </a>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Lead Info</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 divide-y dark:divide-gray-700">
+
+          <FieldRow label="Name">
+            <EditableField
+              value={lead.customer_name}
+              onSave={v => save('customer_name', v)}
+              placeholder="Tap to add name…"
+            />
+          </FieldRow>
+
+          <FieldRow label="Phone">
+            <div className="flex items-center gap-2 flex-wrap">
+              <EditableField
+                value={lead.customer_phone}
+                onSave={v => save('customer_phone', v)}
+                placeholder="Tap to add phone…"
+                type="tel"
+              />
+              {lead.customer_phone && (
+                <div className="flex gap-1 shrink-0">
+                  <a href={`tel:${lead.customer_phone}`}
+                    className="text-xs bg-green-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-green-700">
+                    Call
+                  </a>
+                  <a href={`sms:${lead.customer_phone}`}
+                    className="text-xs bg-blue-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-blue-700">
+                    Text
+                  </a>
+                </div>
+              )}
             </div>
-          ) : (
-            <p className="text-sm text-gray-400 italic">Phone not captured</p>
-          )}
-          <p className="text-xs text-gray-400">{lead.source_category_label}</p>
+          </FieldRow>
+
+          <FieldRow label="Service">
+            <EditableField
+              value={lead.service_type ?? 'unknown'}
+              onSave={v => save('service_type', v)}
+              type="select"
+              options={SERVICE_OPTIONS}
+              display={v => SERVICE_OPTIONS.find(o => o.value === v)?.label ?? v}
+            />
+          </FieldRow>
+
+          <FieldRow label="Location">
+            <EditableField
+              value={lead.job_location}
+              onSave={v => save('job_location', v)}
+              placeholder="Tap to add location…"
+            />
+          </FieldRow>
+
+          <FieldRow label="Date">
+            <EditableField
+              value={lead.job_date_requested}
+              onSave={v => save('job_date_requested', v)}
+              placeholder="Tap to add date…"
+              type="date"
+            />
+          </FieldRow>
+
+          <FieldRow label="Notes">
+            <EditableField
+              value={lead.scope_notes}
+              onSave={v => save('scope_notes', v)}
+              placeholder="Tap to add scope notes…"
+              type="textarea"
+            />
+          </FieldRow>
+
         </div>
+        {patch.isPending && (
+          <p className="text-xs text-gray-400 mt-1 px-1">Saving…</p>
+        )}
+        {patch.isError && (
+          <p className="text-xs text-red-500 mt-1 px-1">Failed to save — please try again.</p>
+        )}
       </section>
 
       {/* Assigned to */}
