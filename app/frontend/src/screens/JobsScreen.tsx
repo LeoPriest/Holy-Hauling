@@ -38,6 +38,11 @@ export function JobsScreen() {
       </header>
 
       <main className="p-4 space-y-4 pb-10">
+        {patchStatus.isError && (
+          <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-2">
+            Failed to update job status — please try again.
+          </p>
+        )}
         {isLoading && (
           <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-10">Loading jobs…</p>
         )}
