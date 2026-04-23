@@ -67,6 +67,14 @@ export function LeadCommandCenter() {
           </div>
         </div>
 
+        {lead.status === 'booked' && (
+          <button
+            onClick={() => navigate('/jobs')}
+            className="text-xs bg-green-600 text-white rounded-lg px-3 py-2 hover:bg-green-700 shrink-0 font-medium"
+          >
+            View in Jobs
+          </button>
+        )}
         <button
           onClick={() => triggerReview.mutate({ leadId: id! })}
           disabled={triggerReview.isPending}
