@@ -28,6 +28,7 @@ import app.models.app_setting   # noqa: F401
 import app.models.lead_alert    # noqa: F401
 import app.models.user  # noqa: F401
 import app.models.push_subscription  # noqa: F401
+import app.models.job_assignment  # noqa: F401
 
 from app.routers import admin_users, auth as auth_router, chat, ingest, jobs, leads, push, settings as settings_router, users
 

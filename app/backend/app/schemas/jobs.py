@@ -14,7 +14,7 @@ class JobOut(BaseModel):
     job_location: Optional[str] = None
     job_date_requested: Optional[str] = None
     scope_notes: Optional[str] = None
-    assigned_to: Optional[str] = None
+    crew: list[str] = []
     customer_phone: Optional[str] = None
     quote_context: Optional[str] = None
 
@@ -23,3 +23,7 @@ class JobOut(BaseModel):
 
 class JobStatusUpdate(BaseModel):
     status: JobStatus
+
+
+class JobAssignmentCreate(BaseModel):
+    user_id: str

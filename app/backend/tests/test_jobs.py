@@ -165,3 +165,21 @@ async def test_patch_non_booked_lead_returns_409(supervisor_client):
 def test_job_assignment_model_importable():
     from app.models.job_assignment import JobAssignment
     assert JobAssignment.__tablename__ == "job_assignments"
+
+
+def test_job_out_has_crew_field():
+    from app.schemas.jobs import JobOut
+    job = JobOut(id="x", crew=["alice", "bob"])
+    assert job.crew == ["alice", "bob"]
+
+
+def test_job_out_crew_defaults_empty():
+    from app.schemas.jobs import JobOut
+    job = JobOut(id="x")
+    assert job.crew == []
+
+
+def test_job_assignment_create_schema():
+    from app.schemas.jobs import JobAssignmentCreate
+    schema = JobAssignmentCreate(user_id="u-123")
+    assert schema.user_id == "u-123"
