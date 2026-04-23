@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePatchLead } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
+import { AiChatThread } from '../../components/AiChatThread'
 
 const PRICING_SECTIONS: { key: keyof AiReviewSections; label: string }[] = [
   { key: 'f_pricing_band',       label: 'F. Pricing Band' },
@@ -135,7 +136,13 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
         )}
       </section>
 
-      {/* Chat wired in Task 10 */}
+      {/* ── AI Pricing Chat ────────────────────────────────────────── */}
+      <section>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+          Challenge / Refine Pricing
+        </h3>
+        <AiChatThread leadId={leadId} aiReviewId={aiReview?.id} />
+      </section>
 
     </div>
   )
