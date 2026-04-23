@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import {
   Job,
   useJobs,
@@ -243,6 +244,7 @@ function JobCard({ job, userRole, users, patchStatus, addAssignment, removeAssig
 export function JobsScreen() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { toggleTheme } = useTheme()
   const [jobView, setJobView] = useState<JobView>('scheduled')
   const { data: jobs = [], isLoading } = useJobs()
   const { data: users = [] } = useUsers()
@@ -271,10 +273,7 @@ export function JobsScreen() {
             </button>
           )}
           <button
-            onClick={() => {
-              const next = document.documentElement.classList.toggle('dark') ? 'dark' : 'light'
-              localStorage.setItem('hh_theme', next)
-            }}
+            onClick={toggleTheme}
             className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg"
             title="Toggle dark mode"
           >

@@ -10,6 +10,7 @@ import { useUsers } from '../hooks/useUsers'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 
 export function LeadQueue() {
   const navigate = useNavigate()
@@ -35,11 +36,7 @@ export function LeadQueue() {
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
   const { user, logout } = useAuth()
-
-  function toggleDark() {
-    const next = document.documentElement.classList.toggle('dark') ? 'dark' : 'light'
-    localStorage.setItem('hh_theme', next)
-  }
+  const { toggleTheme } = useTheme()
 
   const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
@@ -57,7 +54,7 @@ export function LeadQueue() {
         <div className="flex items-center gap-2">
           {/* Dark mode toggle */}
           <button
-            onClick={toggleDark}
+            onClick={toggleTheme}
             className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
             title="Toggle dark mode"
           >

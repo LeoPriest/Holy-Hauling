@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { apiFetch } from '../services/api'
 import type { TeamMember } from '../hooks/useUsers'
 
@@ -17,6 +18,7 @@ const ROLE_COLORS: Record<Role, string> = {
 
 export function AdminUsersScreen() {
   const { user: me } = useAuth()
+  const { toggleTheme } = useTheme()
   const navigate = useNavigate()
   const qc = useQueryClient()
 
@@ -113,10 +115,7 @@ export function AdminUsersScreen() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => {
-              const next = document.documentElement.classList.toggle('dark') ? 'dark' : 'light'
-              localStorage.setItem('hh_theme', next)
-            }}
+            onClick={toggleTheme}
             className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg"
           >🌓</button>
           <button

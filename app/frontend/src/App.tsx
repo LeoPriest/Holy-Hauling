@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import type { AuthUser } from './context/AuthContext'
 import { LoginScreen } from './screens/LoginScreen'
 import { LeadCommandCenter } from './screens/LeadCommandCenter'
@@ -11,15 +11,6 @@ import { JobsScreen } from './screens/JobsScreen'
 import { AdminUsersScreen } from './screens/AdminUsersScreen'
 
 const queryClient = new QueryClient()
-
-function DarkModeInit() {
-  useEffect(() => {
-    const theme = localStorage.getItem('hh_theme')
-    if (theme === 'dark') document.documentElement.classList.add('dark')
-    else document.documentElement.classList.remove('dark')
-  }, [])
-  return null
-}
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -57,10 +48,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <DarkModeInit />
-        <AppRoutes />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }
