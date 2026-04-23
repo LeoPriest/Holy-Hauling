@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import type { AuthUser } from './context/AuthContext'
 import { LoginScreen } from './screens/LoginScreen'
 import { LeadCommandCenter } from './screens/LeadCommandCenter'
 import { LeadQueue } from './screens/LeadQueue'
@@ -27,7 +28,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function RoleGuard({ roles, children }: { roles: string[]; children: React.ReactNode }) {
+function RoleGuard({ roles, children }: { roles: Array<AuthUser['role']>; children: React.ReactNode }) {
   const { user } = useAuth()
   if (!user || !roles.includes(user.role)) {
     const fallback = user?.role === 'admin' || user?.role === 'facilitator' ? '/' : '/jobs'

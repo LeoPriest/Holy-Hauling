@@ -40,10 +40,11 @@ export function LoginScreen() {
       }
       const { token, user } = await r.json() as { token: string; user: AuthUser }
       login(token, user)
-      registerPush()
+      registerPush(token)
       if (user.role === 'admin' || user.role === 'facilitator') navigate('/')
       else navigate('/jobs')
     } catch (_e) {
+      console.error('Login error', _e)
       setError('Connection error — is the server running?')
     } finally {
       setLoading(false)
@@ -111,7 +112,7 @@ export function LoginScreen() {
   )
 }
 
-async function registerPush() {
+async function registerPush(token: string) {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
   if (localStorage.getItem('hh_push_declined') === 'true') return
   try {
@@ -129,7 +130,6 @@ async function registerPush() {
       applicationServerKey: publicKey,
     })
     const { endpoint, keys } = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } }
-    const token = localStorage.getItem('hh_token')
     await fetch('/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

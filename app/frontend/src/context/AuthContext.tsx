@@ -27,7 +27,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
       return
     }
-    fetch('/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+    const controller = new AbortController()
+    fetch('/auth/me', {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
       .then(r => {
         if (!r.ok) throw new Error('invalid')
         return r.json() as Promise<AuthUser>
@@ -36,12 +40,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(u)
         setLoading(false)
       })
-      .catch(() => {
+      .catch(err => {
+        if (err.name === 'AbortError') return
         localStorage.removeItem('hh_token')
         setToken(null)
         setUser(null)
         setLoading(false)
       })
+    return () => controller.abort()
   }, [token])
 
   const login = useCallback((newToken: string, newUser: AuthUser) => {
