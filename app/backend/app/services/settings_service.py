@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.app_setting import AppSetting
 from app.schemas.settings import SettingsOut, _DEFAULTS
 
+_VALID_KEYS = frozenset(_DEFAULTS.keys())
+
 
 async def get_settings(db: AsyncSession) -> SettingsOut:
     result = await db.execute(select(AppSetting))
@@ -27,6 +29,8 @@ async def get_settings(db: AsyncSession) -> SettingsOut:
 
 async def patch_settings(db: AsyncSession, updates: dict) -> SettingsOut:
     for key, val in updates.items():
+        if key not in _VALID_KEYS:
+            continue
         result = await db.execute(select(AppSetting).where(AppSetting.key == key))
         row = result.scalar_one_or_none()
         if row:
