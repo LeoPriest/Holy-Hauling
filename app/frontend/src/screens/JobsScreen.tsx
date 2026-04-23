@@ -1,5 +1,6 @@
 import { useAuth } from '../context/AuthContext'
-import { useJobs, usePatchJobStatus } from '../hooks/useJobs'
+import { useJobs, usePatchJobStatus, useAddJobAssignment, useRemoveJobAssignment } from '../hooks/useJobs'
+import { useUsers } from '../hooks/useUsers'
 
 const STATUS_BUTTONS = [
   { value: 'en_route', label: 'En Route' },
@@ -10,7 +11,10 @@ const STATUS_BUTTONS = [
 export function JobsScreen() {
   const { user, logout } = useAuth()
   const { data: jobs = [], isLoading } = useJobs()
+  const { data: users = [] } = useUsers()
   const patchStatus = usePatchJobStatus()
+  const addAssignment = useAddJobAssignment()
+  const removeAssignment = useRemoveJobAssignment()
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -71,29 +75,86 @@ export function JobsScreen() {
                   </a>
                 )}
               </div>
-              {job.assigned_to && (
-                <span className="ml-3 shrink-0 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-0.5 rounded-full">
-                  {job.assigned_to}
-                </span>
-              )}
             </div>
 
-            {user?.role === 'supervisor' && (
-              <div className="flex gap-2 flex-wrap mt-2">
-                {STATUS_BUTTONS.map(btn => (
-                  <button
-                    key={btn.value}
-                    onClick={() => patchStatus.mutate({ id: job.id, status: btn.value })}
-                    disabled={patchStatus.isPending}
-                    className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                      btn.value === 'completed'
-                        ? 'bg-green-600 text-white hover:bg-green-700'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                    }`}
+            {/* Crew badges — read-only, visible to all roles */}
+            {job.crew.length > 0 && user?.role !== 'supervisor' && (
+              <div className="flex gap-1 flex-wrap mb-3">
+                {job.crew.map(name => (
+                  <span
+                    key={name}
+                    className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-0.5 rounded-full"
                   >
-                    {btn.label}
-                  </button>
+                    {name}
+                  </span>
                 ))}
+              </div>
+            )}
+
+            {user?.role === 'supervisor' && (
+              <div className="space-y-3">
+                {/* Status buttons */}
+                <div className="flex gap-2 flex-wrap">
+                  {STATUS_BUTTONS.map(btn => (
+                    <button
+                      key={btn.value}
+                      onClick={() => patchStatus.mutate({ id: job.id, status: btn.value })}
+                      disabled={patchStatus.isPending}
+                      className={`px-3 py-1 text-sm rounded-lg font-medium transition-colors disabled:opacity-50 ${
+                        btn.value === 'completed'
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Crew assignment */}
+                <div className="border-t dark:border-gray-700 pt-3">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Assign crew</p>
+                  <div className="flex gap-2 flex-wrap items-center">
+                    <select
+                      className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      defaultValue=""
+                      onChange={e => {
+                        if (e.target.value) {
+                          addAssignment.mutate({ jobId: job.id, userId: e.target.value })
+                          e.target.value = ''
+                        }
+                      }}
+                    >
+                      <option value="" disabled>Add member…</option>
+                      {users
+                        .filter(u => u.is_active && (u.role === 'crew' || u.role === 'supervisor'))
+                        .filter(u => !job.crew.includes(u.username))
+                        .map(u => (
+                          <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
+                        ))
+                      }
+                    </select>
+
+                    {job.crew.map(username => {
+                      const u = users.find(u => u.username === username)
+                      return (
+                        <span
+                          key={username}
+                          className="inline-flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 px-2 py-0.5 rounded-full"
+                        >
+                          {username}
+                          <button
+                            onClick={() => u && removeAssignment.mutate({ jobId: job.id, userId: u.id })}
+                            className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-100 font-bold leading-none"
+                            title={`Remove ${username}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </div>
