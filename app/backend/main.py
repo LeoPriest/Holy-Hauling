@@ -10,7 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from app.database import Base, engine
+
+_scheduler = AsyncIOScheduler()
 
 # Register all models with Base before create_all
 import app.models.lead  # noqa: F401
@@ -189,7 +193,14 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_quote_context(conn)
         await _migrate_screenshots_add_screenshot_type(conn)
         await conn.run_sync(Base.metadata.create_all)
+
+    from app.services.alert_service import check_stale_leads
+    _scheduler.add_job(check_stale_leads, "interval", minutes=5, id="check_stale_leads", replace_existing=True)
+    _scheduler.start()
+
     yield
+
+    _scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="Holy Hauling API", lifespan=lifespan)
