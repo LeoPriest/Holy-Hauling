@@ -73,9 +73,15 @@ class Lead(Base):
     # Facilitator-entered supplemental notes fed into AI review for quoting accuracy
     quote_context = Column(Text, nullable=True)
 
-    # Job phase timestamps — set when supervisor presses En Route / Started
-    en_route_at = Column(DateTime, nullable=True)
-    started_at = Column(DateTime, nullable=True)
+    # Confirmed physical address — entered when job is booked; triggers status → booked
+    job_address = Column(String, nullable=True)
+
+    # Job phase timestamps — set as supervisor/crew advance through the workflow
+    dispatched_at = Column(DateTime, nullable=True)  # office dispatches crew
+    en_route_at = Column(DateTime, nullable=True)    # crew leaves for job site
+    arrived_at = Column(DateTime, nullable=True)     # crew on site, pre-start
+    started_at = Column(DateTime, nullable=True)     # work begins
+    google_calendar_event_id = Column(String, nullable=True)
 
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     acknowledged_at = Column(DateTime, nullable=True)

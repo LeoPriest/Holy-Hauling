@@ -19,6 +19,7 @@ class User(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     created_by = Column(String, nullable=True)  # user_id of admin who created this user
+    email = Column(String, nullable=True)
 
     push_subscriptions = relationship(
         "PushSubscription", back_populates="user", cascade="all, delete-orphan", lazy="select"

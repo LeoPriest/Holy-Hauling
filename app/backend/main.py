@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
-load_dotenv(override=True)  # .env is authoritative; override any stale system env vars
+# Explicit path so the .env is found regardless of working directory
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=True)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -160,20 +161,56 @@ async def _migrate_leads_add_v8_columns(conn) -> None:
         print(f"[startup] leads v8 columns added: {', '.join(added)}")
 
 
+async def _migrate_leads_add_job_address(conn) -> None:
+    """Add job_address column for confirmed physical address."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "job_address" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN job_address VARCHAR"))
+    print("[startup] leads: added job_address column")
+
+
 async def _migrate_leads_add_job_timing_columns(conn) -> None:
-    """Add en_route_at and started_at columns for job phase tracking."""
+    """Add all job phase timestamp columns."""
     result = await conn.execute(text("PRAGMA table_info(leads)"))
     rows = result.fetchall()
     if not rows:
         return
     existing = _existing_columns(rows)
     added = []
-    for col in ("en_route_at", "started_at"):
+    for col in ("dispatched_at", "en_route_at", "arrived_at", "started_at"):
         if col not in existing:
             await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {col} DATETIME"))
             added.append(col)
     if added:
         print(f"[startup] leads: added job timing columns: {', '.join(added)}")
+
+
+async def _migrate_users_add_email(conn) -> None:
+    """Add email column to users for Google Calendar invite addresses."""
+    result = await conn.execute(text("PRAGMA table_info(users)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "email" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR"))
+    print("[startup] users: added email column")
+
+
+async def _migrate_leads_add_calendar_event_id(conn) -> None:
+    """Add google_calendar_event_id column to leads."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "google_calendar_event_id" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN google_calendar_event_id VARCHAR"))
+    print("[startup] leads: added google_calendar_event_id column")
 
 
 async def _migrate_screenshots_add_ocr_status(conn) -> None:
@@ -232,7 +269,10 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_v8_columns(conn)
         await _migrate_leads_add_quote_context(conn)
         await _migrate_leads_add_job_timing_columns(conn)
+        await _migrate_leads_add_job_address(conn)
         await _migrate_screenshots_add_screenshot_type(conn)
+        await _migrate_users_add_email(conn)
+        await _migrate_leads_add_calendar_event_id(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _seed_default_admin(conn)
 
