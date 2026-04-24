@@ -22,6 +22,7 @@ export function SettingsScreen() {
   const [form, setForm] = useState<SettingsPatch>({})
   const [saved, setSaved] = useState(false)
   const [testResults, setTestResults] = useState<Partial<Record<TestKey, TestState>>>({})
+  const [connectError, setConnectError] = useState('')
 
   const { data: calendarStatus, refetch: refetchCalendarStatus } = useQuery<{ connected: boolean }>({
     queryKey: ['google-calendar-status'],
@@ -34,8 +35,13 @@ export function SettingsScreen() {
   })
 
   async function handleGoogleConnect() {
+    setConnectError('')
     const r = await apiFetch('/admin/google/connect')
-    if (!r.ok) return
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}))
+      setConnectError((err as { detail?: string }).detail ?? 'Failed to get connect URL')
+      return
+    }
     const { url } = await r.json()
     window.open(url, '_blank')
   }
@@ -134,6 +140,9 @@ export function SettingsScreen() {
                 Refresh status
               </button>
             </div>
+            {connectError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{connectError}</p>
+            )}
             <p className="text-xs text-gray-400 dark:text-gray-500">
               After connecting, add Google emails to crew profiles so they receive job invites.
             </p>

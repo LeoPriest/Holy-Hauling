@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
+
+_log = logging.getLogger(__name__)
 
 from fastapi import HTTPException, UploadFile
 
@@ -191,7 +194,6 @@ async def update_lead(
                 note="auto-booked on address entry",
             ))
             # Fire-and-forget push — same pattern as update_lead_status
-            import logging as _logging
             from app.services.push_service import send_push_to_roles
             customer = lead.customer_name or "customer"
             svc = lead.service_type.value if lead.service_type is not None else "job"
@@ -199,7 +201,7 @@ async def update_lead(
                 await send_push_to_roles(db, ["supervisor", "crew"],
                                           f"New job assigned: {customer} — {svc}")
             except Exception as exc:
-                _logging.getLogger(__name__).error("Push trigger failed: %s", exc)
+                _log.error("Push trigger failed: %s", exc)
 
         db.add(LeadEvent(
             id=_id(), lead_id=lead_id,
@@ -213,12 +215,11 @@ async def update_lead(
         # Calendar sync: update the event when job-relevant fields change on a booked job
         _CALENDAR_FIELDS = {"job_date_requested", "job_address", "scope_notes", "customer_name"}
         if lead.google_calendar_event_id and any(f in _CALENDAR_FIELDS for f in changed):
-            import logging as _log_cal
             from app.services import calendar_service as _cal
             try:
                 await _cal.sync_job_calendar(db, lead_id)
             except Exception as exc:
-                _log_cal.getLogger(__name__).error("calendar sync on lead update failed: %s", exc)
+                _log.error("calendar sync on lead update failed: %s", exc)
 
     return lead
 

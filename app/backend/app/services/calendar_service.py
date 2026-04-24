@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from datetime import date, timedelta
@@ -80,13 +81,15 @@ async def create_event(db: AsyncSession, lead: Lead, crew_emails: list[str]) -> 
     if credentials is None:
         return None
     try:
-        credentials.refresh(Request())
+        await asyncio.to_thread(credentials.refresh, Request())
         service = build("calendar", "v3", credentials=credentials)
-        event = service.events().insert(
-            calendarId="primary",
-            body=_build_event_body(lead, crew_emails),
-            sendUpdates="all",
-        ).execute()
+        event = await asyncio.to_thread(
+            service.events().insert(
+                calendarId="primary",
+                body=_build_event_body(lead, crew_emails),
+                sendUpdates="all",
+            ).execute
+        )
         return event.get("id")
     except Exception as exc:
         _log.error("calendar create_event failed: %s", exc)
@@ -101,14 +104,16 @@ async def update_event(
     if credentials is None:
         return
     try:
-        credentials.refresh(Request())
+        await asyncio.to_thread(credentials.refresh, Request())
         service = build("calendar", "v3", credentials=credentials)
-        service.events().update(
-            calendarId="primary",
-            eventId=event_id,
-            body=_build_event_body(lead, crew_emails),
-            sendUpdates="all",
-        ).execute()
+        await asyncio.to_thread(
+            service.events().update(
+                calendarId="primary",
+                eventId=event_id,
+                body=_build_event_body(lead, crew_emails),
+                sendUpdates="all",
+            ).execute
+        )
     except Exception as exc:
         _log.error("calendar update_event failed: %s", exc)
 
@@ -119,13 +124,15 @@ async def delete_event(db: AsyncSession, event_id: str) -> bool:
     if credentials is None:
         return False
     try:
-        credentials.refresh(Request())
+        await asyncio.to_thread(credentials.refresh, Request())
         service = build("calendar", "v3", credentials=credentials)
-        service.events().delete(
-            calendarId="primary",
-            eventId=event_id,
-            sendUpdates="all",
-        ).execute()
+        await asyncio.to_thread(
+            service.events().delete(
+                calendarId="primary",
+                eventId=event_id,
+                sendUpdates="all",
+            ).execute
+        )
         return True
     except Exception as exc:
         _log.error("calendar delete_event failed: %s", exc)

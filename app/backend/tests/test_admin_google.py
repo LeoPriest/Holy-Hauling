@@ -76,7 +76,7 @@ async def test_connect_returns_503_when_env_not_set(client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_connect_returns_url_when_configured(client, monkeypatch):
-    ac, _ = client
+    ac, factory = client
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "fake-client-id")
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "fake-client-secret")
     monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/admin/google/callback")
@@ -84,3 +84,22 @@ async def test_connect_returns_url_when_configured(client, monkeypatch):
     assert r.status_code == 200
     assert "url" in r.json()
     assert "accounts.google.com" in r.json()["url"]
+    # State must be persisted in DB for callback CSRF check
+    async with factory() as s:
+        from sqlalchemy import select as _sel
+        from app.models.app_setting import AppSetting as _AS
+        row = (await s.execute(_sel(_AS).where(_AS.key == "google_oauth_state"))).scalar_one_or_none()
+        assert row is not None and row.value
+
+
+@pytest.mark.asyncio
+async def test_callback_rejects_invalid_state(client, monkeypatch):
+    ac, factory = client
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "fake-client-id")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "fake-client-secret")
+    async with factory() as s:
+        s.add(AppSetting(key="google_oauth_state", value="correct-state"))
+        await s.commit()
+    r = await ac.get("/admin/google/callback?code=somecode&state=wrong-state")
+    assert r.status_code == 400
+    assert "state" in r.json()["detail"].lower()

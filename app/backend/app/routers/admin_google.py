@@ -46,28 +46,45 @@ def _make_flow() -> Flow:
 
 @router.get("/connect")
 async def google_connect(
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
     """Return the Google OAuth consent URL for the admin to open."""
     flow = _make_flow()
-    auth_url, _ = flow.authorization_url(
+    auth_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
     )
+    result = await db.execute(select(AppSetting).where(AppSetting.key == "google_oauth_state"))
+    row = result.scalar_one_or_none()
+    if row:
+        row.value = state
+    else:
+        db.add(AppSetting(key="google_oauth_state", value=state))
+    await db.commit()
     return {"url": auth_url}
 
 
 @router.get("/callback")
 async def google_callback(
     code: str,
+    state: str = "",
     db: AsyncSession = Depends(get_db),
 ):
     """Exchange the OAuth code for a refresh token and persist it.
 
-    Called by Google's redirect — no JWT required on this endpoint since
-    the code itself is the short-lived credential from Google.
+    Called by Google's redirect — no JWT on this endpoint (it's an open redirect
+    target), but the state parameter is verified against a DB-stored value set
+    during /connect to prevent CSRF.
     """
+    result = await db.execute(select(AppSetting).where(AppSetting.key == "google_oauth_state"))
+    state_row = result.scalar_one_or_none()
+    if not state_row or state_row.value != state:
+        raise HTTPException(status_code=400, detail="Invalid OAuth state — please try connecting again.")
+    await db.delete(state_row)
+    await db.commit()
+
     flow = _make_flow()
     flow.fetch_token(code=code)
     refresh_token = flow.credentials.refresh_token
