@@ -11,7 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.app_setting import AppSetting
+from app.models.job_assignment import JobAssignment
 from app.models.lead import Lead
+from app.models.user import User
 
 _log = logging.getLogger(__name__)
 _SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
@@ -62,12 +64,10 @@ def _build_event_body(lead: Lead, crew_emails: list[str]) -> dict:
 
 async def get_crew_emails(db: AsyncSession, lead_id: str) -> list[str]:
     """Return Google email addresses for all crew assigned to a job."""
-    from app.models.job_assignment import JobAssignment
-    from app.models.user import User as _User
     result = await db.execute(
-        select(_User.email)
-        .join(JobAssignment, _User.id == JobAssignment.user_id)
-        .where(JobAssignment.lead_id == lead_id, _User.email.isnot(None))
+        select(User.email)
+        .join(JobAssignment, User.id == JobAssignment.user_id)
+        .where(JobAssignment.lead_id == lead_id, User.email.isnot(None))
     )
     return [row[0] for row in result.fetchall() if row[0]]
 
@@ -113,11 +113,11 @@ async def update_event(
         _log.error("calendar update_event failed: %s", exc)
 
 
-async def delete_event(db: AsyncSession, event_id: str) -> None:
-    """Delete a Calendar event and notify attendees."""
+async def delete_event(db: AsyncSession, event_id: str) -> bool:
+    """Delete a Calendar event and notify attendees. Returns True on success."""
     credentials = await _get_credentials(db)
     if credentials is None:
-        return
+        return False
     try:
         credentials.refresh(Request())
         service = build("calendar", "v3", credentials=credentials)
@@ -126,8 +126,10 @@ async def delete_event(db: AsyncSession, event_id: str) -> None:
             eventId=event_id,
             sendUpdates="all",
         ).execute()
+        return True
     except Exception as exc:
         _log.error("calendar delete_event failed: %s", exc)
+        return False
 
 
 async def sync_job_calendar(db: AsyncSession, lead_id: str) -> None:
@@ -146,9 +148,10 @@ async def sync_job_calendar(db: AsyncSession, lead_id: str) -> None:
             if crew_emails:
                 await update_event(db, lead.google_calendar_event_id, lead, crew_emails)
             else:
-                await delete_event(db, lead.google_calendar_event_id)
-                lead.google_calendar_event_id = None
-                await db.commit()
+                deleted = await delete_event(db, lead.google_calendar_event_id)
+                if deleted:
+                    lead.google_calendar_event_id = None
+                    await db.commit()
         else:
             if crew_emails:
                 event_id = await create_event(db, lead, crew_emails)

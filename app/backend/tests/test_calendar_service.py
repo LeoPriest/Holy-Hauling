@@ -190,6 +190,7 @@ async def test_delete_event_with_mocked_google(db):
     with patch("app.services.calendar_service._get_credentials", side_effect=fake_get_credentials):
         with patch("app.services.calendar_service.Request"):
             with patch("app.services.calendar_service.build", return_value=mock_service):
-                await calendar_service.delete_event(db, "gcal-event-123")
+                result = await calendar_service.delete_event(db, "gcal-event-123")
 
+    assert result is True
     mock_service.events.return_value.delete.return_value.execute.assert_called_once()
