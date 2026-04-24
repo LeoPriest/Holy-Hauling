@@ -35,6 +35,7 @@ async def create_user(
         username=data.username,
         credential_hash=hash_pin(data.pin),
         role=data.role,
+        email=data.email,
         created_at=datetime.now(timezone.utc),
         created_by=current_user.id,
     )
@@ -63,6 +64,8 @@ async def patch_user(
         user.credential_hash = hash_pin(data.pin)
     if data.is_active is not None:
         user.is_active = data.is_active
+    if data.email is not None:
+        user.email = data.email
     await db.commit()
     await db.refresh(user)
     return UserOut.model_validate(user)

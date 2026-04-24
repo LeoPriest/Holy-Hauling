@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -13,6 +15,7 @@ class UserOut(BaseModel):
     username: str
     role: str
     is_active: bool
+    email: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

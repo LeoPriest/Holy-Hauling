@@ -171,3 +171,37 @@ async def test_patch_self_forbidden(admin_client):
     # mock admin has id="mock-id"
     r = await client.patch("/admin/users/mock-id", json={"role": "crew"})
     assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_create_user_with_email(admin_client):
+    client, _ = admin_client
+    r = await client.post("/admin/users", json={
+        "username": "emailuser", "pin": "2222", "role": "crew",
+        "email": "emailuser@gmail.com"
+    })
+    assert r.status_code == 201
+    r2 = await client.get("/admin/users")
+    user = next(u for u in r2.json() if u["username"] == "emailuser")
+    assert user["email"] == "emailuser@gmail.com"
+
+
+@pytest.mark.asyncio
+async def test_patch_user_email(admin_client):
+    client, factory = admin_client
+    user = await _seed_user(factory, username="grace", role="crew")
+    r = await client.patch(f"/admin/users/{user.id}", json={"email": "grace@gmail.com"})
+    assert r.status_code == 200
+    r2 = await client.get("/admin/users")
+    u = next(x for x in r2.json() if x["username"] == "grace")
+    assert u["email"] == "grace@gmail.com"
+
+
+@pytest.mark.asyncio
+async def test_create_user_email_optional(admin_client):
+    client, _ = admin_client
+    r = await client.post("/admin/users", json={"username": "noemail", "pin": "3333", "role": "crew"})
+    assert r.status_code == 201
+    r2 = await client.get("/admin/users")
+    user = next(u for u in r2.json() if u["username"] == "noemail")
+    assert user["email"] is None
