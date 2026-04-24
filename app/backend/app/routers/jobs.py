@@ -11,7 +11,11 @@ from app.models.job_assignment import JobAssignment
 from app.models.lead import Lead, LeadStatus
 from app.models.user import User
 from app.schemas.jobs import JobAssignmentCreate, JobOut, JobStatusUpdate
-from app.services import lead_service
+import logging
+
+from app.services import calendar_service, lead_service
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -29,9 +33,17 @@ async def _get_crew(db: AsyncSession, lead_id: str) -> list[str]:
 def _job_phase(lead: Lead) -> str | None:
     if lead.started_at:
         return "started"
+    if lead.arrived_at:
+        return "arrived"
     if lead.en_route_at:
         return "en_route"
+    if lead.dispatched_at:
+        return "dispatched"
     return None
+
+
+def _iso(dt) -> str | None:
+    return dt.isoformat() if dt else None
 
 
 async def _to_job_out(db: AsyncSession, lead: Lead, role: str) -> JobOut:
@@ -42,14 +54,17 @@ async def _to_job_out(db: AsyncSession, lead: Lead, role: str) -> JobOut:
         customer_name=lead.customer_name,
         service_type=lead.service_type.value if lead.service_type is not None else None,
         job_location=lead.job_location,
+        job_address=lead.job_address,
         job_date_requested=date_str,
         scope_notes=lead.scope_notes,
         crew=crew,
         customer_phone=lead.customer_phone if role != "crew" else None,
         quote_context=lead.quote_context if role != "crew" else None,
         job_phase=_job_phase(lead),
-        en_route_at=lead.en_route_at.isoformat() if lead.en_route_at else None,
-        started_at=lead.started_at.isoformat() if lead.started_at else None,
+        dispatched_at=_iso(lead.dispatched_at),
+        en_route_at=_iso(lead.en_route_at),
+        arrived_at=_iso(lead.arrived_at),
+        started_at=_iso(lead.started_at),
     )
 
 
@@ -104,6 +119,7 @@ async def add_assignment(
             await db.commit()
         except IntegrityError:
             await db.rollback()
+    await calendar_service.sync_job_calendar(db, lead_id)
     return await _to_job_out(db, lead, current_user.role)
 
 
@@ -127,4 +143,5 @@ async def remove_assignment(
         raise HTTPException(status_code=404, detail="Job not found")
     await db.delete(assignment)
     await db.commit()
+    await calendar_service.sync_job_calendar(db, lead_id)
     return await _to_job_out(db, lead, current_user.role)

@@ -1,6 +1,7 @@
 import os
 os.environ.setdefault("JWT_SECRET", "test-secret-32-characters-long!!!")
 
+import unittest.mock
 import uuid
 import pytest
 import pytest_asyncio
@@ -187,7 +188,7 @@ def test_job_assignment_create_schema():
     assert schema.user_id == "u-123"
 
 
-async def _seed_user(factory, role="crew", username="test-crew"):
+async def _seed_user(factory, role="crew", username="test-crew", email=None):
     async with factory() as s:
         user = User(
             id=str(uuid.uuid4()),
@@ -195,6 +196,7 @@ async def _seed_user(factory, role="crew", username="test-crew"):
             credential_hash="x",
             role=role,
             is_active=True,
+            email=email,
             created_at=datetime.now(timezone.utc),
         )
         s.add(user)
@@ -303,3 +305,70 @@ async def test_add_assignment_to_non_booked_lead_returns_404(supervisor_client):
     crew_user = await _seed_user(factory)
     r = await client.post(f"/jobs/{lead.id}/assignments", json={"user_id": crew_user.id})
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_add_assignment_stores_calendar_event_id(supervisor_client):
+    """Adding a crew member with an email should store a calendar event ID on the lead."""
+    from unittest.mock import AsyncMock, patch
+    from sqlalchemy import select as _select
+    from app.models.lead import Lead as _Lead
+
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="booked")
+    crew_user = await _seed_user(factory, username="crew-email", email="crew@gmail.com")
+
+    with patch("app.services.calendar_service.create_event", new=AsyncMock(return_value="gcal-abc")) as mock_create:
+        r = await client.post(f"/jobs/{lead.id}/assignments", json={"user_id": crew_user.id})
+
+    assert r.status_code == 201
+    mock_create.assert_called_once()
+    async with factory() as s:
+        result = await s.execute(_select(_Lead).where(_Lead.id == lead.id))
+        db_lead = result.scalar_one()
+        assert db_lead.google_calendar_event_id == "gcal-abc"
+
+
+@pytest.mark.asyncio
+async def test_add_assignment_no_email_skips_calendar_create(supervisor_client):
+    """Adding a crew member without an email should not call create_event."""
+    from unittest.mock import AsyncMock, patch
+
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="booked")
+    crew_user = await _seed_user(factory, username="crew-noemail", email=None)
+
+    with patch("app.services.calendar_service.create_event", new=AsyncMock(return_value=None)) as mock_create:
+        r = await client.post(f"/jobs/{lead.id}/assignments", json={"user_id": crew_user.id})
+
+    assert r.status_code == 201
+    mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_remove_assignment_clears_calendar_event_id_when_crew_empty(supervisor_client):
+    """Removing the last crew member should delete the event and clear the event ID."""
+    from unittest.mock import AsyncMock, patch
+    from sqlalchemy import select as _select
+    from app.models.lead import Lead as _Lead
+
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="booked")
+    crew_user = await _seed_user(factory, username="only-crew", email="only@gmail.com")
+    await _seed_assignment(factory, lead_id=lead.id, user_id=crew_user.id)
+
+    async with factory() as s:
+        result = await s.execute(_select(_Lead).where(_Lead.id == lead.id))
+        db_lead = result.scalar_one()
+        db_lead.google_calendar_event_id = "gcal-existing"
+        await s.commit()
+
+    with patch("app.services.calendar_service.delete_event", new=AsyncMock(return_value=True)) as mock_delete:
+        r = await client.delete(f"/jobs/{lead.id}/assignments/{crew_user.id}")
+
+    assert r.status_code == 200
+    mock_delete.assert_called_once_with(unittest.mock.ANY, "gcal-existing")
+    async with factory() as s:
+        result = await s.execute(_select(_Lead).where(_Lead.id == lead.id))
+        db_lead = result.scalar_one()
+        assert db_lead.google_calendar_event_id is None
