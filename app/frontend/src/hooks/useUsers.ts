@@ -6,6 +6,7 @@ export interface TeamMember {
   username: string
   role: string
   is_active: boolean
+  email: string | null
 }
 
 export function useUsers() {

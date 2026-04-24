@@ -32,7 +32,7 @@ export function AdminUsersScreen() {
   })
 
   const createMutation = useMutation({
-    mutationFn: async (body: { username: string; pin: string; role: string }) => {
+    mutationFn: async (body: { username: string; pin: string; role: string; email: string | null }) => {
       const r = await apiFetch('/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,22 +70,25 @@ export function AdminUsersScreen() {
   const [newUsername, setNewUsername] = useState('')
   const [newPin, setNewPin] = useState('')
   const [newRole, setNewRole] = useState<Role>('crew')
+  const [newEmail, setNewEmail] = useState('')
   const [createError, setCreateError] = useState('')
 
   const [editUser, setEditUser] = useState<TeamMember | null>(null)
   const [editRole, setEditRole] = useState<Role>('crew')
   const [editPin, setEditPin] = useState('')
+  const [editEmail, setEditEmail] = useState('')
   const [editActive, setEditActive] = useState(true)
   const [editError, setEditError] = useState('')
 
   async function handleCreate() {
     setCreateError('')
     try {
-      await createMutation.mutateAsync({ username: newUsername.trim(), pin: newPin, role: newRole })
+      await createMutation.mutateAsync({ username: newUsername.trim(), pin: newPin, role: newRole, email: newEmail.trim() || null })
       setShowAdd(false)
       setNewUsername('')
       setNewPin('')
       setNewRole('crew')
+      setNewEmail('')
     } catch (e: unknown) {
       setCreateError(e instanceof Error ? e.message : 'Error')
     }
@@ -97,8 +100,10 @@ export function AdminUsersScreen() {
     try {
       const body: Record<string, unknown> = { role: editRole, is_active: editActive }
       if (editPin) body.pin = editPin
+      if (editEmail !== (editUser.email ?? '')) body.email = editEmail || null
       await patchMutation.mutateAsync({ id: editUser.id, body })
       setEditUser(null)
+      setEditEmail('')
     } catch (e: unknown) {
       setEditError(e instanceof Error ? e.message : 'Error')
     }
@@ -137,9 +142,10 @@ export function AdminUsersScreen() {
                 </span>
                 {!u.is_active && <span className="text-xs text-red-500 dark:text-red-400 font-medium">Inactive</span>}
               </div>
+              {u.email && <span className="text-xs text-gray-400 dark:text-gray-500">{u.email}</span>}
             </div>
             <button
-              onClick={() => { setEditUser(u); setEditRole(u.role as Role); setEditActive(u.is_active); setEditPin('') }}
+              onClick={() => { setEditUser(u); setEditRole(u.role as Role); setEditActive(u.is_active); setEditPin(''); setEditEmail(u.email ?? '') }}
               className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               Edit
@@ -167,12 +173,20 @@ export function AdminUsersScreen() {
               inputMode="numeric"
             />
             <select
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-4 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={newRole}
               onChange={e => setNewRole(e.target.value as Role)}
             >
               {ROLES.map(r => <option key={r} value={r} className="capitalize">{r}</option>)}
             </select>
+            <input
+              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-4 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Google email (optional, for calendar invites)"
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              type="email"
+              inputMode="email"
+            />
             {createError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{createError}</p>}
             <div className="flex gap-3">
               <button
@@ -215,7 +229,7 @@ export function AdminUsersScreen() {
               type="password"
               inputMode="numeric"
             />
-            <label className="flex items-center gap-2 mb-5 cursor-pointer">
+            <label className="flex items-center gap-2 mb-3 cursor-pointer">
               <input
                 type="checkbox"
                 className="rounded"
@@ -224,6 +238,15 @@ export function AdminUsersScreen() {
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">Active</span>
             </label>
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Google email (for calendar invites)</label>
+            <input
+              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-4 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="name@gmail.com"
+              value={editEmail}
+              onChange={e => setEditEmail(e.target.value)}
+              type="email"
+              inputMode="email"
+            />
             {editError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{editError}</p>}
             <div className="flex gap-3">
               <button
