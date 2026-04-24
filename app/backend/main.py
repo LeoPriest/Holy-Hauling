@@ -31,7 +31,7 @@ import app.models.user  # noqa: F401
 import app.models.push_subscription  # noqa: F401
 import app.models.job_assignment  # noqa: F401
 
-from app.routers import admin_users, auth as auth_router, chat, ingest, jobs, leads, push, settings as settings_router, users
+from app.routers import admin_google, admin_users, auth as auth_router, chat, ingest, jobs, leads, push, settings as settings_router, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.path.join(_BASE_DIR, "uploads")
@@ -297,6 +297,7 @@ app.add_middleware(
 
 app.include_router(auth_router.router)
 app.include_router(admin_users.router)
+app.include_router(admin_google.router)
 app.include_router(users.router)
 app.include_router(leads.router)
 app.include_router(ingest.router)
