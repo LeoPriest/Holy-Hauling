@@ -512,3 +512,55 @@ async def test_source_category_label_computed(client):
         r = await client.post("/leads", json=payload)
         assert r.status_code == 201
         assert r.json()["source_category_label"] == expected_label, f"Failed for {source_type}"
+
+
+async def test_update_lead_triggers_calendar_sync_when_event_exists(client, db_session):
+    """Changing job_address on a booked lead that has a calendar event should sync."""
+    from unittest.mock import AsyncMock, patch
+    from app.models.lead import Lead as _Lead, LeadSourceType, LeadStatus, ServiceType
+    from datetime import datetime, timezone
+
+    lead = _Lead(
+        source_type=LeadSourceType.manual,
+        status=LeadStatus.booked,
+        service_type=ServiceType.hauling,
+        urgency_flag=False,
+        google_calendar_event_id="gcal-to-update",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(lead)
+    await db_session.commit()
+    await db_session.refresh(lead)
+
+    with patch("app.services.calendar_service.sync_job_calendar", new=AsyncMock()) as mock_sync:
+        r = await client.patch(f"/leads/{lead.id}", json={"job_address": "456 Oak Ave"})
+
+    assert r.status_code == 200
+    mock_sync.assert_called_once()
+
+
+async def test_update_lead_no_calendar_sync_when_no_event(client, db_session):
+    """Changing job_address on a lead without a calendar event should not call sync."""
+    from unittest.mock import AsyncMock, patch
+    from app.models.lead import Lead as _Lead, LeadSourceType, LeadStatus, ServiceType
+    from datetime import datetime, timezone
+
+    lead = _Lead(
+        source_type=LeadSourceType.manual,
+        status=LeadStatus.booked,
+        service_type=ServiceType.hauling,
+        urgency_flag=False,
+        google_calendar_event_id=None,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(lead)
+    await db_session.commit()
+    await db_session.refresh(lead)
+
+    with patch("app.services.calendar_service.sync_job_calendar", new=AsyncMock()) as mock_sync:
+        r = await client.patch(f"/leads/{lead.id}", json={"job_address": "789 Pine Rd"})
+
+    assert r.status_code == 200
+    mock_sync.assert_not_called()

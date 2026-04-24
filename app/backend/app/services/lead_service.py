@@ -176,6 +176,31 @@ async def update_lead(
                 actor=actor or "system",
             ))
 
+        # Physical address entered → auto-book if not already booked/closed
+        _CLOSED = {LeadStatus.booked, LeadStatus.released, LeadStatus.lost}
+        address_newly_set = "job_address" in changed and lead.job_address
+        if address_newly_set and lead.status not in _CLOSED:
+            old_status = lead.status
+            lead.status = LeadStatus.booked
+            db.add(LeadEvent(
+                id=_id(), lead_id=lead_id,
+                event_type="status_changed",
+                from_status=old_status.value,
+                to_status=LeadStatus.booked.value,
+                actor=actor or "system",
+                note="auto-booked on address entry",
+            ))
+            # Fire-and-forget push — same pattern as update_lead_status
+            import logging as _logging
+            from app.services.push_service import send_push_to_roles
+            customer = lead.customer_name or "customer"
+            svc = lead.service_type.value if lead.service_type is not None else "job"
+            try:
+                await send_push_to_roles(db, ["supervisor", "crew"],
+                                          f"New job assigned: {customer} — {svc}")
+            except Exception as exc:
+                _logging.getLogger(__name__).error("Push trigger failed: %s", exc)
+
         db.add(LeadEvent(
             id=_id(), lead_id=lead_id,
             event_type="field_updated",
@@ -184,10 +209,21 @@ async def update_lead(
         ))
         await db.commit()
         await db.refresh(lead)
+
+        # Calendar sync: update the event when job-relevant fields change on a booked job
+        _CALENDAR_FIELDS = {"job_date_requested", "job_address", "scope_notes", "customer_name"}
+        if lead.google_calendar_event_id and any(f in _CALENDAR_FIELDS for f in changed):
+            import logging as _log_cal
+            from app.services import calendar_service as _cal
+            try:
+                await _cal.sync_job_calendar(db, lead_id)
+            except Exception as exc:
+                _log_cal.getLogger(__name__).error("calendar sync on lead update failed: %s", exc)
+
     return lead
 
 
-_JOB_PHASE_ORDER = {"en_route": 1, "started": 2, "completed": 3}
+_JOB_PHASE_ORDER = {"dispatched": 1, "en_route": 2, "arrived": 3, "started": 4, "completed": 5}
 
 
 async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, actor: str | None = None) -> Lead:
@@ -196,24 +232,46 @@ async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, act
     if lead.status != LeadStatus.booked:
         raise HTTPException(status_code=409, detail="Job is not in booked status")
 
-    # Derive current phase from timestamps to prevent regression
-    if lead.started_at and _JOB_PHASE_ORDER.get(job_status, 0) < _JOB_PHASE_ORDER["started"]:
+    # Prevent going backwards through phases (reset bypasses this)
+    current_level = max(
+        _JOB_PHASE_ORDER["dispatched"] if lead.dispatched_at else 0,
+        _JOB_PHASE_ORDER["en_route"] if lead.en_route_at else 0,
+        _JOB_PHASE_ORDER["arrived"] if lead.arrived_at else 0,
+        _JOB_PHASE_ORDER["started"] if lead.started_at else 0,
+    )
+    if job_status != "reset" and _JOB_PHASE_ORDER.get(job_status, 0) < current_level:
         raise HTTPException(status_code=409, detail="Cannot go back to a previous job phase")
-    if lead.en_route_at and job_status == "en_route" and not lead.started_at:
-        # Re-stamping en_route is allowed (supervisor correction)
-        pass
 
     old_status = lead.status
     now = _now()
 
-    if job_status == "en_route":
+    if job_status == "dispatched":
+        lead.dispatched_at = now
+    elif job_status == "en_route":
+        if not lead.dispatched_at:
+            lead.dispatched_at = now
         lead.en_route_at = now
-    elif job_status == "started":
+    elif job_status == "arrived":
+        if not lead.dispatched_at:
+            lead.dispatched_at = now
         if not lead.en_route_at:
-            lead.en_route_at = now  # auto-stamp en_route if skipped
+            lead.en_route_at = now
+        lead.arrived_at = now
+    elif job_status == "started":
+        if not lead.dispatched_at:
+            lead.dispatched_at = now
+        if not lead.en_route_at:
+            lead.en_route_at = now
+        if not lead.arrived_at:
+            lead.arrived_at = now
         lead.started_at = now
     elif job_status == "completed":
         lead.status = LeadStatus.released
+    elif job_status == "reset":
+        lead.dispatched_at = None
+        lead.en_route_at = None
+        lead.arrived_at = None
+        lead.started_at = None
 
     lead.updated_at = now
     db.add(LeadEvent(

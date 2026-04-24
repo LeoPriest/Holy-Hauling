@@ -67,6 +67,8 @@ class LeadUpdate(BaseModel):
     move_type: Optional[str] = None
     move_date_options: Optional[list[str]] = None
     quote_context: Optional[str] = None
+    # Confirmed physical address — setting this triggers auto-booking
+    job_address: Optional[str] = None
 
 
 class NoteCreate(BaseModel):
@@ -140,6 +142,7 @@ class LeadOut(BaseModel):
     move_date_options: Optional[list[str]] = None
     accept_and_pay: bool = False
     quote_context: Optional[str] = None
+    job_address: Optional[str] = None
     # Computed — not stored; maps source_type to human-readable label
     source_category_label: str = ""
 
