@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useSettings, usePatchSettings, useTestAlert } from '../hooks/useSettings'
 import type { SettingsPatch, TestAlertRequest } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { apiFetch } from '../services/api'
 
 type TestKey = `${TestAlertRequest['channel']}_${TestAlertRequest['recipient']}`
 type TestState = { sent: boolean; reason?: string | null }
@@ -20,6 +22,23 @@ export function SettingsScreen() {
   const [form, setForm] = useState<SettingsPatch>({})
   const [saved, setSaved] = useState(false)
   const [testResults, setTestResults] = useState<Partial<Record<TestKey, TestState>>>({})
+
+  const { data: calendarStatus, refetch: refetchCalendarStatus } = useQuery<{ connected: boolean }>({
+    queryKey: ['google-calendar-status'],
+    queryFn: async () => {
+      const r = await apiFetch('/admin/google/status')
+      if (!r.ok) return { connected: false }
+      return r.json()
+    },
+    enabled: user?.role === 'admin',
+  })
+
+  async function handleGoogleConnect() {
+    const r = await apiFetch('/admin/google/connect')
+    if (!r.ok) return
+    const { url } = await r.json()
+    window.open(url, '_blank')
+  }
 
   useEffect(() => {
     if (settings) {
@@ -91,6 +110,35 @@ export function SettingsScreen() {
             </button>
           </FieldRow>
         </section>
+
+        {/* Google Calendar */}
+        {user?.role === 'admin' && (
+          <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 space-y-3">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Google Calendar</h2>
+            <FieldRow label="Status">
+              <span className={`text-sm font-medium ${calendarStatus?.connected ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                {calendarStatus?.connected ? 'Connected' : 'Not connected'}
+              </span>
+            </FieldRow>
+            <div className="flex gap-2">
+              <button
+                onClick={handleGoogleConnect}
+                className="text-xs border dark:border-gray-600 rounded-lg px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
+              >
+                {calendarStatus?.connected ? 'Reconnect' : 'Connect Google Calendar'}
+              </button>
+              <button
+                onClick={() => refetchCalendarStatus()}
+                className="text-xs border dark:border-gray-600 rounded-lg px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300"
+              >
+                Refresh status
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              After connecting, add Google emails to crew profiles so they receive job invites.
+            </p>
+          </section>
+        )}
 
         {/* Alert Thresholds */}
         <section className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 space-y-3">
