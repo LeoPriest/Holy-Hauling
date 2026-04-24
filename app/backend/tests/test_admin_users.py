@@ -205,3 +205,15 @@ async def test_create_user_email_optional(admin_client):
     r2 = await client.get("/admin/users")
     user = next(u for u in r2.json() if u["username"] == "noemail")
     assert user["email"] is None
+
+
+@pytest.mark.asyncio
+async def test_patch_user_email_clear(admin_client):
+    client, factory = admin_client
+    user = await _seed_user(factory, username="hazel", role="crew")
+    await client.patch(f"/admin/users/{user.id}", json={"email": "hazel@gmail.com"})
+    r = await client.patch(f"/admin/users/{user.id}", json={"email": None})
+    assert r.status_code == 200
+    r2 = await client.get("/admin/users")
+    u = next(x for x in r2.json() if x["username"] == "hazel")
+    assert u["email"] is None

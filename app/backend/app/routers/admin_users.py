@@ -64,7 +64,7 @@ async def patch_user(
         user.credential_hash = hash_pin(data.pin)
     if data.is_active is not None:
         user.is_active = data.is_active
-    if data.email is not None:
+    if "email" in data.model_fields_set:
         user.email = data.email
     await db.commit()
     await db.refresh(user)
