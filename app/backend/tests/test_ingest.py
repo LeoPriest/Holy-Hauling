@@ -5,6 +5,19 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
+
+async def _mock_facilitator():
+    from datetime import datetime, timezone
+    from app.models.user import User
+    return User(
+        id="test-facilitator-id",
+        username="test-facilitator",
+        credential_hash="placeholder",
+        role="facilitator",
+        is_active=True,
+        created_at=datetime.now(timezone.utc),
+    )
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -61,6 +74,29 @@ async def test_ingest_screenshot_creates_lead(client):
     body = r.json()
     assert body["lead"]["id"]
     assert body["lead"]["source_type"] == "thumbtack_screenshot"
+    assert body["lead"]["ingested_by"] == "test-admin"
+    assert body["lead"]["acknowledged_at"] is None
+
+
+async def test_ingest_screenshot_by_facilitator_auto_acknowledges(client):
+    from app.dependencies import require_auth
+    from main import app
+
+    original_override = app.dependency_overrides.get(require_auth)
+    app.dependency_overrides[require_auth] = _mock_facilitator
+    try:
+        r = await client.post(
+            "/ingest/screenshot",
+            files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+            data={"source_type": "thumbtack_screenshot"},
+        )
+    finally:
+        app.dependency_overrides[require_auth] = original_override
+
+    assert r.status_code == 201
+    body = r.json()
+    assert body["lead"]["ingested_by"] == "test-facilitator"
+    assert body["lead"]["acknowledged_at"] is not None
 
 
 async def test_ingest_screenshot_customer_name_is_null_without_ocr(client, monkeypatch):

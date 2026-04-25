@@ -1,0 +1,66 @@
+<h2>Design: Auth + Roles — Scope + Testing</h2>
+<p class="subtitle">Section 3 of 3. Last section — approve and we write the spec.</p>
+
+<div class="section">
+  <h3>In scope for this sub-project</h3>
+  <div style="display:flex;flex-direction:column;gap:5px;font-size:13px">
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>User model + DB migration</strong> — users table, bcrypt credential_hash, 4 roles, default admin seeded</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Auth endpoints</strong> — POST /auth/login (returns JWT), GET /auth/me</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>JWT middleware</strong> — all existing routes require a valid token; current_user injected into every request</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Role enforcement</strong> — admin-only: /admin/users, settings PATCH; supervisor-only: PATCH /jobs/{id}/status</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Admin user management screen</strong> — /admin/users: list, add, edit role, reset PIN, deactivate</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Login screen</strong> — username + PIN keypad, JWT stored in localStorage, auto-redirect on load</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Role-based routing</strong> — admin/facilitator → lead queue; crew/supervisor → /jobs</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>GET /jobs + /jobs screen</strong> — booked leads filtered by role (crew sees limited fields; supervisor sees all)</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Light / dark mode toggle</strong> — preference stored in localStorage, applied app-wide, toggle in app header</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>actor field populated from JWT</strong> — all existing audit trail events now carry the real username automatically</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Out of scope — future sub-projects</h3>
+  <div style="display:flex;flex-direction:column;gap:4px;font-size:13px">
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Before/after photo submission flow (Sub-project 2 — Field Crew views)</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Revenue + job history dashboard (Sub-project 3 — Admin Panel)</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Pricing matrix editor (Sub-project 3 — Admin Panel)</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Push notifications / offline support</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Password upgrade (B) — PIN credential_hash field is already shaped for it; UI upgrade only when ready</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Testing plan</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+      <div style="font-weight:700;margin-bottom:6px;color:#111827">Backend (pytest)</div>
+      <ul style="margin:0;padding-left:16px;color:#111827;line-height:1.8">
+        <li>Login with correct PIN → 200 + JWT</li>
+        <li>Login with wrong PIN → 401</li>
+        <li>Login with deactivated user → 401</li>
+        <li>Request without token → 401</li>
+        <li>Facilitator hits /admin/users → 403</li>
+        <li>Crew hits PATCH /jobs/{id}/status → 403</li>
+        <li>GET /jobs returns only booked leads</li>
+        <li>Crew response omits phone + quote fields</li>
+        <li>Supervisor response includes phone + quote</li>
+        <li>Default admin seeded on empty DB</li>
+      </ul>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+      <div style="font-weight:700;margin-bottom:6px;color:#111827">Frontend (manual — dev server)</div>
+      <ul style="margin:0;padding-left:16px;color:#111827;line-height:1.8">
+        <li>No token → login screen shown</li>
+        <li>Bad PIN → error message shown</li>
+        <li>Admin/facilitator login → lead queue</li>
+        <li>Crew/supervisor login → /jobs</li>
+        <li>Crew job detail hides phone + quote</li>
+        <li>Supervisor sees status action buttons</li>
+        <li>Admin sees ⚙ → /admin/users nav item</li>
+        <li>Dark mode toggle persists on reload</li>
+        <li>Expired token → redirect to login</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Does this scope look right? Confirm in the terminal and I'll write the spec doc.</p>

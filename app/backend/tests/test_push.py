@@ -83,6 +83,95 @@ async def test_subscribe_saves_subscription(push_client):
 
 
 @pytest.mark.asyncio
+async def test_unsubscribe_removes_subscription(push_client):
+    client, factory = push_client
+    async with factory() as s:
+        u = User(
+            id="mock-user-id",
+            username="crew1",
+            credential_hash="x",
+            role="crew",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        s.add(u)
+        await s.commit()
+
+    await client.post("/push/subscribe", json={
+        "endpoint": "https://example.com/push/remove",
+        "p256dh": "BNc1PnR_remove",
+        "auth": "remove123",
+    })
+
+    r = await client.post("/push/unsubscribe", json={"endpoint": "https://example.com/push/remove"})
+
+    assert r.status_code == 200
+    assert r.json()["removed"] is True
+
+    async with factory() as s:
+        result = await s.execute(select(PushSubscription))
+        assert result.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_push_test_requires_vapid_config(push_client, monkeypatch):
+    client, factory = push_client
+    monkeypatch.delenv("VAPID_PRIVATE_KEY", raising=False)
+    monkeypatch.delenv("VAPID_PUBLIC_KEY", raising=False)
+
+    r = await client.post("/push/test")
+
+    assert r.status_code == 200
+    assert r.json()["sent"] is False
+    assert "VAPID" in r.json()["reason"]
+
+
+@pytest.mark.asyncio
+async def test_push_test_requires_subscription(push_client, monkeypatch):
+    client, factory = push_client
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private")
+    monkeypatch.setenv("VAPID_PUBLIC_KEY", "public")
+
+    r = await client.post("/push/test")
+
+    assert r.status_code == 200
+    assert r.json() == {
+        "sent": False,
+        "reason": "No browser push subscription saved for this user.",
+    }
+
+
+@pytest.mark.asyncio
+async def test_push_test_sends_to_current_user(push_client, monkeypatch):
+    client, factory = push_client
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private")
+    monkeypatch.setenv("VAPID_PUBLIC_KEY", "public")
+    async with factory() as s:
+        u = User(
+            id="mock-user-id",
+            username="crew1",
+            credential_hash="x",
+            role="crew",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        s.add(u)
+        await s.commit()
+    await client.post("/push/subscribe", json={
+        "endpoint": "https://example.com/push/test",
+        "p256dh": "BNc1PnR_test",
+        "auth": "test123",
+    })
+
+    with patch("app.services.push_service.send_push_to_user", new=AsyncMock(return_value=1)) as mock_send:
+        r = await client.post("/push/test")
+
+    assert r.status_code == 200
+    assert r.json() == {"sent": True, "reason": None}
+    mock_send.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_push_fires_on_booked_lead(push_client):
     client, factory = push_client
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Lead, Settings } from '../types/lead'
+import { parseUtc } from '../utils/time'
 
 const SNOOZE_KEY = 'hh_banner_snooze_until'
 const SNOOZE_MS = 10 * 60 * 1000  // 10 minutes
@@ -41,7 +42,7 @@ export function useStaleLeads(leads: Lead[], settings: Settings | undefined) {
     const idleMinuteMap = new Map<string, number>()
     for (const lead of leads) {
       if (!ACTIVE_STATUSES.has(lead.status)) continue
-      const idleMs = now - new Date(lead.updated_at).getTime()
+      const idleMs = now - parseUtc(lead.updated_at).getTime()
       const idleMin = Math.floor(idleMs / 60_000)
       if (idleMs >= t2Ms) {
         t2Ids.add(lead.id)

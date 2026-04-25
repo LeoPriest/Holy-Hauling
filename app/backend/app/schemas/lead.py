@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime
 from typing import Any, Optional
 
@@ -17,6 +18,50 @@ _SOURCE_LABELS: dict[str, str] = {
     "manual":               "Manual Entry",
 }
 
+_TIME_SLOT_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+
+
+def _normalize_time_slot(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("appointment_time_slot must be a string in HH:MM format")
+    value = value.strip()
+    if not value:
+        return None
+    if not _TIME_SLOT_RE.fullmatch(value):
+        raise ValueError("appointment_time_slot must be in HH:MM format")
+    return value
+
+
+def _normalize_duration_minutes(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+        if not value.isdigit():
+            raise ValueError("estimated_job_duration_minutes must be a whole number of minutes")
+        value = int(value)
+    elif isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError("estimated_job_duration_minutes must be a whole number of minutes")
+
+    if value <= 0:
+        raise ValueError("estimated_job_duration_minutes must be greater than 0")
+    if value > 24 * 60:
+        raise ValueError("estimated_job_duration_minutes must be 1440 minutes or less")
+    return value
+
+
+class QuoteModifierIn(BaseModel):
+    amount: float
+    note: str
+
+
+class QuoteModifierOut(QuoteModifierIn):
+    pass
+
 
 class LeadCreate(BaseModel):
     source_type: LeadSourceType
@@ -29,6 +74,8 @@ class LeadCreate(BaseModel):
     job_origin: Optional[str] = None
     job_destination: Optional[str] = None
     job_date_requested: Optional[date] = None
+    appointment_time_slot: Optional[str] = None
+    estimated_job_duration_minutes: Optional[int] = None
     scope_notes: Optional[str] = None
     # Intake notes — initial context recorded at lead creation
     notes: Optional[str] = None
@@ -43,6 +90,13 @@ class LeadCreate(BaseModel):
     move_date_options: Optional[list[str]] = None
     accept_and_pay: bool = False
 
+    _validate_appointment_time_slot = field_validator("appointment_time_slot", mode="before")(
+        _normalize_time_slot
+    )
+    _validate_duration_minutes = field_validator("estimated_job_duration_minutes", mode="before")(
+        _normalize_duration_minutes
+    )
+
 
 class LeadUpdate(BaseModel):
     """Partial update for mutable lead fields. Only supplied fields are written.
@@ -54,6 +108,8 @@ class LeadUpdate(BaseModel):
     job_origin: Optional[str] = None
     job_destination: Optional[str] = None
     job_date_requested: Optional[date] = None
+    appointment_time_slot: Optional[str] = None
+    estimated_job_duration_minutes: Optional[int] = None
     scope_notes: Optional[str] = None
     urgency_flag: Optional[bool] = None
     assigned_to: Optional[str] = None
@@ -70,6 +126,13 @@ class LeadUpdate(BaseModel):
     # Confirmed physical address — setting this triggers auto-booking
     job_address: Optional[str] = None
 
+    _validate_appointment_time_slot = field_validator("appointment_time_slot", mode="before")(
+        _normalize_time_slot
+    )
+    _validate_duration_minutes = field_validator("estimated_job_duration_minutes", mode="before")(
+        _normalize_duration_minutes
+    )
+
 
 class NoteCreate(BaseModel):
     """Operational note appended to the lead event log during live handling."""
@@ -81,6 +144,13 @@ class LeadStatusUpdate(BaseModel):
     status: LeadStatus
     actor: Optional[str] = None
     note: Optional[str] = None
+    quoted_price_total: Optional[float] = None
+    quote_modifiers: Optional[list[QuoteModifierIn]] = None
+    estimated_job_duration_minutes: Optional[int] = None
+
+    _validate_duration_minutes = field_validator("estimated_job_duration_minutes", mode="before")(
+        _normalize_duration_minutes
+    )
 
 
 class LeadEventOut(BaseModel):
@@ -103,7 +173,7 @@ class ScreenshotOut(BaseModel):
     stored_path: str  # relative path; prefix with /uploads/ to build URL
     file_size: int
     ocr_status: Optional[str] = None
-    # "intake" = original ingest screenshot; "correspondence" = customer messages
+    # "intake", "correspondence", "before_job", "after_job"
     screenshot_type: str = "intake"
     created_at: datetime
 
@@ -125,10 +195,13 @@ class LeadOut(BaseModel):
     job_origin: Optional[str] = None
     job_destination: Optional[str] = None
     job_date_requested: Optional[date]
+    appointment_time_slot: Optional[str] = None
+    estimated_job_duration_minutes: Optional[int] = None
     scope_notes: Optional[str] = None
     # JSON dict: {field_name: "ocr" | "edited"} — parsed by the router; absence = manual
     field_sources: Optional[dict[str, Any]] = None
     notes: Optional[str]
+    ingested_by: Optional[str] = None
     assigned_to: Optional[str]
     created_at: datetime
     acknowledged_at: Optional[datetime]
@@ -142,11 +215,20 @@ class LeadOut(BaseModel):
     move_date_options: Optional[list[str]] = None
     accept_and_pay: bool = False
     quote_context: Optional[str] = None
+    quoted_price_total: Optional[float] = None
+    quote_modifiers: Optional[list[QuoteModifierOut]] = None
     job_address: Optional[str] = None
     # Computed — not stored; maps source_type to human-readable label
     source_category_label: str = ""
 
     model_config = {"from_attributes": True}
+
+    _validate_appointment_time_slot = field_validator("appointment_time_slot", mode="before")(
+        _normalize_time_slot
+    )
+    _validate_duration_minutes = field_validator("estimated_job_duration_minutes", mode="before")(
+        _normalize_duration_minutes
+    )
 
     @field_validator("field_sources", mode="before")
     @classmethod
@@ -163,6 +245,17 @@ class LeadOut(BaseModel):
     @classmethod
     def _parse_move_date_options(cls, v: Any) -> Any:
         """move_date_options is stored as a JSON array string in the DB; deserialize it here."""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (ValueError, TypeError):
+                return None
+        return v
+
+    @field_validator("quote_modifiers", mode="before")
+    @classmethod
+    def _parse_quote_modifiers(cls, v: Any) -> Any:
+        """quote_modifiers is stored as a JSON array string in the DB; deserialize it here."""
         if isinstance(v, str):
             try:
                 return json.loads(v)

@@ -44,6 +44,9 @@ export function LeadCard({ lead, onClick, staleness, idleMinutes }: Props) {
             )}
             <StatusBadge status={lead.status} />
             <SourceBadge source={lead.source_type} />
+            {lead.ingested_by && (
+              <span className="text-xs font-medium text-gray-500">Ingested by {lead.ingested_by}</span>
+            )}
           </div>
           {lead.customer_name
             ? <p className="font-semibold text-gray-900 truncate">{lead.customer_name}</p>

@@ -1,0 +1,143 @@
+<h2>Design: Auth + Roles — Scope + Testing</h2>
+<p class="subtitle">Section 3 of 3. Last section — approve and we write the spec.</p>
+
+<div class="section">
+  <h3>In scope for this sub-project</h3>
+  <div style="display:flex;flex-direction:column;gap:5px;font-size:13px">
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>User model + DB migration</strong> — users table, bcrypt credential_hash, 4 roles, default admin seeded</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Auth endpoints</strong> — POST /auth/login (returns JWT), GET /auth/me</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>JWT middleware</strong> — all existing routes require a valid token; current_user injected into every request</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">
+      ✅ <strong>Role enforcement</strong>
+      <ul style="margin:6px 0 0 0;padding-left:16px;color:#374151;font-size:12px;line-height:1.8">
+        <li><strong>Admin only:</strong> /admin/users (write), PATCH /settings</li>
+        <li><strong>Admin + facilitator:</strong> all lead operations, intake, AI review, notes, GET /users</li>
+        <li><strong>Supervisor only:</strong> PATCH /jobs/{id}/status</li>
+        <li><strong>All roles:</strong> GET /settings (read-only), GET /jobs, GET /auth/me</li>
+      </ul>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Admin user management screen</strong> — /admin/users: list, add, edit role, reset PIN, deactivate</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Settings screen gating</strong> — facilitator sees settings read-only (no Save button); admin sees full editable form</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Login screen</strong> — username + PIN keypad, JWT stored in localStorage, auto-redirect on load</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Role-based routing</strong> — admin/facilitator → lead queue; crew/supervisor → /jobs</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>GET /jobs + /jobs screen</strong> — booked leads filtered by role (crew sees limited fields; supervisor sees all)</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>Light / dark mode toggle</strong> — preference stored in localStorage, applied app-wide, toggle in app header</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">✅ <strong>actor field populated from JWT</strong> — all existing audit trail events now carry the real username automatically</div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">
+      ✅ <strong>Team member dropdown for assigned_to</strong>
+      <ul style="margin:6px 0 0 0;padding-left:16px;color:#374151;font-size:12px;line-height:1.8">
+        <li><code>GET /users</code> — lightweight endpoint (id, username, role) for active users; accessible to admin + facilitator</li>
+        <li>Lead edit form replaces the free-text "Handler" field with a dropdown grouped by role: Admin, Facilitator, Supervisor, Crew</li>
+        <li>Stored value remains the username string — no FK change, no migration needed</li>
+        <li>Admins appear in the dropdown so they can be assigned to a job when needed</li>
+        <li>Queue filter "Handler" also becomes a dropdown of team members</li>
+      </ul>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;color:#111827">
+      ✅ <strong>Push notifications (Web Push)</strong>
+      <ul style="margin:6px 0 0 0;padding-left:16px;color:#374151;font-size:12px;line-height:1.8">
+        <li>VAPID key pair in .env; <code>POST /push/subscribe</code> saves device subscription per user</li>
+        <li>Triggers: new job assigned to crew/supervisor → notify them; job escalated → notify supervisor</li>
+        <li>Service worker registered on login; permission requested once, skipped gracefully if denied</li>
+        <li>Uses <code>pywebpush</code> on backend</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>assigned_to dropdown — mockup</h3>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <div class="mockup" style="flex:1;min-width:200px;max-width:300px">
+      <div class="mockup-header">Lead edit — Assign Handler</div>
+      <div class="mockup-body" style="padding:12px;font-size:12px">
+        <label style="font-size:11px;font-weight:600;color:#374151;display:block;margin-bottom:4px">Assigned to</label>
+        <select class="mock-input" style="width:100%;font-size:12px;color:#111827">
+          <option value="" style="color:#9ca3af">— Unassigned —</option>
+          <optgroup label="Admin" style="color:#78350f;font-weight:700">
+            <option style="color:#111827">Andre (you)</option>
+          </optgroup>
+          <optgroup label="Facilitator" style="color:#1e3a8a;font-weight:700">
+            <option style="color:#111827">Jordan</option>
+          </optgroup>
+          <optgroup label="Supervisor" style="color:#14532d;font-weight:700">
+            <option style="color:#111827">Marcus</option>
+          </optgroup>
+          <optgroup label="Crew" style="color:#374151;font-weight:700">
+            <option style="color:#111827">Tyler</option>
+            <option style="color:#111827">Darius</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+    <div style="flex:1;min-width:200px;font-size:12px;color:#374151;padding-top:8px">
+      <div style="font-weight:600;margin-bottom:6px;color:#111827">How it works</div>
+      <ul style="margin:0;padding-left:16px;line-height:1.8">
+        <li>Dropdown populated from <code>GET /users</code> on form open</li>
+        <li>Grouped by role with role label as the optgroup header</li>
+        <li>Only active users shown</li>
+        <li>Saves username string to <code>assigned_to</code> — no DB schema change</li>
+        <li>Queue filter "Handler…" text input also replaced with this dropdown</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Out of scope — future sub-projects</h3>
+  <div style="display:flex;flex-direction:column;gap:4px;font-size:13px">
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Before/after photo submission flow (Sub-project 2)</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Revenue + job history dashboard (Sub-project 3)</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Pricing matrix editor (Sub-project 3)</div>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:8px;color:#111827">🚫 Password upgrade — credential_hash already shaped for it; UI change only when ready</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Testing plan</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+      <div style="font-weight:700;margin-bottom:6px;color:#111827">Backend (pytest)</div>
+      <ul style="margin:0;padding-left:16px;color:#111827;line-height:1.8">
+        <li>Login correct PIN → 200 + JWT</li>
+        <li>Login wrong PIN → 401</li>
+        <li>Login deactivated user → 401</li>
+        <li>Request without token → 401</li>
+        <li>Facilitator hits /admin/users → 403</li>
+        <li>Facilitator hits PATCH /settings → 403</li>
+        <li>Admin hits PATCH /settings → 200</li>
+        <li>Crew hits PATCH /jobs/{id}/status → 403</li>
+        <li>GET /jobs returns only booked leads</li>
+        <li>Crew response omits phone + quote</li>
+        <li>Supervisor response includes phone + quote</li>
+        <li>Default admin seeded on empty DB</li>
+        <li>GET /users returns active users only</li>
+        <li>Crew cannot call GET /users → 403</li>
+        <li>POST /push/subscribe saves subscription</li>
+        <li>Push fires when lead marked booked</li>
+      </ul>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+      <div style="font-weight:700;margin-bottom:6px;color:#111827">Frontend (manual — dev server)</div>
+      <ul style="margin:0;padding-left:16px;color:#111827;line-height:1.8">
+        <li>No token → login screen shown</li>
+        <li>Bad PIN → error message shown</li>
+        <li>Admin/facilitator login → lead queue</li>
+        <li>Crew/supervisor login → /jobs</li>
+        <li>Facilitator sees settings read-only</li>
+        <li>Admin sees full editable settings form</li>
+        <li>Crew job detail hides phone + quote</li>
+        <li>Supervisor sees status action buttons</li>
+        <li>Admin sees /admin/users nav item</li>
+        <li>assigned_to shows role-grouped dropdown</li>
+        <li>Admin appears in dropdown as assignable</li>
+        <li>Queue filter shows team member dropdown</li>
+        <li>Dark mode toggle persists on reload</li>
+        <li>Expired token → redirect to login</li>
+        <li>Push notification received when job assigned</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Does this look right? Confirm in the terminal and I'll write the spec doc.</p>

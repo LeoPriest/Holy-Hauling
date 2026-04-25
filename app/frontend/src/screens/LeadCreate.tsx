@@ -57,6 +57,7 @@ export function LeadCreate({ onClose }: Props) {
   const ingest = useIngestScreenshot()
   const { mutate: createLead, isPending: creating } = useCreateLead()
   const { mutate: patchLead, isPending: patching } = usePatchLead()
+  const canDismiss = !(mode === 'screenshot' && stage === 'processing') && !creating && !patching
 
   // ── screenshot path ──────────────────────────────────────────────────────
 
@@ -130,8 +131,12 @@ export function LeadCreate({ onClose }: Props) {
   // ── render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-lg shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto">
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={canDismiss ? onClose : undefined}
+      />
+      <div className="relative bg-white rounded-xl w-full max-w-lg shadow-xl my-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
 
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <h2 className="font-semibold text-gray-900">

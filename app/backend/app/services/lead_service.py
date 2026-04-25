@@ -28,6 +28,7 @@ SCREENSHOTS_DIR = os.path.normpath(
 )
 
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+_ALLOWED_SCREENSHOT_TYPES = {"intake", "correspondence", "before_job", "after_job"}
 
 _MASKED_PHONE_RE = re.compile(r'[xX]{3,}')
 _DIGIT_RE = re.compile(r'\d')
@@ -50,7 +51,7 @@ def _is_valid_phone(value: str | None) -> bool:
 _PROVENANCE_FIELDS = {
     "customer_name", "customer_phone", "service_type",
     "job_location", "job_origin", "job_destination",
-    "job_date_requested", "scope_notes",
+    "job_date_requested", "appointment_time_slot", "scope_notes",
     # Slice 8
     "move_size_label", "move_type", "move_distance_miles",
     "load_stairs", "unload_stairs", "move_date_options",
@@ -67,19 +68,97 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _apply_acknowledgement(
+    lead: Lead,
+    *,
+    actor: Optional[str] = None,
+    note: Optional[str] = None,
+) -> LeadEvent:
+    now = _now()
+    lead.acknowledged_at = now
+    lead.updated_at = now
+    return LeadEvent(
+        id=_id(),
+        lead_id=lead.id,
+        event_type="acknowledged",
+        actor=actor,
+        note=note,
+    )
+
+
 # ── leads ────────────────────────────────────────────────────────────────────
 
-async def create_lead(db: AsyncSession, data: LeadCreate) -> Lead:
+def _round_money(value: float) -> float:
+    return round(float(value) + 1e-9, 2)
+
+
+def _normalize_quote_modifiers(modifiers: list[dict] | None) -> list[dict]:
+    normalized: list[dict] = []
+    for modifier in modifiers or []:
+        note = str(modifier.get("note", "")).strip()
+        amount = _round_money(float(modifier.get("amount", 0)))
+        if not note and amount == 0:
+            continue
+        if not note:
+            raise HTTPException(status_code=400, detail="Each quote modifier needs a note.")
+        normalized.append({"amount": amount, "note": note})
+    return normalized
+
+
+def _current_quote_modifiers(lead: Lead) -> list[dict]:
+    if not lead.quote_modifiers:
+        return []
+    try:
+        parsed = json.loads(lead.quote_modifiers)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [item for item in parsed if isinstance(item, dict)]
+
+
+def _apply_quote_breakdown(
+    lead: Lead,
+    *,
+    quoted_price_total: float | None,
+    quote_modifiers: list[dict] | None,
+) -> None:
+    if quoted_price_total is None and quote_modifiers is None:
+        return
+
+    total = lead.quoted_price_total if quoted_price_total is None else quoted_price_total
+    if total is None:
+        raise HTTPException(status_code=400, detail="Quoted price is required when saving a quote breakdown.")
+
+    total = _round_money(total)
+    if total <= 0:
+        raise HTTPException(status_code=400, detail="Quoted price must be greater than zero.")
+
+    modifiers = _normalize_quote_modifiers(
+        _current_quote_modifiers(lead) if quote_modifiers is None else quote_modifiers
+    )
+    modifier_total = _round_money(sum(float(item["amount"]) for item in modifiers))
+    if modifier_total != total:
+        raise HTTPException(
+            status_code=400,
+            detail="Quote modifiers must add up exactly to the quoted price.",
+        )
+
+    lead.quoted_price_total = total
+    lead.quote_modifiers = json.dumps(modifiers)
+
+
+async def create_lead(db: AsyncSession, data: LeadCreate, actor: Optional[str] = None) -> Lead:
     lead_dict = data.model_dump()
     # Serialize list fields for storage
     if isinstance(lead_dict.get("move_date_options"), list):
         lead_dict["move_date_options"] = json.dumps(lead_dict["move_date_options"])
-    lead = Lead(id=_id(), status=LeadStatus.new, **lead_dict)
+    lead = Lead(id=_id(), status=LeadStatus.new, ingested_by=actor, **lead_dict)
     db.add(lead)
     db.add(LeadEvent(
         id=_id(), lead_id=lead.id,
         event_type="created", to_status=lead.status.value,
-        actor=data.assigned_to,
+        actor=actor,
     ))
     await db.commit()
     await db.refresh(lead)
@@ -213,7 +292,14 @@ async def update_lead(
         await db.refresh(lead)
 
         # Calendar sync: update the event when job-relevant fields change on a booked job
-        _CALENDAR_FIELDS = {"job_date_requested", "job_address", "scope_notes", "customer_name"}
+        _CALENDAR_FIELDS = {
+            "job_date_requested",
+            "appointment_time_slot",
+            "estimated_job_duration_minutes",
+            "job_address",
+            "scope_notes",
+            "customer_name",
+        }
         if lead.google_calendar_event_id and any(f in _CALENDAR_FIELDS for f in changed):
             from app.services import calendar_service as _cal
             try:
@@ -291,6 +377,13 @@ async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, act
 async def update_lead_status(db: AsyncSession, lead_id: str, data: LeadStatusUpdate) -> Lead:
     lead = await get_lead(db, lead_id)
     old_status = lead.status
+    _apply_quote_breakdown(
+        lead,
+        quoted_price_total=data.quoted_price_total,
+        quote_modifiers=[item.model_dump() for item in data.quote_modifiers] if data.quote_modifiers is not None else None,
+    )
+    if data.estimated_job_duration_minutes is not None:
+        lead.estimated_job_duration_minutes = data.estimated_job_duration_minutes
     lead.status = data.status
     lead.updated_at = _now()
     db.add(LeadEvent(
@@ -324,9 +417,7 @@ async def acknowledge_lead(db: AsyncSession, lead_id: str, actor: Optional[str] 
     lead = await get_lead(db, lead_id)
     if lead.acknowledged_at is not None:
         raise HTTPException(status_code=409, detail="Lead already acknowledged")
-    lead.acknowledged_at = _now()
-    lead.updated_at = _now()
-    db.add(LeadEvent(id=_id(), lead_id=lead_id, event_type="acknowledged", actor=actor))
+    db.add(_apply_acknowledgement(lead, actor=actor))
     await db.commit()
     await db.refresh(lead)
     return lead
@@ -368,6 +459,8 @@ async def upload_screenshot(
 
     if file.content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="File must be JPEG, PNG, or WebP")
+    if screenshot_type not in _ALLOWED_SCREENSHOT_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid screenshot type")
 
     ext = os.path.splitext(file.filename or "screenshot")[1] or ".jpg"
     stored_name = f"{uuid.uuid4()}{ext}"
@@ -389,7 +482,7 @@ async def upload_screenshot(
     db.add(LeadEvent(
         id=_id(), lead_id=lead_id,
         event_type="screenshot_added",
-        note=file.filename,
+        note=f"{screenshot_type}: {file.filename}",
     ))
     await db.commit()
     await db.refresh(record)

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useChatMessages, useSendChatMessage } from '../hooks/useLeads'
+import { fmtLocalTime } from '../utils/time'
 
 interface Props {
   leadId: string
@@ -59,7 +60,7 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
             >
               <p className="whitespace-pre-wrap">{m.content}</p>
               <p className={`text-[10px] mt-1 ${m.role === 'user' ? 'text-indigo-300' : 'text-gray-400'}`}>
-                {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {fmtLocalTime(m.created_at)}
               </p>
             </div>
           </div>

@@ -24,3 +24,9 @@ class User(Base):
     push_subscriptions = relationship(
         "PushSubscription", back_populates="user", cascade="all, delete-orphan", lazy="select"
     )
+    availability_entries = relationship(
+        "UserAvailability", back_populates="user", cascade="all, delete-orphan", lazy="select"
+    )
+    weekly_availability_entries = relationship(
+        "UserWeeklyAvailability", back_populates="user", cascade="all, delete-orphan", lazy="select"
+    )

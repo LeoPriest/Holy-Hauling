@@ -9,6 +9,7 @@ import { LeadQueue } from './screens/LeadQueue'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { JobsScreen } from './screens/JobsScreen'
 import { AdminUsersScreen } from './screens/AdminUsersScreen'
+import { CalendarScreen } from './screens/CalendarScreen'
 
 const queryClient = new QueryClient()
 
@@ -37,8 +38,9 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to={defaultPath} replace /> : <LoginScreen />} />
       <Route path="/" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator']}><LeadQueue /></RoleGuard></AuthGuard>} />
       <Route path="/leads/:id" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator']}><LeadCommandCenter /></RoleGuard></AuthGuard>} />
-      <Route path="/settings" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator']}><SettingsScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/settings" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><SettingsScreen /></RoleGuard></AuthGuard>} />
       <Route path="/jobs" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><JobsScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/calendar" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><CalendarScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/users" element={<AuthGuard><RoleGuard roles={['admin']}><AdminUsersScreen /></RoleGuard></AuthGuard>} />
       <Route path="*" element={<Navigate to={user ? defaultPath : '/login'} replace />} />
     </Routes>

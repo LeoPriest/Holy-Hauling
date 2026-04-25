@@ -113,6 +113,6 @@ _Nothing currently known to be broken. All issues from the recovery pass have be
 
 ## Last Verified
 
-- Date: 2026-04-20
+- Date: 2026-04-24
 - Verified by: Claude (automated tests)
-- Notes: 108/108 tests passing. Slice 8 complete: move detail fields, Thumbtack contact flow (accept_and_pay, contact lock/unlock, phone auto-acknowledge), source_category_label, revised Intake/Job Details/Scope & Access layout.
+- Notes: 108/108 tests passing. Slice 8 complete: move detail fields, Thumbtack contact flow (accept_and_pay, contact lock/unlock, phone auto-acknowledge), source_category_label, revised Intake/Job Details/Scope & Access layout. Google Calendar integration added (sync on job date/address/notes edits and crew assignment changes; connect button in Settings).

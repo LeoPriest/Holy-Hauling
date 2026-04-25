@@ -52,3 +52,15 @@ class TestAlertRequest(BaseModel):
 class TestAlertResult(BaseModel):
     sent: bool
     reason: Optional[str] = None
+
+
+class NotificationChannelStatus(BaseModel):
+    configured: bool
+    missing: list[str] = []
+    detail: Optional[str] = None
+
+
+class NotificationStatusOut(BaseModel):
+    sms: NotificationChannelStatus
+    email: NotificationChannelStatus
+    web_push: NotificationChannelStatus

@@ -1,4 +1,4 @@
-import type { AiReview, ChatMessage, ChatResponse, IngestResult, Lead, LeadCreate, LeadEvent, LeadStatus, LeadUpdate, OcrResult, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
+import type { AiReview, ChatMessage, ChatResponse, IngestResult, Lead, LeadCreate, LeadEvent, LeadStatus, LeadUpdate, OcrResult, QuoteModifier, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
 
 const BASE = '/leads'
 
@@ -56,13 +56,26 @@ export async function updateLeadStatus(
   status: LeadStatus,
   actor?: string,
   note?: string,
+  quotedPriceTotal?: number,
+  quoteModifiers?: QuoteModifier[],
+  estimatedJobDurationMinutes?: number,
 ): Promise<Lead> {
   const r = await apiFetch(`${BASE}/${id}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status, actor, note }),
+    body: JSON.stringify({
+      status,
+      actor,
+      note,
+      quoted_price_total: quotedPriceTotal ?? null,
+      quote_modifiers: quoteModifiers ?? null,
+      estimated_job_duration_minutes: estimatedJobDurationMinutes ?? null,
+    }),
   })
-  if (!r.ok) throw new Error('Failed to update status')
+  if (!r.ok) {
+    const body = await r.json().catch(() => null)
+    throw new Error(body?.detail ?? `Failed to update status (${r.status})`)
+  }
   return r.json()
 }
 
@@ -83,9 +96,14 @@ export async function addNote(leadId: string, body: string, actor?: string): Pro
   return r.json()
 }
 
-export async function uploadScreenshot(leadId: string, file: File): Promise<Screenshot> {
+export async function uploadScreenshot(
+  leadId: string,
+  file: File,
+  screenshotType = 'intake',
+): Promise<Screenshot> {
   const form = new FormData()
   form.append('file', file)
+  form.append('screenshot_type', screenshotType)
   const r = await apiFetch(`${BASE}/${leadId}/screenshots`, { method: 'POST', body: form })
   if (!r.ok) throw new Error('Failed to upload screenshot')
   return r.json()
@@ -208,5 +226,75 @@ export async function testAlert(data: TestAlertRequest): Promise<TestAlertResult
     body: JSON.stringify(data),
   })
   if (!r.ok) throw new Error('Test alert request failed')
+  return r.json()
+}
+
+export async function fetchNotificationStatus(): Promise<{
+  sms: { configured: boolean; missing: string[]; detail: string | null }
+  email: { configured: boolean; missing: string[]; detail: string | null }
+  web_push: { configured: boolean; missing: string[]; detail: string | null }
+}> {
+  const r = await apiFetch('/settings/notification-status')
+  if (!r.ok) throw new Error('Failed to fetch notification status')
+  return r.json()
+}
+
+export async function fetchVapidPublicKey(): Promise<string> {
+  const r = await apiFetch('/push/vapid-public-key')
+  if (!r.ok) throw new Error('Failed to fetch VAPID public key')
+  const data = await r.json() as { publicKey?: string }
+  return data.publicKey ?? ''
+}
+
+export async function subscribePush(data: {
+  endpoint: string
+  p256dh: string
+  auth: string
+}): Promise<{ id: string }> {
+  const r = await apiFetch('/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!r.ok) throw new Error('Failed to save push subscription')
+  return r.json()
+}
+
+export async function unsubscribePush(endpoint: string): Promise<{ removed: boolean }> {
+  const r = await apiFetch('/push/unsubscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint }),
+  })
+  if (!r.ok) throw new Error('Failed to remove push subscription')
+  return r.json()
+}
+
+export async function testPush(): Promise<{ sent: boolean; reason?: string | null }> {
+  const r = await apiFetch('/push/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!r.ok) throw new Error('Push test request failed')
+  return r.json()
+}
+
+export type WeeklyAvailability = {
+  weekdays: Array<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>
+}
+
+export async function fetchMyAvailability(): Promise<WeeklyAvailability> {
+  const r = await apiFetch('/users/me/weekly-availability')
+  if (!r.ok) throw new Error('Failed to fetch availability')
+  return r.json()
+}
+
+export async function saveMyAvailability(weekdays: WeeklyAvailability['weekdays']): Promise<WeeklyAvailability> {
+  const r = await apiFetch('/users/me/weekly-availability', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ weekdays }),
+  })
+  if (!r.ok) throw new Error('Failed to save availability')
   return r.json()
 }

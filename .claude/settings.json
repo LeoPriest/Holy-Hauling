@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_admin_google.py *)",
+      "Bash(pytest tests/test_admin_google.py *)",
+      "Bash(pytest tests/test_settings.py *)",
+      "Bash(pytest tests/ *)",
+      "Bash(pytest -v *)",
+      "Bash(pytest -q *)"
+    ]
+  }
+}

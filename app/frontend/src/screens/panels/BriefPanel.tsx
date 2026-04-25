@@ -1,7 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
 import { useUsers } from '../../hooks/useUsers'
+import { fmtDurationMinutes, fmtLocalDateTime, fmtTimeSlot } from '../../utils/time'
 import type { AiReview, Lead } from '../../types/lead'
+
+const MAPS_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
+  import.meta.env.VITE_GOOGLE_MAPS_KEY) as string | undefined
 
 interface Props {
   lead: Lead
@@ -14,7 +18,7 @@ interface EditableFieldProps {
   value: string | null | undefined
   onSave: (val: string | null) => void
   placeholder?: string
-  type?: 'text' | 'tel' | 'date' | 'textarea' | 'select'
+  type?: 'text' | 'tel' | 'date' | 'time' | 'number' | 'textarea' | 'select'
   options?: { value: string; label: string }[]
   display?: (val: string) => string
 }
@@ -62,10 +66,10 @@ function EditableField({
     return (
       <button
         onClick={open}
-        className="w-full text-left group"
+        className="w-full min-w-0 text-left group"
       >
         {displayValue ? (
-          <span className="text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+          <span className="block text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-normal break-words">
             {displayValue}
           </span>
         ) : (
@@ -124,6 +128,244 @@ function EditableField({
   )
 }
 
+// ── Address field with Places Autocomplete (New) via REST ────────────────────
+
+interface PlacePrediction {
+  placeId: string
+  text: { text: string }
+  structuredFormat?: {
+    mainText?: { text: string }
+    secondaryText?: { text: string }
+  }
+}
+
+interface PlaceDetailsResponse {
+  formattedAddress?: string
+  addressComponents?: Array<{
+    longText?: string
+    shortText?: string
+    types?: string[]
+  }>
+}
+
+interface AddressFieldProps {
+  value: string | null | undefined
+  onSave: (address: string | null, area?: string | null) => void
+}
+
+function deriveAreaFromPlace(details: PlaceDetailsResponse): string | null {
+  const components = details.addressComponents ?? []
+  const findComponent = (...types: string[]) =>
+    components.find(component => types.some(type => component.types?.includes(type)))
+
+  const city =
+    findComponent('locality')?.longText ??
+    findComponent('postal_town')?.longText ??
+    findComponent('sublocality_level_1', 'sublocality')?.longText ??
+    null
+  const state = findComponent('administrative_area_level_1')?.shortText ?? null
+  const postalCode = findComponent('postal_code')?.longText ?? null
+
+  if (!city && !state && !postalCode) return null
+
+  const cityState = [city, state].filter(Boolean).join(', ')
+  if (cityState && postalCode) return `${cityState} ${postalCode}`
+  return cityState || postalCode
+}
+
+function AddressField({ value, onSave }: AddressFieldProps) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? '')
+  const [suggestions, setSuggestions] = useState<PlacePrediction[]>([])
+  const [lookupError, setLookupError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+
+  const fetchSuggestions = async (input: string) => {
+    if (!MAPS_KEY || !input.trim()) {
+      setSuggestions([])
+      setLookupError('')
+      return
+    }
+    try {
+      const resp = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': MAPS_KEY,
+          'X-Goog-FieldMask': 'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat.mainText.text,suggestions.placePrediction.structuredFormat.secondaryText.text',
+        },
+        body: JSON.stringify({ input, includedRegionCodes: ['us'] }),
+      })
+      if (!resp.ok) {
+        setSuggestions([])
+        setLookupError('Google Places lookup failed. Check that the Places API is enabled for this key.')
+        return
+      }
+      const data = await resp.json()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setSuggestions((data.suggestions ?? []).map((s: any) => s.placePrediction).filter(Boolean))
+      setLookupError('')
+    } catch {
+      setSuggestions([])
+      setLookupError('Google Places lookup failed. Check your Maps key and network access.')
+    }
+  }
+
+  const fetchPlaceDetails = async (placeId: string): Promise<{ address: string; area: string | null }> => {
+    if (!MAPS_KEY) {
+      return { address: draft.trim(), area: null }
+    }
+
+    const response = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': MAPS_KEY,
+        'X-Goog-FieldMask': 'formattedAddress,addressComponents',
+      },
+    })
+    if (!response.ok) {
+      throw new Error('Place details lookup failed')
+    }
+    const details = await response.json() as PlaceDetailsResponse
+    return {
+      address: details.formattedAddress ?? draft.trim(),
+      area: deriveAreaFromPlace(details),
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setDraft(val)
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
+  }
+
+  const selectSuggestion = async (pred: PlacePrediction) => {
+    const fallbackAddress = pred.text.text
+    setSuggestions([])
+    setLookupError('')
+    try {
+      const details = await fetchPlaceDetails(pred.placeId)
+      const nextAddress = details.address || fallbackAddress
+      setDraft(nextAddress)
+      onSave(nextAddress, details.area)
+    } catch {
+      setDraft(fallbackAddress)
+      setLookupError('Address selected, but area could not be derived from Google Places.')
+      onSave(fallbackAddress)
+    } finally {
+      setEditing(false)
+    }
+  }
+
+  const open = () => {
+    setDraft(value ?? '')
+    setSuggestions([])
+    setLookupError('')
+    setEditing(true)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const commit = () => {
+    setSuggestions([])
+    setLookupError('')
+    setEditing(false)
+    const trimmed = draft.trim()
+    const next = trimmed === '' ? null : trimmed
+    if (next !== (value ?? null)) onSave(next)
+  }
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') commit()
+    if (e.key === 'Escape') { setSuggestions([]); setLookupError(''); setEditing(false); setDraft(value ?? '') }
+  }
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  const inputClass =
+    'w-full text-sm border border-indigo-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white dark:border-indigo-500'
+
+  const mapsUrl = value
+    ? `https://maps.google.com/maps?q=${encodeURIComponent(value)}`
+    : null
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <button onClick={open} className="flex-1 text-left group min-w-0">
+          {value ? (
+            <span className="text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors break-words">
+              {value}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-300 dark:text-gray-600 italic">
+              Confirmed street address — books job
+            </span>
+          )}
+        </button>
+        {mapsUrl && (
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 text-xs bg-indigo-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-indigo-700"
+          >
+            Navigate
+          </a>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={handleChange}
+        onBlur={commit}
+        onKeyDown={onKey}
+        placeholder={MAPS_KEY ? 'Start typing an address…' : 'Enter address…'}
+        className={inputClass}
+        autoComplete="off"
+      />
+      {lookupError && (
+        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{lookupError}</p>
+      )}
+      {suggestions.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg overflow-hidden">
+          {suggestions.map((pred, i) => (
+            <li key={i}>
+              <button
+                type="button"
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => { void selectSuggestion(pred) }}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 dark:hover:bg-gray-700 border-b last:border-0 dark:border-gray-700"
+              >
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {pred.structuredFormat?.mainText?.text ?? pred.text.text}
+                </span>
+                {pred.structuredFormat?.secondaryText && (
+                  <span className="text-gray-400 dark:text-gray-500 ml-1">
+                    {pred.structuredFormat.secondaryText.text}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 const SERVICE_OPTIONS = [
@@ -151,7 +393,24 @@ export function BriefPanel({ lead, aiReview }: Props) {
   const intakeShot = lead.screenshots?.find(s => s.screenshot_type === 'intake')
 
   const save = (field: string, value: string | null) =>
-    patch.mutate({ id: lead.id, data: { [field]: value ?? undefined } })
+    patch.mutate({ id: lead.id, data: { [field]: value } })
+
+  const saveAddressAndArea = (address: string | null, area?: string | null) => {
+    const data: Record<string, string | null> = { job_address: address }
+    if (area !== undefined) data.job_location = area
+    patch.mutate({ id: lead.id, data })
+  }
+
+  const saveEstimatedDuration = (value: string | null) => {
+    if (value == null) {
+      patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: null } })
+      return
+    }
+
+    const parsed = Number.parseInt(value, 10)
+    if (!Number.isFinite(parsed) || parsed <= 0) return
+    patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: parsed } })
+  }
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -197,7 +456,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
       ) : (
         <div className="bg-green-50 border border-green-200 rounded-xl p-3">
           <p className="text-sm text-green-700">
-            Acknowledged {new Date(lead.acknowledged_at).toLocaleString()}
+            Acknowledged {fmtLocalDateTime(lead.acknowledged_at!)}
           </p>
         </div>
       )}
@@ -213,6 +472,12 @@ export function BriefPanel({ lead, aiReview }: Props) {
               onSave={v => save('customer_name', v)}
               placeholder="Tap to add name…"
             />
+          </FieldRow>
+
+          <FieldRow label="Ingested By">
+            <span className="block text-sm text-gray-900 dark:text-white whitespace-normal break-words">
+              {lead.ingested_by ?? 'Unknown'}
+            </span>
           </FieldRow>
 
           <FieldRow label="Phone">
@@ -248,11 +513,18 @@ export function BriefPanel({ lead, aiReview }: Props) {
             />
           </FieldRow>
 
-          <FieldRow label="Location">
+          <FieldRow label="Area">
             <EditableField
               value={lead.job_location}
               onSave={v => save('job_location', v)}
-              placeholder="Tap to add location…"
+              placeholder="City / zip from lead…"
+            />
+          </FieldRow>
+
+          <FieldRow label="Address">
+            <AddressField
+              value={lead.job_address}
+              onSave={saveAddressAndArea}
             />
           </FieldRow>
 
@@ -262,6 +534,26 @@ export function BriefPanel({ lead, aiReview }: Props) {
               onSave={v => save('job_date_requested', v)}
               placeholder="Tap to add date…"
               type="date"
+            />
+          </FieldRow>
+
+          <FieldRow label="Time Slot">
+            <EditableField
+              value={lead.appointment_time_slot}
+              onSave={v => save('appointment_time_slot', v)}
+              placeholder="Tap to add time…"
+              type="time"
+              display={fmtTimeSlot}
+            />
+          </FieldRow>
+
+          <FieldRow label="Est. Duration">
+            <EditableField
+              value={lead.estimated_job_duration_minutes != null ? String(lead.estimated_job_duration_minutes) : null}
+              onSave={saveEstimatedDuration}
+              placeholder="Tap to add minutesâ€¦"
+              type="number"
+              display={value => fmtDurationMinutes(Number(value))}
             />
           </FieldRow>
 

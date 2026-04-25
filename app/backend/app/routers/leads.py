@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -29,10 +29,10 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 @router.post("", response_model=LeadOut, status_code=201)
 async def create_lead(
     data: LeadCreate,
-    _: User = Depends(require_auth),
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    return await lead_service.create_lead(db, data)
+    return await lead_service.create_lead(db, data, actor=current_user.username)
 
 
 @router.get("", response_model=list[LeadOut])
@@ -111,10 +111,11 @@ async def add_note(
 async def upload_screenshot(
     lead_id: str,
     file: UploadFile = File(...),
+    screenshot_type: str = Form("intake"),
     _: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    return await lead_service.upload_screenshot(db, lead_id, file)
+    return await lead_service.upload_screenshot(db, lead_id, file, screenshot_type=screenshot_type)
 
 
 @router.get("/{lead_id}/screenshots", response_model=list[ScreenshotOut])

@@ -2,6 +2,7 @@
 .env
 *.env
 app/backend/.env
+app/frontend/.env
 docs/.env
 
 # Uploads
@@ -59,3 +60,6 @@ Thumbs.db
 
 # Git worktrees
 .worktrees/
+
+# Smoke test artifacts
+app/backend/.job-photo-smoke/

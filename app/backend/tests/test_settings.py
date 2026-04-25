@@ -36,3 +36,46 @@ async def test_patch_quiet_hours_enabled(client):
     d = r.json()
     assert d["quiet_hours_enabled"] is True
     assert d["quiet_hours_start"] == "21:00"
+
+
+async def test_notification_status_reports_missing_env(client, monkeypatch):
+    monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
+    monkeypatch.delenv("TWILIO_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("TWILIO_FROM_NUMBER", raising=False)
+    monkeypatch.delenv("SMTP_HOST", raising=False)
+    monkeypatch.delenv("SMTP_USER", raising=False)
+    monkeypatch.delenv("SMTP_PASS", raising=False)
+    monkeypatch.delenv("SMTP_FROM", raising=False)
+    monkeypatch.delenv("VAPID_PUBLIC_KEY", raising=False)
+    monkeypatch.delenv("VAPID_PRIVATE_KEY", raising=False)
+
+    r = await client.get("/settings/notification-status")
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["sms"]["configured"] is False
+    assert "TWILIO_ACCOUNT_SID" in data["sms"]["missing"]
+    assert data["email"]["configured"] is False
+    assert "SMTP_HOST" in data["email"]["missing"]
+    assert data["web_push"]["configured"] is False
+    assert "VAPID_PUBLIC_KEY" in data["web_push"]["missing"]
+
+
+async def test_notification_status_reports_configured_env(client, monkeypatch):
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "sid")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "token")
+    monkeypatch.setenv("TWILIO_FROM_NUMBER", "+15550001111")
+    monkeypatch.setenv("SMTP_HOST", "smtp.example.com")
+    monkeypatch.setenv("SMTP_USER", "user")
+    monkeypatch.setenv("SMTP_PASS", "pass")
+    monkeypatch.setenv("SMTP_FROM", "from@example.com")
+    monkeypatch.setenv("VAPID_PUBLIC_KEY", "public")
+    monkeypatch.setenv("VAPID_PRIVATE_KEY", "private")
+
+    r = await client.get("/settings/notification-status")
+
+    assert r.status_code == 200
+    data = r.json()
+    assert data["sms"]["configured"] is True
+    assert data["email"]["configured"] is True
+    assert data["web_push"]["configured"] is True

@@ -3,9 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AgeIndicator } from '../components/AgeIndicator'
 import { GateIndicator } from '../components/GateIndicator'
 import { StatusBadge } from '../components/StatusBadge'
-import { useLead, useLatestAiReview, useTriggerAiReview, useUpdateStatus } from '../hooks/useLeads'
+import { useLead, useLatestAiReview, useUpdateStatus } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../context/ThemeContext'
 import { BriefPanel } from './panels/BriefPanel'
 import { LogPanel } from './panels/LogPanel'
 import { QuotePanel } from './panels/QuotePanel'
@@ -18,10 +17,8 @@ export function LeadCommandCenter() {
   const [tab, setTab] = useState<Tab>('brief')
 
   const { user } = useAuth()
-  const { toggleTheme } = useTheme()
   const { data: lead, isLoading } = useLead(id!)
   const { data: aiReview } = useLatestAiReview(id!)
-  const triggerReview = useTriggerAiReview()
   const updateStatus = useUpdateStatus()
 
   if (isLoading) {
@@ -47,7 +44,7 @@ export function LeadCommandCenter() {
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
 
       {/* ── Fixed header ─────────────────────────────────────────────── */}
-      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center gap-3 shrink-0 z-20">
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-start gap-3 flex-wrap shrink-0 z-20">
         <button
           onClick={() => navigate('/')}
           className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xl leading-none shrink-0"
@@ -57,13 +54,18 @@ export function LeadCommandCenter() {
         </button>
 
         <div className="flex-1 min-w-0">
-          <h1 className="font-semibold text-gray-900 dark:text-white truncate text-base leading-tight">
+          <h1 className="font-semibold text-gray-900 dark:text-white text-base leading-tight whitespace-normal break-words">
             {lead.customer_name ?? <span className="italic text-gray-400 font-normal">No name yet</span>}
           </h1>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <StatusBadge status={lead.status} />
             {lead.urgency_flag && (
               <span className="text-xs font-bold text-orange-500 uppercase">Urgent</span>
+            )}
+            {lead.ingested_by && (
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                Ingested by {lead.ingested_by}
+              </span>
             )}
             <AgeIndicator createdAt={lead.created_at} />
           </div>
@@ -89,13 +91,6 @@ export function LeadCommandCenter() {
             Mark Released
           </button>
         )}
-        <button
-          onClick={() => triggerReview.mutate({ leadId: id! })}
-          disabled={triggerReview.isPending}
-          className="text-xs bg-indigo-600 text-white rounded-lg px-3 py-2 hover:bg-indigo-700 disabled:opacity-50 shrink-0 font-medium"
-        >
-          {triggerReview.isPending ? 'Running…' : aiReview ? 'Re-run AI' : 'Run AI Review'}
-        </button>
       </header>
 
       {/* ── Tab bar ──────────────────────────────────────────────────── */}

@@ -27,7 +27,13 @@ async def ingest_screenshot(
         src = LeadSourceType(source_type)
     except ValueError:
         raise HTTPException(400, f"Invalid source_type: {source_type}")
-    return await ingest_service.ingest_screenshot(db, file, src, actor=actor or current_user.username)
+    return await ingest_service.ingest_screenshot(
+        db,
+        file,
+        src,
+        actor=actor or current_user.username,
+        actor_role=current_user.role,
+    )
 
 
 @router.post("/webhook/thumbtack", response_model=WebhookIngestResult)

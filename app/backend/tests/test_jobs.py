@@ -5,15 +5,18 @@ import unittest.mock
 import uuid
 import pytest
 import pytest_asyncio
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
 from app.dependencies import require_auth
+from app.models.app_setting import AppSetting
 from app.models.lead import Lead, LeadSourceType, LeadStatus, ServiceType
 from app.models.user import User
+import app.models.user_availability  # noqa: F401
+import app.models.user_weekly_availability  # noqa: F401
 
 TEST_DB = "sqlite+aiosqlite:///:memory:"
 
@@ -77,7 +80,16 @@ async def crew_client():
     await engine.dispose()
 
 
-async def _seed_lead(factory, status="booked", customer_phone="555-123-4567", quote_context="high end"):
+async def _seed_lead(
+    factory,
+    status="booked",
+    customer_phone="555-123-4567",
+    quote_context="high end",
+    job_date_requested=None,
+    appointment_time_slot=None,
+    estimated_job_duration_minutes=None,
+    google_calendar_event_id=None,
+):
     async with factory() as s:
         lead = Lead(
             source_type=LeadSourceType.manual,
@@ -87,6 +99,10 @@ async def _seed_lead(factory, status="booked", customer_phone="555-123-4567", qu
             customer_name="Test Customer",
             customer_phone=customer_phone,
             quote_context=quote_context,
+            job_date_requested=job_date_requested,
+            appointment_time_slot=appointment_time_slot,
+            estimated_job_duration_minutes=estimated_job_duration_minutes,
+            google_calendar_event_id=google_calendar_event_id,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
@@ -115,6 +131,27 @@ async def test_supervisor_sees_phone_and_quote(supervisor_client):
     job = r.json()[0]
     assert job["customer_phone"] == "555-000-0001"
     assert job["quote_context"] == "$500"
+
+
+@pytest.mark.asyncio
+async def test_get_jobs_exposes_time_slot_and_google_sync(supervisor_client):
+    client, factory = supervisor_client
+    await _seed_lead(
+        factory,
+        status="booked",
+        job_date_requested=date(2026, 5, 10),
+        appointment_time_slot="09:30",
+        estimated_job_duration_minutes=180,
+        google_calendar_event_id="gcal-123",
+    )
+
+    r = await client.get("/jobs")
+
+    assert r.status_code == 200
+    job = r.json()[0]
+    assert job["appointment_time_slot"] == "09:30"
+    assert job["estimated_job_duration_minutes"] == 180
+    assert job["has_google_calendar_event"] is True
 
 
 @pytest.mark.asyncio
@@ -343,6 +380,93 @@ async def test_add_assignment_no_email_skips_calendar_create(supervisor_client):
 
     assert r.status_code == 201
     mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_manual_google_sync_creates_event(supervisor_client, monkeypatch):
+    from unittest.mock import AsyncMock, patch
+
+    client, factory = supervisor_client
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-client-secret")
+
+    lead = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 10))
+    crew_user = await _seed_user(factory, username="sync-crew", email="sync-crew@gmail.com")
+    await _seed_assignment(factory, lead_id=lead.id, user_id=crew_user.id)
+
+    async with factory() as s:
+        s.add(AppSetting(key="google_refresh_token", value="refresh-token"))
+        await s.commit()
+
+    with (
+        patch("app.services.calendar_service._get_credentials", new=AsyncMock(return_value=object())),
+        patch("app.services.calendar_service._insert_event_or_raise", new=AsyncMock(return_value="gcal-manual")),
+    ):
+        r = await client.post(f"/jobs/{lead.id}/sync-google")
+
+    assert r.status_code == 200
+    assert r.json()["has_google_calendar_event"] is True
+
+
+@pytest.mark.asyncio
+async def test_manual_google_sync_requires_crew_email(supervisor_client, monkeypatch):
+    from unittest.mock import AsyncMock, patch
+
+    client, factory = supervisor_client
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-client-secret")
+
+    lead = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 10))
+    crew_user = await _seed_user(factory, username="no-email-crew", email=None)
+    await _seed_assignment(factory, lead_id=lead.id, user_id=crew_user.id)
+
+    async with factory() as s:
+        s.add(AppSetting(key="google_refresh_token", value="refresh-token"))
+        await s.commit()
+
+    with patch("app.services.calendar_service._get_credentials", new=AsyncMock(return_value=object())):
+        r = await client.post(f"/jobs/{lead.id}/sync-google")
+
+    assert r.status_code == 409
+    assert "Google email" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_manual_google_sync_surfaces_disabled_calendar_api(supervisor_client, monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from googleapiclient.errors import HttpError
+
+    client, factory = supervisor_client
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-client-secret")
+
+    lead = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 10))
+    crew_user = await _seed_user(factory, username="calendar-crew", email="calendar-crew@gmail.com")
+    await _seed_assignment(factory, lead_id=lead.id, user_id=crew_user.id)
+
+    async with factory() as s:
+        s.add(AppSetting(key="google_refresh_token", value="refresh-token"))
+        await s.commit()
+
+    http_error = HttpError(
+        resp=MagicMock(status=403, reason="Forbidden"),
+        content=(
+            b'{"error":{"code":403,"message":"Google Calendar API has not been used in project 123 before or it is disabled.",'
+            b'"errors":[{"message":"Google Calendar API has not been used in project 123 before or it is disabled.",'
+            b'"domain":"usageLimits","reason":"accessNotConfigured"}]}}'
+        ),
+        uri="https://www.googleapis.com/calendar/v3/calendars/primary/events",
+    )
+
+    with (
+        patch("app.services.calendar_service._get_credentials", new=AsyncMock(return_value=object())),
+        patch("app.services.calendar_service._insert_event_or_raise", new=AsyncMock(side_effect=http_error)),
+    ):
+        r = await client.post(f"/jobs/{lead.id}/sync-google")
+
+    assert r.status_code == 503
+    assert "Enable the Google Calendar API" in r.json()["detail"]
 
 
 @pytest.mark.asyncio

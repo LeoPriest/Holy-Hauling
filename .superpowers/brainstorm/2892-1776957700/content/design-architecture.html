@@ -1,0 +1,55 @@
+<h2>Design: Auth + Roles — Architecture</h2>
+<p class="subtitle">Section 1 of 3. Look this over and confirm before we move on.</p>
+
+<div class="section">
+  <h3>4 Roles</h3>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;font-size:13px">
+    <div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:10px">
+      <strong>admin</strong>
+      <div style="color:#6b7280;margin-top:4px">Full access. User management, all settings, revenue history, pricing (later). Only role that can create/deactivate users.</div>
+    </div>
+    <div style="background:#e0f2fe;border:1px solid #7dd3fc;border-radius:8px;padding:10px">
+      <strong>facilitator</strong>
+      <div style="color:#6b7280;margin-top:4px">Current app: lead queue, intake, AI review, notes, settings (read+write). No user management.</div>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px">
+      <strong>supervisor</strong>
+      <div style="color:#6b7280;margin-top:4px">Job list (booked leads). Full job detail incl. customer phone + quote. Add photos. Mark en route / started / complete.</div>
+    </div>
+    <div style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;padding:10px">
+      <strong>crew</strong>
+      <div style="color:#6b7280;margin-top:4px">Job list only. Address, size, stairs, scope. Add photos. No phone, no quote, no mark-complete.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Auth Flow</h3>
+  <div style="font-size:13px;display:flex;flex-direction:column;gap:6px">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px">
+      <strong>Login:</strong> User types name → taps 4-digit PIN keypad → <code>POST /auth/login</code> → server returns a signed JWT containing <code>{ user_id, username, role }</code> → stored in <code>localStorage</code>
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px">
+      <strong>Every request:</strong> Frontend attaches <code>Authorization: Bearer &lt;token&gt;</code> header → FastAPI middleware decodes + validates → injects <code>current_user</code> → route uses it for role checks and audit trail
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px">
+      <strong>Token life:</strong> 30-day expiry. Auto-logout on expiry. Admin can deactivate a user (all subsequent requests rejected even with a valid token).
+    </div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px">
+      <strong>PIN storage:</strong> Hashed with <code>bcrypt</code>. Field named <code>credential_hash</code> so upgrading to a full password later = UI change only, no schema migration.
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>What changes in the existing app</h3>
+  <div style="font-size:13px;display:flex;flex-direction:column;gap:4px">
+    <div>✅ <strong>All existing routes</strong> get a <code>current_user = Depends(require_auth)</code> — no role restriction, just must be logged in</div>
+    <div>🔒 <strong>/settings PATCH</strong> and <strong>DELETE /leads</strong> get <code>require_role("admin", "facilitator")</code></div>
+    <div>🔒 <strong>/admin/users/*</strong> gets <code>require_role("admin")</code> — new routes</div>
+    <div>📱 <strong>Frontend</strong> reads role from decoded JWT → shows/hides nav items → redirects crew to <code>/jobs</code> instead of <code>/</code></div>
+    <div>🔑 <strong>Login screen</strong> shown when no valid token in localStorage</div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Does this architecture look right? Confirm in the terminal and I'll show the data model + screens next.</p>

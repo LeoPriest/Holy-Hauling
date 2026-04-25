@@ -10,7 +10,6 @@ import { useUsers } from '../hooks/useUsers'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../context/ThemeContext'
 
 export function LeadQueue() {
   const navigate = useNavigate()
@@ -36,23 +35,19 @@ export function LeadQueue() {
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
   const { user, logout } = useAuth()
-  const { toggleTheme } = useTheme()
 
   const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-
-      {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div>
-          <h1 className="font-bold text-gray-900 text-lg leading-tight">Lead Queue</h1>
+          <h1 className="font-bold text-gray-900 dark:text-white text-lg leading-tight">Lead Queue</h1>
           {unackedCount > 0 && (
             <p className="text-xs text-red-500 font-medium">{unackedCount} unacknowledged</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {/* Jobs board */}
+        <div className="flex items-center justify-end gap-2 flex-wrap">
           <button
             onClick={() => navigate('/jobs')}
             className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
@@ -60,8 +55,13 @@ export function LeadQueue() {
           >
             📋
           </button>
-
-          {/* Users — admin only */}
+          <button
+            onClick={() => navigate('/calendar')}
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
+            title="Calendar"
+          >
+            📅
+          </button>
           {user?.role === 'admin' && (
             <button
               onClick={() => navigate('/admin/users')}
@@ -71,8 +71,6 @@ export function LeadQueue() {
               👥
             </button>
           )}
-
-          {/* Sign out */}
           <button
             onClick={logout}
             className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 px-1"
@@ -80,30 +78,30 @@ export function LeadQueue() {
           >
             Sign out
           </button>
-
           <button
             onClick={() => navigate('/settings')}
-            className="text-gray-400 hover:text-gray-700 text-xl px-1"
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl px-1"
             title="Settings"
           >
             ⚙
           </button>
           <button
             onClick={() => setShowManual(true)}
-            className="text-sm text-gray-500 hover:text-gray-700 font-medium px-2 py-1"
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium px-2 py-1"
           >
             Manual
           </button>
           <button
             onClick={() => setShowIngest(true)}
-            className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700 active:bg-indigo-800"
+            className="bg-indigo-600 text-white rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium hover:bg-indigo-700 active:bg-indigo-800 flex items-center gap-2 whitespace-nowrap"
           >
-            📷 New from Screenshot
+            <span aria-hidden="true">📷</span>
+            <span className="sm:hidden">New Lead</span>
+            <span className="hidden sm:inline">New from Screenshot</span>
           </button>
         </div>
       </header>
 
-      {/* View tabs */}
       <div className="flex border-b bg-white dark:bg-gray-800 dark:border-gray-700 px-4">
         <button
           onClick={() => { setView('active'); setStatusFilter('') }}
@@ -127,7 +125,6 @@ export function LeadQueue() {
         </button>
       </div>
 
-      {/* Stale lead banner — active tab only */}
       {view === 'active' && (
         <StaleLeadBanner
           t1Count={t1Ids.size}
@@ -137,7 +134,6 @@ export function LeadQueue() {
         />
       )}
 
-      {/* Filters */}
       <div className="px-4 py-3 flex gap-2 flex-wrap border-b bg-white dark:bg-gray-800 dark:border-gray-700">
         {view === 'active' && (
           <select
@@ -157,7 +153,7 @@ export function LeadQueue() {
         )}
 
         <select
-          className="border rounded-lg px-3 py-1.5 text-sm bg-white"
+          className="border rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           value={sourceFilter}
           onChange={e => setSourceFilter(e.target.value as LeadSourceType | '')}
         >
@@ -190,12 +186,10 @@ export function LeadQueue() {
         </select>
       </div>
 
-      {/* Count */}
       <div className="px-4 pt-3 pb-1">
         <p className="text-xs text-gray-400">{displayLeads.length} lead{displayLeads.length !== 1 ? 's' : ''}</p>
       </div>
 
-      {/* List */}
       <main className="px-4 pb-10 space-y-3">
         {isLoading && (
           <p className="text-sm text-gray-400 text-center py-10">Loading…</p>

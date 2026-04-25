@@ -73,6 +73,7 @@ async def ingest_screenshot(
     file: UploadFile,
     source_type: LeadSourceType,
     actor: Optional[str] = None,
+    actor_role: Optional[str] = None,
 ) -> IngestResult:
     """
     Create a lead stub from a screenshot, run OCR, and auto-apply high-confidence fields.
@@ -90,6 +91,7 @@ async def ingest_screenshot(
         service_type=ServiceType.unknown,
         status=LeadStatus.new,
         urgency_flag=False,
+        ingested_by=actor,
         created_at=lead_service._now(),
         updated_at=lead_service._now(),
     )
@@ -136,6 +138,11 @@ async def ingest_screenshot(
                     await db.refresh(stub)
         except Exception:
             pass  # OCR failed — lead and screenshot are already persisted, continue
+
+    if actor_role == "facilitator" and stub.acknowledged_at is None:
+        db.add(lead_service._apply_acknowledgement(stub, actor=actor))
+        await db.commit()
+        await db.refresh(stub)
 
     # 5. Load detailed lead (includes screenshot + events) for response
     detailed_orm = await lead_service.get_lead(db, stub.id, detailed=True)
@@ -213,6 +220,7 @@ async def ingest_thumbtack_webhook(
         raw_payload=payload.model_dump_json(),
         status=LeadStatus.new,
         urgency_flag=False,
+        ingested_by="thumbtack_webhook",
         created_at=lead_service._now(),
         updated_at=lead_service._now(),
         **{k: v for k, v in norm.items() if v is not None},

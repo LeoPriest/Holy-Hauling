@@ -16,6 +16,7 @@ async def test_create_lead_manual(client):
     d = r.json()
     assert d["status"] == "new"
     assert d["acknowledged_at"] is None
+    assert d["ingested_by"] == "test-admin"
     assert d["source_type"] == "manual"
     assert d["urgency_flag"] is False
 
@@ -240,11 +241,32 @@ async def test_upload_screenshot_writes_event(client):
     assert any(e["event_type"] == "screenshot_added" for e in events)
 
 
+async def test_upload_screenshot_with_job_photo_type(client):
+    created = (await client.post("/leads", json=BASE)).json()
+    r = await client.post(
+        f"/leads/{created['id']}/screenshots",
+        data={"screenshot_type": "before_job"},
+        files={"file": ("before.jpg", b"fake-image-data", "image/jpeg")},
+    )
+    assert r.status_code == 201
+    assert r.json()["screenshot_type"] == "before_job"
+
+
 async def test_upload_screenshot_invalid_type(client):
     created = (await client.post("/leads", json=BASE)).json()
     r = await client.post(
         f"/leads/{created['id']}/screenshots",
         files={"file": ("doc.pdf", b"fake-pdf", "application/pdf")},
+    )
+    assert r.status_code == 400
+
+
+async def test_upload_screenshot_invalid_screenshot_type(client):
+    created = (await client.post("/leads", json=BASE)).json()
+    r = await client.post(
+        f"/leads/{created['id']}/screenshots",
+        data={"screenshot_type": "side_job"},
+        files={"file": ("test.jpg", b"fake-image-data", "image/jpeg")},
     )
     assert r.status_code == 400
 
@@ -535,6 +557,32 @@ async def test_update_lead_triggers_calendar_sync_when_event_exists(client, db_s
 
     with patch("app.services.calendar_service.sync_job_calendar", new=AsyncMock()) as mock_sync:
         r = await client.patch(f"/leads/{lead.id}", json={"job_address": "456 Oak Ave"})
+
+    assert r.status_code == 200
+    mock_sync.assert_called_once()
+
+
+async def test_update_lead_time_slot_triggers_calendar_sync_when_event_exists(client, db_session):
+    """Changing appointment_time_slot on a booked lead with a calendar event should sync."""
+    from unittest.mock import AsyncMock, patch
+    from app.models.lead import Lead as _Lead, LeadSourceType, LeadStatus, ServiceType
+    from datetime import datetime, timezone
+
+    lead = _Lead(
+        source_type=LeadSourceType.manual,
+        status=LeadStatus.booked,
+        service_type=ServiceType.hauling,
+        urgency_flag=False,
+        google_calendar_event_id="gcal-to-update",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(lead)
+    await db_session.commit()
+    await db_session.refresh(lead)
+
+    with patch("app.services.calendar_service.sync_job_calendar", new=AsyncMock()) as mock_sync:
+        r = await client.patch(f"/leads/{lead.id}", json={"appointment_time_slot": "14:30"})
 
     assert r.status_code == 200
     mock_sync.assert_called_once()

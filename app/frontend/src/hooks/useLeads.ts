@@ -17,7 +17,7 @@ import {
   updateLeadStatus,
   uploadScreenshot,
 } from '../services/api'
-import type { LeadCreate, LeadSourceType, LeadStatus, LeadUpdate } from '../types/lead'
+import type { LeadCreate, LeadSourceType, LeadStatus, LeadUpdate, QuoteModifier } from '../types/lead'
 
 export function useLeads(filters?: { status?: LeadStatus; source_type?: LeadSourceType; assigned_to?: string }) {
   return useQuery({
@@ -63,12 +63,18 @@ export function useUpdateStatus() {
       status,
       actor,
       note,
+      quotedPriceTotal,
+      quoteModifiers,
+      estimatedJobDurationMinutes,
     }: {
       id: string
       status: LeadStatus
       actor?: string
       note?: string
-    }) => updateLeadStatus(id, status, actor, note),
+      quotedPriceTotal?: number
+      quoteModifiers?: QuoteModifier[]
+      estimatedJobDurationMinutes?: number
+    }) => updateLeadStatus(id, status, actor, note, quotedPriceTotal, quoteModifiers, estimatedJobDurationMinutes),
     onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: ['leads'] })
       qc.invalidateQueries({ queryKey: ['lead', id] })
@@ -101,8 +107,15 @@ export function useAddNote() {
 export function useUploadScreenshot() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ leadId, file }: { leadId: string; file: File }) =>
-      uploadScreenshot(leadId, file),
+    mutationFn: ({
+      leadId,
+      file,
+      screenshotType,
+    }: {
+      leadId: string
+      file: File
+      screenshotType?: string
+    }) => uploadScreenshot(leadId, file, screenshotType),
     onSuccess: (_, { leadId }) => {
       qc.invalidateQueries({ queryKey: ['lead', leadId] })
       qc.invalidateQueries({ queryKey: ['leads'] })

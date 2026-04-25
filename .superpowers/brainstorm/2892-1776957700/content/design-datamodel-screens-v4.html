@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auth + Roles Design</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 0; transition: background 0.2s, color 0.2s; }
+
+  /* Light mode */
+  body.light { background: #f8fafc; color: #111827; }
+  body.light .page-header { background: #ffffff; border-bottom: 1px solid #e2e8f0; }
+  body.light .mockup-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; }
+  body.light .mockup-title { color: #6b7280; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  body.light .row-bg { background: #f9fafb; border: 1px solid #e5e7eb; }
+  body.light .input-bg { background: #f9fafb; border: 1px solid #d1d5db; color: #111827; }
+  body.light .pinkey { background: #f3f4f6; border: 1px solid #d1d5db; color: #111827; }
+  body.light .section-bg { background: #f8fafc; border: 1px solid #e2e8f0; }
+  body.light .edit-btn { background: #f3f4f6; color: #111827; border: 1px solid #d1d5db; }
+  body.light .photo-btn { background: #f3f4f6; color: #111827; border: 1px solid #d1d5db; }
+  body.light .job-card-active { background: #f0fdf4; border: 1px solid #4ade80; }
+  body.light .job-card-idle { background: #f9fafb; border: 1px solid #e5e7eb; }
+  body.light .route-bg { background: #f8fafc; border: 1px solid #cbd5e1; }
+  body.light code { color: #6d28d9; }
+
+  /* Dark mode */
+  body.dark { background: #0f172a; color: #f1f5f9; }
+  body.dark .page-header { background: #1e293b; border-bottom: 1px solid #334155; }
+  body.dark .mockup-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+  body.dark .mockup-title { color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  body.dark .row-bg { background: #0f172a; border: 1px solid #334155; }
+  body.dark .input-bg { background: #0f172a; border: 1px solid #475569; color: #f1f5f9; }
+  body.dark .pinkey { background: #334155; border: 1px solid #475569; color: #f1f5f9; }
+  body.dark .section-bg { background: #0f172a; border: 1px solid #334155; }
+  body.dark .edit-btn { background: #334155; color: #f1f5f9; border: 1px solid #475569; }
+  body.dark .photo-btn { background: #334155; color: #f1f5f9; border: 1px solid #475569; }
+  body.dark .job-card-active { background: #052e16; border: 1px solid #166534; }
+  body.dark .job-card-idle { background: #1e293b; border: 1px solid #334155; }
+  body.dark .route-bg { background: #1e293b; border: 1px solid #334155; }
+  body.dark code { color: #a78bfa; }
+
+  /* Shared */
+  .page-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .page-title { font-weight: 700; font-size: 16px; }
+  .subtitle { font-size: 13px; opacity: 0.6; margin: 0; }
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .toggle { position: relative; width: 44px; height: 24px; background: #374151; border-radius: 12px; cursor: pointer; transition: background 0.2s; border: none; padding: 0; }
+  .toggle.on { background: #4f46e5; }
+  .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left 0.2s; }
+  .toggle.on .toggle-thumb { left: 23px; }
+  .content { padding: 20px; max-width: 900px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .badge-admin { background: #78350f; color: #fef3c7; }
+  .badge-facilitator { background: #1e3a8a; color: #e0f2fe; }
+  .badge-supervisor { background: #14532d; color: #dcfce7; }
+  .badge-crew { background: #1f2937; color: #f9fafb; }
+  .primary-btn { background: #4f46e5; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  .dark-btn { background: #111827; color: #fff; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+  .btn-en-route { background: #1e3a8a; color: #fff; border: none; border-radius: 5px; font-size: 10px; padding: 5px 8px; font-weight: 600; }
+  .btn-started { background: #78350f; color: #fff; border: none; border-radius: 5px; font-size: 10px; padding: 5px 8px; font-weight: 600; }
+  .btn-complete { background: #14532d; color: #fff; border: none; border-radius: 5px; font-size: 10px; padding: 5px 8px; font-weight: 600; }
+  .pinkey { padding: 8px; border-radius: 6px; font-weight: 700; font-size: 14px; cursor: pointer; }
+  .section-label { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+  .row-bg { border-radius: 6px; padding: 7px 10px; display: flex; justify-content: space-between; align-items: center; }
+  .edit-btn { font-size: 10px; padding: 2px 8px; border-radius: 4px; cursor: pointer; }
+  .photo-btn { font-size: 10px; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-weight: 600; }
+  .route-bg { border-radius: 6px; padding: 8px; font-size: 11px; margin-bottom: 4px; }
+  code { font-family: monospace; font-size: 12px; }
+</style>
+</head>
+<body class="light">
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Auth + Roles — Data Model + Screens</div>
+    <p class="subtitle">Section 2 of 3 · Toggle light/dark to preview both modes</p>
+  </div>
+  <div class="toggle-wrap">
+    ☀️
+    <button class="toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle dark mode">
+      <div class="toggle-thumb"></div>
+    </button>
+    🌙
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- Data model -->
+  <div style="margin-bottom:20px">
+    <div style="font-size:14px;font-weight:700;margin-bottom:8px">New: User model</div>
+    <div style="font-family:monospace;font-size:12px;background:#1e293b;color:#f1f5f9;border-radius:8px;padding:12px;line-height:1.9">
+      <span style="color:#94a3b8">-- users table</span><br>
+      id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VARCHAR &nbsp;PRIMARY KEY &nbsp;<span style="color:#94a3b8">(uuid)</span><br>
+      username &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VARCHAR &nbsp;NOT NULL UNIQUE<br>
+      credential_hash VARCHAR &nbsp;NOT NULL &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#94a3b8">(bcrypt — PIN today, password later)</span><br>
+      role &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VARCHAR &nbsp;NOT NULL &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#94a3b8">(admin | facilitator | supervisor | crew)</span><br>
+      is_active &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;BOOLEAN &nbsp;DEFAULT true<br>
+      created_at &nbsp;&nbsp;&nbsp;&nbsp;DATETIME NOT NULL<br>
+      created_by &nbsp;&nbsp;&nbsp;&nbsp;VARCHAR &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#94a3b8">(user_id of admin who created)</span>
+    </div>
+    <div style="font-size:12px;margin-top:6px;opacity:0.7">Seeded at startup: one default <strong>admin</strong> user with PIN <code>0000</code> if the table is empty.</div>
+  </div>
+
+  <!-- API routes -->
+  <div style="margin-bottom:20px">
+    <div style="font-size:14px;font-weight:700;margin-bottom:8px">New API routes</div>
+    <div style="display:flex;flex-direction:column;gap:4px;font-size:12px">
+      <div class="route-bg"><code>POST /auth/login</code> — {username, pin} → {token, user}. No auth required.</div>
+      <div class="route-bg"><code>GET /auth/me</code> — verify token still valid on app load.</div>
+      <div class="route-bg"><code>GET /admin/users</code> · <code>POST /admin/users</code> · <code>PATCH /admin/users/{id}</code> — admin only.</div>
+      <div class="route-bg"><code>GET /jobs</code> — booked leads for crew/supervisor. Auth required.</div>
+      <div class="route-bg"><code>PATCH /jobs/{id}/status</code> — en_route / started / completed. Supervisor only.</div>
+    </div>
+  </div>
+
+  <!-- Screens grid -->
+  <div style="font-size:14px;font-weight:700;margin-bottom:12px">Screens</div>
+  <div class="grid">
+
+    <!-- Login -->
+    <div class="mockup-card">
+      <div class="mockup-title">Login screen — all users</div>
+      <div style="text-align:center">
+        <div style="font-weight:700;font-size:15px;margin-bottom:8px">⛪ Holy Hauling</div>
+        <input class="input-bg" style="width:100%;box-sizing:border-box;padding:7px 10px;border-radius:6px;font-size:12px;margin-bottom:10px;text-align:center" placeholder="Your name">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;max-width:150px;margin:0 auto">
+          <button class="pinkey">1</button><button class="pinkey">2</button><button class="pinkey">3</button>
+          <button class="pinkey">4</button><button class="pinkey">5</button><button class="pinkey">6</button>
+          <button class="pinkey">7</button><button class="pinkey">8</button><button class="pinkey">9</button>
+          <span></span><button class="pinkey">0</button><span></span>
+        </div>
+        <div style="margin-top:10px;font-size:13px;letter-spacing:6px;opacity:0.6">● ● ● ○</div>
+        <button class="primary-btn" style="margin-top:12px;width:100%;padding:9px;font-size:13px">Sign In</button>
+      </div>
+    </div>
+
+    <!-- User management -->
+    <div class="mockup-card">
+      <div class="mockup-title">Admin — User Management</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-weight:700;font-size:12px">Team</span>
+        <button class="primary-btn" style="font-size:11px;padding:4px 10px">+ Add User</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;font-size:11px">
+        <div class="row-bg"><span style="font-weight:600">Andre <span class="badge badge-admin">admin</span></span><span style="opacity:0.5;font-size:10px">You</span></div>
+        <div class="row-bg"><span style="font-weight:600">Jordan <span class="badge badge-facilitator">facilitator</span></span><button class="edit-btn">Edit</button></div>
+        <div class="row-bg"><span style="font-weight:600">Marcus <span class="badge badge-supervisor">supervisor</span></span><button class="edit-btn">Edit</button></div>
+        <div class="row-bg"><span style="font-weight:600">Tyler <span class="badge badge-crew">crew</span></span><button class="edit-btn">Edit</button></div>
+      </div>
+    </div>
+
+    <!-- Crew job list -->
+    <div class="mockup-card">
+      <div class="mockup-title">Crew — Job List (/jobs)</div>
+      <div class="section-label">Today's Jobs</div>
+      <div class="job-card-active" style="border-radius:8px;padding:10px;margin-bottom:6px">
+        <div style="font-weight:700;font-size:12px">Job #042 — Moving</div>
+        <div style="font-size:11px;margin-top:3px;opacity:0.85">9:00 AM · 123 Main St → 456 Oak Ave</div>
+        <div style="font-size:11px;opacity:0.85">2BR · Stairs: 2 load / 0 unload</div>
+        <button class="primary-btn" style="font-size:10px;padding:4px 10px;margin-top:7px">View Details</button>
+      </div>
+      <div class="job-card-idle" style="border-radius:8px;padding:10px">
+        <div style="font-weight:700;font-size:12px">Job #041 — Hauling</div>
+        <div style="font-size:11px;margin-top:3px;opacity:0.85">1:00 PM · 789 Elm Dr</div>
+        <button class="primary-btn" style="font-size:10px;padding:4px 10px;margin-top:7px">View Details</button>
+      </div>
+    </div>
+
+    <!-- Supervisor job detail -->
+    <div class="mockup-card">
+      <div class="mockup-title">Supervisor — Job Detail extras</div>
+      <div style="font-weight:700;font-size:12px;margin-bottom:6px">Job #042 — Moving</div>
+      <div style="font-size:11px">👤 Marcus Webb</div>
+      <div style="font-size:11px;font-weight:600;color:#3b82f6;margin-top:1px">(214) 555-0192</div>
+      <div style="font-size:11px;margin-top:2px">💰 Quote: <strong>$520–$640</strong></div>
+      <div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn-en-route">🚗 En Route</button>
+        <button class="btn-started">🔧 Started</button>
+        <button class="btn-complete">✅ Complete</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="photo-btn">📷 Before/After Photos</button>
+      </div>
+    </div>
+
+  </div>
+
+  <p style="text-align:center;margin-top:24px;font-size:13px;opacity:0.6">Does this look right? Confirm in the terminal for the final section.</p>
+</div>
+
+<script>
+function toggleTheme() {
+  const body = document.body;
+  const toggle = document.getElementById('themeToggle');
+  if (body.classList.contains('light')) {
+    body.classList.replace('light', 'dark');
+    toggle.classList.add('on');
+  } else {
+    body.classList.replace('dark', 'light');
+    toggle.classList.remove('on');
+  }
+}
+</script>
+</body>
+</html>

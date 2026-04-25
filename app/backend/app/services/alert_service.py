@@ -79,6 +79,46 @@ def _send_email(to: str, subject: str, body: str) -> Optional[str]:
         return str(exc)
 
 
+def twilio_status() -> dict[str, object]:
+    missing: list[str] = []
+    for key in ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER"):
+        if not os.environ.get(key):
+            missing.append(key)
+    configured = not missing
+    detail = None
+    if missing:
+        detail = (
+            "Twilio is not configured. Add "
+            + ", ".join(missing)
+            + " to app/backend/.env and restart the backend."
+        )
+    return {
+        "configured": configured,
+        "missing": missing,
+        "detail": detail,
+    }
+
+
+def smtp_status() -> dict[str, object]:
+    missing: list[str] = []
+    for key in ("SMTP_HOST", "SMTP_USER", "SMTP_PASS", "SMTP_FROM"):
+        if not os.environ.get(key):
+            missing.append(key)
+    configured = not missing
+    detail = None
+    if missing:
+        detail = (
+            "SMTP email is not configured. Add "
+            + ", ".join(missing)
+            + " to app/backend/.env and restart the backend."
+        )
+    return {
+        "configured": configured,
+        "missing": missing,
+        "detail": detail,
+    }
+
+
 # ── test send ─────────────────────────────────────────────────────────────────
 
 async def fire_test_alert(

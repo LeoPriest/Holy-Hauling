@@ -37,7 +37,7 @@ export interface Screenshot {
   stored_path: string  // prefix with /uploads/ to build URL
   file_size: number
   ocr_status: 'pending' | 'done' | 'failed' | null
-  screenshot_type: string  // "intake" | "correspondence"
+  screenshot_type: string  // "intake" | "correspondence" | "before_job" | "after_job"
   created_at: string
 }
 
@@ -55,6 +55,11 @@ export interface OcrResult {
   extracted_fields: string | null
   model_used: string | null
   created_at: string
+}
+
+export interface QuoteModifier {
+  amount: number
+  note: string
 }
 
 export interface AiReviewSections {
@@ -118,10 +123,13 @@ export interface Lead {
   job_origin: string | null
   job_destination: string | null
   job_date_requested: string | null
+  appointment_time_slot: string | null
+  estimated_job_duration_minutes: number | null
   scope_notes: string | null
   // Provenance dict: field_name → "ocr" | "edited" (absence = manually entered)
   field_sources: Record<string, 'ocr' | 'edited'> | null
   notes: string | null
+  ingested_by: string | null
   assigned_to: string | null
   created_at: string
   acknowledged_at: string | null
@@ -137,6 +145,9 @@ export interface Lead {
   contact_status: 'locked' | 'unlocked'
   acknowledgment_sent: boolean
   quote_context: string | null
+  quoted_price_total: number | null
+  quote_modifiers: QuoteModifier[] | null
+  job_address: string | null
   source_category_label: string
   events?: LeadEvent[]
   screenshots?: Screenshot[]
@@ -151,6 +162,8 @@ export interface LeadCreate {
   service_type: ServiceType
   job_location?: string
   job_date_requested?: string
+  appointment_time_slot?: string
+  estimated_job_duration_minutes?: number
   notes?: string
   assigned_to?: string
   urgency_flag?: boolean
@@ -164,6 +177,8 @@ export interface LeadUpdate {
   job_origin?: string | null
   job_destination?: string | null
   job_date_requested?: string | null
+  appointment_time_slot?: string | null
+  estimated_job_duration_minutes?: number | null
   scope_notes?: string | null
   urgency_flag?: boolean
   assigned_to?: string | null
@@ -177,6 +192,7 @@ export interface LeadUpdate {
   move_date_options?: string[] | null
   acknowledgment_sent?: boolean
   quote_context?: string | null
+  job_address?: string | null
 }
 
 export interface ChatMessage {

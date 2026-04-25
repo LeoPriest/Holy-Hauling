@@ -28,6 +28,8 @@ import app.models.lead_chat_message  # noqa: F401
 import app.models.app_setting   # noqa: F401
 import app.models.lead_alert    # noqa: F401
 import app.models.user  # noqa: F401
+import app.models.user_availability  # noqa: F401
+import app.models.user_weekly_availability  # noqa: F401
 import app.models.push_subscription  # noqa: F401
 import app.models.job_assignment  # noqa: F401
 
@@ -134,6 +136,24 @@ async def _migrate_leads_add_quote_context(conn) -> None:
     print("[startup] leads: added quote_context column")
 
 
+async def _migrate_leads_add_quote_fields(conn) -> None:
+    """Add quoted price storage columns if not present."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    existing = _existing_columns(rows)
+    added = []
+    if "quoted_price_total" not in existing:
+        await conn.execute(text("ALTER TABLE leads ADD COLUMN quoted_price_total FLOAT"))
+        added.append("quoted_price_total")
+    if "quote_modifiers" not in existing:
+        await conn.execute(text("ALTER TABLE leads ADD COLUMN quote_modifiers TEXT"))
+        added.append("quote_modifiers")
+    if added:
+        print(f"[startup] leads: added quote fields: {', '.join(added)}")
+
+
 async def _migrate_leads_add_v8_columns(conn) -> None:
     """Add Slice 8 columns to the leads table if not already present."""
     result = await conn.execute(text("PRAGMA table_info(leads)"))
@@ -171,6 +191,30 @@ async def _migrate_leads_add_job_address(conn) -> None:
         return
     await conn.execute(text("ALTER TABLE leads ADD COLUMN job_address VARCHAR"))
     print("[startup] leads: added job_address column")
+
+
+async def _migrate_leads_add_appointment_time_slot(conn) -> None:
+    """Add appointment_time_slot column for confirmed job start times."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "appointment_time_slot" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN appointment_time_slot VARCHAR"))
+    print("[startup] leads: added appointment_time_slot column")
+
+
+async def _migrate_leads_add_estimated_duration(conn) -> None:
+    """Add estimated_job_duration_minutes column for Google Calendar event lengths."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "estimated_job_duration_minutes" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN estimated_job_duration_minutes INTEGER"))
+    print("[startup] leads: added estimated_job_duration_minutes column")
 
 
 async def _migrate_leads_add_job_timing_columns(conn) -> None:
@@ -213,6 +257,31 @@ async def _migrate_leads_add_calendar_event_id(conn) -> None:
     print("[startup] leads: added google_calendar_event_id column")
 
 
+async def _migrate_leads_add_ingested_by(conn) -> None:
+    """Add ingested_by column and backfill it from the lead created event when available."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    existing = _existing_columns(rows)
+    if "ingested_by" not in existing:
+        await conn.execute(text("ALTER TABLE leads ADD COLUMN ingested_by VARCHAR"))
+        print("[startup] leads: added ingested_by column")
+
+    await conn.execute(text("""
+        UPDATE leads
+        SET ingested_by = (
+            SELECT actor
+            FROM lead_events
+            WHERE lead_events.lead_id = leads.id
+              AND lead_events.event_type = 'created'
+            ORDER BY lead_events.created_at ASC
+            LIMIT 1
+        )
+        WHERE ingested_by IS NULL
+    """))
+
+
 async def _migrate_screenshots_add_ocr_status(conn) -> None:
     """Add ocr_status column added in Slice 3 to existing screenshots tables."""
     result = await conn.execute(text("PRAGMA table_info(screenshots)"))
@@ -239,6 +308,15 @@ def _validate_grounding_file() -> None:
         print("[startup] AI review will return 503 until this is fixed.")
 
 
+def _validate_google_oauth_config() -> None:
+    """Warn at startup when Google OAuth is missing or invalid."""
+    status = admin_google.google_oauth_config_status()
+    if bool(status["configured"]):
+        return
+    print("[startup] WARNING - " + str(status["detail"]))
+    print("[startup] /admin/google/connect will return 503 until this is fixed.")
+
+
 async def _seed_default_admin(conn) -> None:
     import uuid as _uuid
     from app.services.auth_service import hash_pin as _hash_pin
@@ -262,17 +340,22 @@ async def _seed_default_admin(conn) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _validate_grounding_file()
+    _validate_google_oauth_config()
     async with engine.begin() as conn:
         await _migrate_customer_name_nullable(conn)
         await _migrate_screenshots_add_ocr_status(conn)
         await _migrate_leads_add_v7_columns(conn)
         await _migrate_leads_add_v8_columns(conn)
         await _migrate_leads_add_quote_context(conn)
+        await _migrate_leads_add_quote_fields(conn)
         await _migrate_leads_add_job_timing_columns(conn)
         await _migrate_leads_add_job_address(conn)
+        await _migrate_leads_add_appointment_time_slot(conn)
+        await _migrate_leads_add_estimated_duration(conn)
         await _migrate_screenshots_add_screenshot_type(conn)
         await _migrate_users_add_email(conn)
         await _migrate_leads_add_calendar_event_id(conn)
+        await _migrate_leads_add_ingested_by(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _seed_default_admin(conn)
 

@@ -1,0 +1,117 @@
+<h2>Design: Auth + Roles — Data Model + Screens</h2>
+<p class="subtitle">Section 2 of 3. Confirm before we move to scope + testing.</p>
+
+<div class="section">
+  <h3>New: User model (SQLite table)</h3>
+  <div style="font-family:monospace;font-size:12px;background:#1e293b;color:#e2e8f0;border-radius:8px;padding:12px;line-height:1.8">
+    <span style="color:#94a3b8">-- users table</span><br>
+    id            VARCHAR  PRIMARY KEY  <span style="color:#94a3b8">(uuid)</span><br>
+    username      VARCHAR  NOT NULL UNIQUE<br>
+    credential_hash VARCHAR NOT NULL    <span style="color:#94a3b8">(bcrypt — PIN today, password later)</span><br>
+    role          VARCHAR  NOT NULL     <span style="color:#94a3b8">(admin | facilitator | supervisor | crew)</span><br>
+    is_active     BOOLEAN  DEFAULT true<br>
+    created_at    DATETIME NOT NULL<br>
+    created_by    VARCHAR              <span style="color:#94a3b8">(user_id of admin who created)</span>
+  </div>
+  <div style="font-size:12px;color:#6b7280;margin-top:6px">Seeded at startup: one default <strong>admin</strong> user with PIN <code>0000</code> if the table is empty. First thing admin does is change it.</div>
+</div>
+
+<div class="section">
+  <h3>New API routes</h3>
+  <div style="font-size:13px;display:flex;flex-direction:column;gap:4px">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px"><code style="color:#7c3aed">POST /auth/login</code> — body: <code>{username, pin}</code> → returns <code>{token, user}</code>. No auth required.</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px"><code style="color:#7c3aed">GET /auth/me</code> — returns current user from token. Used on app load to verify token still valid.</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px"><code style="color:#7c3aed">GET /admin/users</code> — list all users. Admin only.</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px"><code style="color:#7c3aed">POST /admin/users</code> — create user. Admin only.</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px"><code style="color:#7c3aed">PATCH /admin/users/{id}</code> — update role, reset PIN, deactivate. Admin only.</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius=6px;padding:8px"><code style="color:#7c3aed">GET /jobs</code> — booked leads, shaped for crew/supervisor. Auth required, any role.</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px"><code style="color:#7c3aed">PATCH /jobs/{id}/status</code> — en_route / started / completed. Supervisor only.</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Screens</h3>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;font-size:12px">
+
+    <div class="mockup">
+      <div class="mockup-header">Login screen (all users)</div>
+      <div class="mockup-body" style="padding:12px;text-align:center">
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px">⛪ Holy Hauling</div>
+        <input class="mock-input" style="text-align:center;margin-bottom:8px" placeholder="Your name">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;max-width:140px;margin:0 auto">
+          <button class="mock-button" style="padding:8px">1</button><button class="mock-button" style="padding:8px">2</button><button class="mock-button" style="padding:8px">3</button>
+          <button class="mock-button" style="padding:8px">4</button><button class="mock-button" style="padding:8px">5</button><button class="mock-button" style="padding:8px">6</button>
+          <button class="mock-button" style="padding:8px">7</button><button class="mock-button" style="padding:8px">8</button><button class="mock-button" style="padding:8px">9</button>
+          <span></span><button class="mock-button" style="padding:8px">0</button><span></span>
+        </div>
+        <div style="margin-top:8px;color:#6b7280;font-size:12px">● ● ● ○</div>
+      </div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-header">Admin — User Management (/admin/users)</div>
+      <div class="mockup-body" style="padding:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-weight:600;font-size:12px">Team</span>
+          <button class="mock-button" style="font-size:11px;padding:4px 8px">+ Add User</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:11px">
+          <div style="display:flex;justify-content:space-between;background:#f9fafb;border-radius:4px;padding:6px">
+            <span><strong>Andre</strong> <span style="background:#fef9c3;padding:1px 5px;border-radius:3px">admin</span></span>
+            <span style="color:#6b7280">You</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;background:#f9fafb;border-radius:4px;padding:6px">
+            <span><strong>Jordan</strong> <span style="background:#e0f2fe;padding:1px 5px;border-radius:3px">facilitator</span></span>
+            <button class="mock-button" style="font-size:10px;padding:2px 6px">Edit</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;background:#f9fafb;border-radius:4px;padding:6px">
+            <span><strong>Marcus</strong> <span style="background:#f0fdf4;padding:1px 5px;border-radius:3px">supervisor</span></span>
+            <button class="mock-button" style="font-size:10px;padding:2px 6px">Edit</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;background:#f9fafb;border-radius:4px;padding:6px">
+            <span><strong>Tyler</strong> <span style="background:#f3f4f6;padding:1px 5px;border-radius:3px">crew</span></span>
+            <button class="mock-button" style="font-size:10px;padding:2px 6px">Edit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-header">Crew — Job List (/jobs)</div>
+      <div class="mockup-body" style="padding:10px;font-size:11px">
+        <div style="font-weight:600;margin-bottom:8px">Today's Jobs</div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px;margin-bottom:6px">
+          <div style="font-weight:700">Job #042 — Moving</div>
+          <div style="color:#6b7280">9:00 AM · 123 Main St → 456 Oak Ave</div>
+          <div style="color:#6b7280">2BR · Stairs: 2 load / 0 unload</div>
+          <button class="mock-button" style="font-size:10px;margin-top:6px">View Details</button>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:8px">
+          <div style="font-weight:700">Job #041 — Hauling</div>
+          <div style="color:#6b7280">1:00 PM · 789 Elm Dr</div>
+          <button class="mock-button" style="font-size:10px;margin-top:6px">View Details</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-header">Supervisor — Job Detail extras</div>
+      <div class="mockup-body" style="padding:10px;font-size:11px">
+        <div style="font-weight:700;margin-bottom:6px">Job #042 — Moving</div>
+        <div>👤 Marcus Webb · <span style="color:#2563eb">(214) 555-0192</span></div>
+        <div>💰 Quote: $520–$640</div>
+        <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
+          <button class="mock-button" style="font-size:10px;background:#dbeafe;border-color:#93c5fd">🚗 En Route</button>
+          <button class="mock-button" style="font-size:10px;background:#fef3c7;border-color:#fcd34d">🔧 Started</button>
+          <button class="mock-button" style="font-size:10px;background:#d1fae5;border-color:#6ee7b7">✅ Complete</button>
+        </div>
+        <div style="margin-top:8px">
+          <button class="mock-button" style="font-size:10px">📷 Add Before/After Photos</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Does the data model and these screens look right? Confirm in the terminal for the final section.</p>

@@ -54,6 +54,7 @@ class Lead(Base):
     job_location = Column(String, nullable=True)
     job_date_requested = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
+    ingested_by = Column(String, nullable=True)
     assigned_to = Column(String, nullable=True)
     # Slice 7: origin/destination (moving), scope summary, field provenance
     job_origin = Column(String, nullable=True)
@@ -72,9 +73,13 @@ class Lead(Base):
     accept_and_pay = Column(Boolean, nullable=False, default=False)
     # Facilitator-entered supplemental notes fed into AI review for quoting accuracy
     quote_context = Column(Text, nullable=True)
+    quoted_price_total = Column(Float, nullable=True)
+    quote_modifiers = Column(Text, nullable=True)
 
     # Confirmed physical address — entered when job is booked; triggers status → booked
     job_address = Column(String, nullable=True)
+    appointment_time_slot = Column(String, nullable=True)
+    estimated_job_duration_minutes = Column(Integer, nullable=True)
 
     # Job phase timestamps — set as supervisor/crew advance through the workflow
     dispatched_at = Column(DateTime, nullable=True)  # office dispatches crew

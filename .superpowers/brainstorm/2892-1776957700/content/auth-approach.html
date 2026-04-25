@@ -1,0 +1,42 @@
+<h2>How do users identify themselves?</h2>
+<p class="subtitle">This shapes the entire role system. Pick the approach that fits how your team actually works.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Simple role picker — no password</h3>
+      <p>On launch, the app asks <em>"Who are you?"</em> — Admin, Facilitator, or Field Crew. No accounts, no login. Role stored locally. Anyone can switch if they know what they're doing.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Zero friction</li><li>No account management</li><li>Works offline immediately</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>No real access control</li><li>Anyone can switch to Admin</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>PIN per role — lightweight protection</h3>
+      <p>Admin and Facilitator require a PIN set in Settings. Field Crew has no PIN. Entering the wrong PIN keeps you at Field Crew level. PIN stored in app settings (not per-user).</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>Protects sensitive data</li><li>No account setup per person</li><li>Admin can reset PINs</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Shared PIN (anyone who knows it)</li><li>No per-person audit trail</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Named user accounts — full identity</h3>
+      <p>Each person has a username + PIN/password and is assigned a role. Admin can add/remove users. Audit trail shows who did what by name. Most complex to build.</p>
+      <div class="pros-cons" style="margin-top:10px">
+        <div class="pros"><h4>Pros</h4><ul><li>True per-person audit trail</li><li>Role changes require admin</li><li>Scales to larger teams</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Most build effort</li><li>Account management overhead</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Take a look and let me know what you think — click to select, then tell me your choice in the terminal.</p>

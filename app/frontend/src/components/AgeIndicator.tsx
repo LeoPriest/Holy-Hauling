@@ -1,5 +1,7 @@
+import { parseUtc } from '../utils/time'
+
 export function AgeIndicator({ createdAt }: { createdAt: string }) {
-  const minutes = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000)
+  const minutes = Math.floor((Date.now() - parseUtc(createdAt).getTime()) / 60_000)
   const display =
     minutes < 60
       ? `${minutes}m ago`

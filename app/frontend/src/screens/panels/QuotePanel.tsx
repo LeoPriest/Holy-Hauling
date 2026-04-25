@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { usePatchLead } from '../../hooks/useLeads'
+import { usePatchLead, useTriggerAiReview } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
 import { AiChatThread } from '../../components/AiChatThread'
 
@@ -21,6 +21,7 @@ interface Props {
 
 export function QuotePanel({ lead, aiReview, leadId }: Props) {
   const patch = usePatchLead()
+  const triggerReview = useTriggerAiReview()
   const [context, setContext] = useState(lead.quote_context ?? '')
   const [saved, setSaved] = useState(false)
 
@@ -131,11 +132,20 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
 
       {/* ── AI Pricing (F–L) ───────────────────────────────────────── */}
       <section>
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-xs font-semibold text-orange-600 uppercase tracking-wider">
-            AI Pricing Guidance
-          </h3>
-          <span className="text-xs font-bold text-orange-500 uppercase">— Internal Only</span>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold text-orange-600 uppercase tracking-wider">
+              AI Pricing Guidance
+            </h3>
+            <span className="text-xs font-bold text-orange-500 uppercase">— Internal Only</span>
+          </div>
+          <button
+            onClick={() => triggerReview.mutate({ leadId })}
+            disabled={triggerReview.isPending}
+            className="text-xs bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700 disabled:opacity-50 shrink-0 font-medium"
+          >
+            {triggerReview.isPending ? 'Running…' : aiReview ? 'Re-run AI' : 'Run AI Review'}
+          </button>
         </div>
 
         {aiReview ? (

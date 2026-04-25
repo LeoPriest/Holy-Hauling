@@ -1,0 +1,66 @@
+<h2>How should login work?</h2>
+<p class="subtitle">Three approaches for Auth + Roles. Each trades security for simplicity differently.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Username + 4-digit PIN → JWT token <span style="background:#d1fae5;color:#065f46;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:6px">Recommended</span></h3>
+      <p>User picks a username, sets a PIN. App stores a JWT in localStorage. Backend validates the JWT on every request and knows who's calling. Token expires after 30 days (crew doesn't re-login constantly). Admin resets PINs from user management screen.</p>
+      <div style="display:flex;gap:12px;margin-top:10px;flex-wrap:wrap">
+        <div class="mockup" style="flex:1;min-width:160px">
+          <div class="mockup-header" style="font-size:11px">Login screen</div>
+          <div class="mockup-body" style="padding:10px;font-size:12px">
+            <div style="text-align:center;font-weight:700;margin-bottom:8px">Holy Hauling</div>
+            <input class="mock-input" style="font-size:12px;margin-bottom:6px" placeholder="Your name (e.g. Jordan)">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:6px 0">
+              <button class="mock-button" style="font-size:14px;padding:8px">1</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">2</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">3</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">4</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">5</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">6</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">7</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">8</button>
+              <button class="mock-button" style="font-size:14px;padding:8px">9</button>
+              <button class="mock-button" style="font-size:14px;padding:8px;grid-column:2">0</button>
+            </div>
+            <div style="text-align:center;color:#6b7280;font-size:11px">● ● ○ ○</div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:140px;font-size:12px">
+          <div class="pros-cons">
+            <div class="pros"><h4>Pros</h4><ul><li>Backend knows who's calling</li><li>Real audit trail per user</li><li>PIN is crew-friendly</li><li>Token = stay logged in</li></ul></div>
+            <div class="cons"><h4>Cons</h4><ul><li>Requires PIN hashing on backend</li><li>JWT middleware on all routes</li></ul></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Username + Password → JWT token</h3>
+      <p>Same as A but full text password instead of PIN. More secure, but crew members have to remember a password. Admin resets via user management.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Stronger than PIN</li><li>Familiar pattern</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Harder for field crew on mobile</li><li>Same build effort as A</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Frontend-only role gates — no backend auth</h3>
+      <p>Role and identity stored in localStorage. Backend routes stay open — no token validation. Fast to build, but any role can call any API endpoint if someone knows the URL. Fine for a fully trusted internal team on a closed network.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Fastest to build</li><li>No backend changes to routes</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>No real access control</li><li>Audit trail is unverified</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Click your pick, then confirm in the terminal.</p>

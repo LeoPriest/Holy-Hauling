@@ -1,0 +1,79 @@
+<h2>Supervisor vs. Crew — job card detail level</h2>
+<p class="subtitle">Which version matches what each role should see on a job?</p>
+
+<div class="split">
+
+  <div class="mockup">
+    <div class="mockup-header">👷 Supervisor view</div>
+    <div class="mockup-body" style="padding:12px;font-size:13px">
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">Job #042 — Moving</div>
+        <div style="color:#6b7280;font-size:12px">Today · 9:00 AM → Est. 2:00 PM</div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          <div>📍 <strong>Origin:</strong> 123 Main St, Dallas</div>
+          <div>📍 <strong>Dest:</strong> 456 Oak Ave, Plano</div>
+          <div>📏 <strong>Distance:</strong> ~18 mi</div>
+          <div>🏠 <strong>Size:</strong> 2BR apartment</div>
+          <div>🪜 <strong>Stairs:</strong> Load 2 · Unload 0</div>
+          <div>👤 <strong>Customer:</strong> Marcus Webb</div>
+          <div>📞 <strong>Phone:</strong> (214) 555-0192</div>
+          <div>📝 <strong>Scope:</strong> Heavy furniture, piano in living room</div>
+          <div>💰 <strong>Quote:</strong> $520–$640</div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mock-button" style="font-size:11px">📷 Add Photos</button>
+          <button class="mock-button" style="font-size:11px">✅ Mark Complete</button>
+          <button class="mock-button" style="font-size:11px">🚗 En Route</button>
+        </div>
+      </div>
+      <div style="color:#6b7280;font-size:11px;text-align:center">Sees: schedule, full scope, customer contact, quote, photos, status actions</div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">🦺 Regular Crew view</div>
+    <div class="mockup-body" style="padding:12px;font-size:13px">
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="font-weight:700;font-size:14px">Job #042 — Moving</div>
+        <div style="color:#6b7280;font-size:12px">Today · 9:00 AM → Est. 2:00 PM</div>
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          <div>📍 <strong>Origin:</strong> 123 Main St, Dallas</div>
+          <div>📍 <strong>Dest:</strong> 456 Oak Ave, Plano</div>
+          <div>📏 <strong>Distance:</strong> ~18 mi</div>
+          <div>🏠 <strong>Size:</strong> 2BR apartment</div>
+          <div>🪜 <strong>Stairs:</strong> Load 2 · Unload 0</div>
+          <div style="color:#9ca3af">📝 <strong>Scope:</strong> <em>Heavy furniture, piano in living room</em></div>
+          <div style="background:#fee2e2;border-radius:4px;padding:4px 6px;color:#991b1b;font-size:11px">🔒 Customer contact — supervisor only</div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="mock-button" style="font-size:11px">📷 Add Photos</button>
+          <button class="mock-button" style="font-size:11px;opacity:0.4" disabled>✅ Mark Complete</button>
+        </div>
+      </div>
+      <div style="color:#6b7280;font-size:11px;text-align:center">Sees: schedule, address, size/stairs/scope · Hidden: phone, quote, status actions</div>
+    </div>
+  </div>
+
+</div>
+
+<h3 style="margin-top:24px">What's hidden from regular crew?</h3>
+<div class="options" data-multiselect>
+  <div class="option" data-choice="phone" onclick="toggleSelect(this)">
+    <div class="letter">H</div>
+    <div class="content"><h3>Customer phone number</h3><p>Only supervisor can call the customer directly</p></div>
+  </div>
+  <div class="option" data-choice="quote" onclick="toggleSelect(this)">
+    <div class="letter">H</div>
+    <div class="content"><h3>Quote / pricing</h3><p>Crew doesn't need to know what was charged</p></div>
+  </div>
+  <div class="option" data-choice="complete" onclick="toggleSelect(this)">
+    <div class="letter">H</div>
+    <div class="content"><h3>"Mark Complete" action</h3><p>Only supervisor can close out the job</p></div>
+  </div>
+  <div class="option" data-choice="scope" onclick="toggleSelect(this)">
+    <div class="letter">H</div>
+    <div class="content"><h3>Scope / internal notes</h3><p>Keep operational details supervisor-only</p></div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Select what to hide from regular crew, then confirm in the terminal.</p>

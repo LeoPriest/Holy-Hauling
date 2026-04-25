@@ -21,6 +21,7 @@ export function IngestProgressFlow({ onClose }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const canDismiss = step === 'idle' || step === 'error'
 
   const handleFile = async (file: File) => {
     setErrorMsg(null)
@@ -54,8 +55,12 @@ export function IngestProgressFlow({ onClose }: Props) {
   const currentIdx = steps.indexOf(step)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-6">
-      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl p-6 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={canDismiss ? onClose : undefined}
+      />
+      <div className="relative bg-white rounded-2xl w-full max-w-sm sm:max-w-md shadow-xl p-5 sm:p-6 space-y-5 max-h-[calc(100vh-2rem)] overflow-y-auto">
 
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-gray-900">New Lead from Screenshot</h2>
@@ -71,9 +76,10 @@ export function IngestProgressFlow({ onClose }: Props) {
             </p>
             <button
               onClick={() => fileRef.current?.click()}
-              className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-indigo-700"
+              className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2"
             >
-              📷 Choose Screenshot
+              <span aria-hidden="true">📷</span>
+              <span>Choose Screenshot</span>
             </button>
             <input
               ref={fileRef}
