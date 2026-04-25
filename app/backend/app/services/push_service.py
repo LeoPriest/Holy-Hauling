@@ -102,9 +102,17 @@ async def send_push_to_roles(db: AsyncSession, roles: list[str], message: str) -
     )
     subs = result.scalars().all()
     sent = 0
+    stale = []
     for sub in subs:
-        if _send_one(sub, message):
+        success, should_delete = _send_one(sub, message)
+        if success:
             sent += 1
+        elif should_delete:
+            stale.append(sub)
+    for sub in stale:
+        await db.delete(sub)
+    if stale:
+        await db.commit()
     return sent
 
 
@@ -119,17 +127,26 @@ async def send_push_to_user(db: AsyncSession, user_id: str, message: str) -> int
     )
     subs = result.scalars().all()
     sent = 0
+    stale = []
     for sub in subs:
-        if _send_one(sub, message):
+        success, should_delete = _send_one(sub, message)
+        if success:
             sent += 1
+        elif should_delete:
+            stale.append(sub)
+    for sub in stale:
+        await db.delete(sub)
+    if stale:
+        await db.commit()
     return sent
 
 
-def _send_one(sub, message: str) -> bool:
+def _send_one(sub, message: str) -> tuple[bool, bool]:
+    """Returns (sent, should_delete)."""
     vapid_private_key = _vapid_private_key()
     if not vapid_private_key:
         logger.debug("VAPID_PRIVATE_KEY not set; skipping push delivery")
-        return False
+        return False, False
     try:
         from pywebpush import webpush
         webpush(
@@ -141,7 +158,8 @@ def _send_one(sub, message: str) -> bool:
             vapid_private_key=vapid_private_key,
             vapid_claims={"sub": _vapid_claim_email()},
         )
-        return True
+        return True, False
     except Exception as exc:
         logger.error("Push failed for subscription %s: %s", sub.id, exc)
-        return False
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        return False, status in (400, 401, 403, 404, 410)
