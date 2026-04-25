@@ -36,7 +36,7 @@ import app.models.job_assignment  # noqa: F401
 from app.routers import admin_google, admin_users, auth as auth_router, chat, ingest, jobs, leads, push, settings as settings_router, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_UPLOADS_DIR = os.path.join(_BASE_DIR, "uploads")
+_UPLOADS_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "uploads")
 os.makedirs(os.path.join(_UPLOADS_DIR, "screenshots"), exist_ok=True)
 
 
@@ -370,9 +370,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Holy Hauling API", lifespan=lifespan)
 
+_CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { apiFetch } from '../services/api'
 
 export interface AuthUser {
   id: string
@@ -28,10 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const controller = new AbortController()
-    fetch('/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    })
+    apiFetch('/auth/me', { signal: controller.signal })
       .then(r => {
         if (!r.ok) throw new Error('invalid')
         return r.json() as Promise<AuthUser>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import type { AuthUser } from '../context/AuthContext'
+import { API_BASE } from '../services/api'
 
 const PAD = [
   ['1', '2', '3'],
@@ -28,7 +29,7 @@ export function LoginScreen() {
     setLoading(true)
     setError('')
     try {
-      const r = await fetch('/auth/login', {
+      const r = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim(), pin }),
@@ -122,7 +123,7 @@ async function registerPush(token: string) {
       localStorage.setItem('hh_push_declined', 'true')
       return
     }
-    const keyResp = await fetch('/push/vapid-public-key')
+    const keyResp = await fetch(`${API_BASE}/push/vapid-public-key`)
     const { publicKey } = await keyResp.json()
     if (!publicKey) return
     const sub = await reg.pushManager.subscribe({
@@ -130,7 +131,7 @@ async function registerPush(token: string) {
       applicationServerKey: publicKey,
     })
     const { endpoint, keys } = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } }
-    await fetch('/push/subscribe', {
+    await fetch(`${API_BASE}/push/subscribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ endpoint, p256dh: keys.p256dh, auth: keys.auth }),

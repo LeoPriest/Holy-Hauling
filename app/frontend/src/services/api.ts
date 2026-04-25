@@ -1,13 +1,15 @@
 import type { AiReview, ChatMessage, ChatResponse, IngestResult, Lead, LeadCreate, LeadEvent, LeadStatus, LeadUpdate, OcrResult, QuoteModifier, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
 
-const BASE = '/leads'
+export const API_BASE = import.meta.env.VITE_API_URL ?? ''
+
+const BASE = `${API_BASE}/leads`
 
 export function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem('hh_token')
   const existing = (init.headers as Record<string, string>) ?? {}
   const headers: Record<string, string> = { ...existing }
   if (token) headers['Authorization'] = `Bearer ${token}`
-  return fetch(url, { ...init, headers })
+  return fetch(`${API_BASE}${url}`, { ...init, headers })
 }
 
 export async function fetchLeads(params?: {
