@@ -2,7 +2,7 @@ import type { AiReview, ChatMessage, ChatResponse, IngestResult, Lead, LeadCreat
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
-const BASE = `${API_BASE}/leads`
+const BASE = '/leads'
 
 export function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem('hh_token')
