@@ -60,6 +60,8 @@ type BookingLineItemDraft = {
 interface Props {
   lead: Lead
   leadId: string
+  triggerBookingModal?: boolean
+  onBookingModalOpened?: () => void
 }
 
 function createLineItem(note = '', amount = ''): BookingLineItemDraft {
@@ -312,7 +314,7 @@ function BookingModal({
   )
 }
 
-export function LogPanel({ lead, leadId }: Props) {
+export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpened }: Props) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const updateStatus = useUpdateStatus()
@@ -345,6 +347,14 @@ export function LogPanel({ lead, leadId }: Props) {
     resetBookingDraft()
     setShowBookingModal(true)
   }
+
+  useEffect(() => {
+    if (triggerBookingModal) {
+      handleOpenBookingModal()
+      onBookingModalOpened?.()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerBookingModal])
 
   const handleCloseBookingModal = () => {
     if (updateStatus.isPending) return
@@ -478,16 +488,22 @@ export function LogPanel({ lead, leadId }: Props) {
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Move to Status</h3>
           <div className="flex flex-wrap gap-2">
-            {ALL_STATUSES.filter(status => status !== lead.status).map(status => (
-              <button
-                key={status}
-                onClick={() => handleStatusChange(status)}
-                disabled={updateStatus.isPending}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
-              >
-                {STATUS_LABELS[status]}
-              </button>
-            ))}
+            {ALL_STATUSES.map(status => {
+              const isCurrent = status === lead.status
+              return (
+                <button
+                  key={status}
+                  onClick={() => !isCurrent && handleStatusChange(status)}
+                  disabled={isCurrent || updateStatus.isPending}
+                  className={isCurrent
+                    ? 'rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white cursor-default dark:border-indigo-500 dark:bg-indigo-500'
+                    : 'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700'
+                  }
+                >
+                  {STATUS_LABELS[status]}
+                </button>
+              )
+            })}
           </div>
         </section>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AgeIndicator } from '../components/AgeIndicator'
 import { GateIndicator } from '../components/GateIndicator'
@@ -15,6 +15,7 @@ export function LeadCommandCenter() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('brief')
+  const [triggerBookingModal, setTriggerBookingModal] = useState(false)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
@@ -43,7 +44,7 @@ export function LeadCommandCenter() {
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
 
-      {/* ── Fixed header ─────────────────────────────────────────────── */}
+      {/* ── Fixed header ─────────────────────────────────── */}
       <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-start gap-3 flex-wrap shrink-0 z-20">
         <button
           onClick={() => navigate('/')}
@@ -93,7 +94,7 @@ export function LeadCommandCenter() {
         )}
       </header>
 
-      {/* ── Tab bar ──────────────────────────────────────────────────── */}
+      {/* ── Tab bar ──────────────────────────────────────── */}
       <nav className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex shrink-0">
         {(['brief', 'quote', 'log'] as Tab[]).map(t => (
           <button
@@ -110,11 +111,24 @@ export function LeadCommandCenter() {
         ))}
       </nav>
 
-      {/* ── Scrollable panel ─────────────────────────────────────────── */}
+      {/* ── Scrollable panel ─────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
-        {tab === 'brief' && <BriefPanel lead={lead} aiReview={aiReview} />}
+        {tab === 'brief' && (
+          <BriefPanel
+            lead={lead}
+            aiReview={aiReview}
+            onBookingDateSet={() => { setTab('log'); setTriggerBookingModal(true) }}
+          />
+        )}
         {tab === 'quote' && <QuotePanel lead={lead} aiReview={aiReview} leadId={id!} />}
-        {tab === 'log'   && <LogPanel lead={lead} leadId={id!} />}
+        {tab === 'log' && (
+          <LogPanel
+            lead={lead}
+            leadId={id!}
+            triggerBookingModal={triggerBookingModal}
+            onBookingModalOpened={() => setTriggerBookingModal(false)}
+          />
+        )}
       </main>
 
     </div>

@@ -13,8 +13,8 @@ interface Props {
 export function LeadCard({ lead, onClick, staleness, idleMinutes }: Props) {
   const staleLeftBorder =
     staleness === 't2' ? 'border-l-4 border-l-red-500' :
-    staleness === 't1' ? 'border-l-4 border-l-amber-400' :
-    lead.urgency_flag ? 'border-l-4 border-l-orange-500' : 'border-gray-200'
+      staleness === 't1' ? 'border-l-4 border-l-amber-400' :
+        lead.urgency_flag ? 'border-l-4 border-l-orange-500' : 'border-gray-200'
 
   return (
     <div
@@ -45,7 +45,7 @@ export function LeadCard({ lead, onClick, staleness, idleMinutes }: Props) {
             <StatusBadge status={lead.status} />
             <SourceBadge source={lead.source_type} />
             {lead.ingested_by && (
-              <span className="text-xs font-medium text-gray-500">Ingested by {lead.ingested_by}</span>
+              <span className="text-xs font-medium text-gray-500">Uploaded by {lead.ingested_by}</span>
             )}
           </div>
           {lead.customer_name

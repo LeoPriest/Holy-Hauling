@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { DateOptionsEditor } from '../../components/DateOptionsEditor'
 import { DurationWheelInput } from '../../components/DurationWheelInput'
 import { buildUploadUrl } from '../../services/api'
@@ -13,9 +13,10 @@ const MAPS_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
 interface Props {
   lead: Lead
   aiReview: AiReview | undefined
+  onBookingDateSet?: () => void
 }
 
-// ── Inline editable field ─────────────────────────────────────────────────────
+// â”€â”€ Inline editable field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface EditableFieldProps {
   value: string | null | undefined
@@ -29,7 +30,7 @@ interface EditableFieldProps {
 function EditableField({
   value,
   onSave,
-  placeholder = 'Tap to add…',
+  placeholder = 'Tap to addâ€¦',
   type = 'text',
   options,
   display,
@@ -131,7 +132,7 @@ function EditableField({
   )
 }
 
-// ── Address field with Places Autocomplete (New) via REST ────────────────────
+// â”€â”€ Address field with Places Autocomplete (New) via REST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface PlacePrediction {
   placeId: string
@@ -308,7 +309,7 @@ function AddressField({ value, onSave }: AddressFieldProps) {
             </span>
           ) : (
             <span className="text-sm text-gray-300 dark:text-gray-600 italic">
-              Confirmed street address — books job
+              Confirmed street address â€” books job
             </span>
           )}
         </button>
@@ -335,7 +336,7 @@ function AddressField({ value, onSave }: AddressFieldProps) {
         onChange={handleChange}
         onBlur={commit}
         onKeyDown={onKey}
-        placeholder={MAPS_KEY ? 'Start typing an address…' : 'Enter address…'}
+        placeholder={MAPS_KEY ? 'Start typing an addressâ€¦' : 'Enter addressâ€¦'}
         className={inputClass}
         autoComplete="off"
       />
@@ -369,7 +370,7 @@ function AddressField({ value, onSave }: AddressFieldProps) {
   )
 }
 
-// ── Panel ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SERVICE_OPTIONS = [
   { value: 'unknown', label: 'Unknown' },
@@ -387,7 +388,7 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
-export function BriefPanel({ lead, aiReview }: Props) {
+export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
   const acknowledge = useAcknowledgeLead()
   const patch = usePatchLead()
   const { data: teamMembers = [] } = useUsers()
@@ -457,7 +458,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
             disabled={acknowledge.isPending}
             className="text-xs bg-red-600 text-white rounded-lg px-3 py-1.5 hover:bg-red-700 disabled:opacity-50 shrink-0"
           >
-            {acknowledge.isPending ? 'Saving…' : 'Acknowledge'}
+            {acknowledge.isPending ? 'Savingâ€¦' : 'Acknowledge'}
           </button>
         </div>
       ) : (
@@ -477,7 +478,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
             <EditableField
               value={lead.customer_name}
               onSave={v => save('customer_name', v)}
-              placeholder="Tap to add name…"
+              placeholder="Tap to add nameâ€¦"
             />
           </FieldRow>
 
@@ -492,7 +493,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
               <EditableField
                 value={lead.customer_phone}
                 onSave={v => save('customer_phone', v)}
-                placeholder="Tap to add phone…"
+                placeholder="Tap to add phoneâ€¦"
                 type="tel"
               />
               {lead.customer_phone && (
@@ -524,7 +525,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
             <EditableField
               value={lead.job_location}
               onSave={v => save('job_location', v)}
-              placeholder="City / zip from lead…"
+              placeholder="City / zip from leadâ€¦"
             />
           </FieldRow>
 
@@ -545,8 +546,8 @@ export function BriefPanel({ lead, aiReview }: Props) {
           <FieldRow label="Booking Date">
             <EditableField
               value={lead.job_date_requested}
-              onSave={v => save('job_date_requested', v)}
-              placeholder="Tap to add date…"
+              onSave={v => { save('job_date_requested', v); if (v) onBookingDateSet?.() }}
+              placeholder="Tap to add dateâ€¦"
               type="date"
             />
           </FieldRow>
@@ -555,7 +556,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
             <EditableField
               value={lead.appointment_time_slot}
               onSave={v => save('appointment_time_slot', v)}
-              placeholder="Tap to add time…"
+              placeholder="Tap to add timeâ€¦"
               type="time"
               display={fmtTimeSlot}
             />
@@ -580,17 +581,17 @@ export function BriefPanel({ lead, aiReview }: Props) {
             <EditableField
               value={lead.scope_notes}
               onSave={v => save('scope_notes', v)}
-              placeholder="Tap to add scope notes…"
+              placeholder="Tap to add scope notesâ€¦"
               type="textarea"
             />
           </FieldRow>
 
         </div>
         {patch.isPending && (
-          <p className="text-xs text-gray-400 mt-1 px-1">Saving…</p>
+          <p className="text-xs text-gray-400 mt-1 px-1">Savingâ€¦</p>
         )}
         {patch.isError && (
-          <p className="text-xs text-red-500 mt-1 px-1">Failed to save — please try again.</p>
+          <p className="text-xs text-red-500 mt-1 px-1">Failed to save â€” please try again.</p>
         )}
       </section>
 
@@ -606,7 +607,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
               { onError: (err) => console.error('Failed to update assigned_to:', err) }
             )}
           >
-            <option value="">— Unassigned —</option>
+            <option value="">â€” Unassigned â€”</option>
             {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {
               const members = teamMembers.filter(m => m.role === role && m.is_active)
               if (members.length === 0) return null
@@ -631,7 +632,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
             </h3>
             <div className="bg-white rounded-xl border p-4">
               <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                {aiReview.sections.m_quick_read || '—'}
+                {aiReview.sections.m_quick_read || 'â€”'}
               </p>
             </div>
           </section>
@@ -645,12 +646,12 @@ export function BriefPanel({ lead, aiReview }: Props) {
                 onClick={() => handleCopy(aiReview.sections.a_next_message)}
                 className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
               >
-                {copied ? '✓ Copied' : 'Copy'}
+                {copied ? 'âœ“ Copied' : 'Copy'}
               </button>
             </div>
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
               <p className="text-sm text-indigo-900 leading-relaxed whitespace-pre-wrap">
-                {aiReview.sections.a_next_message || '—'}
+                {aiReview.sections.a_next_message || 'â€”'}
               </p>
             </div>
           </section>
@@ -658,7 +659,7 @@ export function BriefPanel({ lead, aiReview }: Props) {
       ) : (
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
           <p className="text-sm text-gray-400">
-            No AI review yet — tap <strong>Run AI Review</strong> above.
+            No AI review yet â€” tap <strong>Run AI Review</strong> above.
           </p>
         </div>
       )}
@@ -666,3 +667,4 @@ export function BriefPanel({ lead, aiReview }: Props) {
     </div>
   )
 }
+
