@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
+import { DateOptionsEditor } from '../components/DateOptionsEditor'
 import { useCreateLead, useIngestScreenshot, usePatchLead } from '../hooks/useLeads'
 import type { IngestResult, LeadCreate, LeadSourceType, LeadUpdate, OcrField, ServiceType } from '../types/lead'
+import { mergeDateOptions } from '../utils/dateOptions'
 
 type Mode = 'select' | 'screenshot' | 'manual'
 type ScreenshotStage = 'upload' | 'processing' | 'review'
@@ -37,6 +39,7 @@ export function LeadCreate({ onClose }: Props) {
     customer_name: '',
     customer_phone: '',
     job_location: '',
+    move_date_options: [] as string[],
     job_date_requested: '',
     service_type: 'unknown' as ServiceType,
     urgency_flag: false,
@@ -70,12 +73,18 @@ export function LeadCreate({ onClose }: Props) {
         onSuccess: (result) => {
           setIngestResult(result)
           const extracted = parseAllFields(result.extraction)
+          const requestedDates = mergeDateOptions(
+            result.lead.move_date_options ?? [],
+            extracted['move_date_options'],
+            extracted['job_date_requested'],
+          )
           setReview({
             // customer_name: use auto-applied value or OCR suggestion; never a fake placeholder
             customer_name: result.lead.customer_name ?? extracted['customer_name'] ?? '',
             customer_phone: result.lead.customer_phone ?? extracted['customer_phone'] ?? '',
             job_location: result.lead.job_location ?? extracted['job_location'] ?? '',
-            job_date_requested: result.lead.job_date_requested ?? extracted['job_date_requested'] ?? '',
+            move_date_options: requestedDates,
+            job_date_requested: result.lead.job_date_requested ?? '',
             service_type: (result.lead.service_type !== 'unknown'
               ? result.lead.service_type
               : ((extracted['service_type'] as ServiceType) ?? 'unknown')),
@@ -103,6 +112,7 @@ export function LeadCreate({ onClose }: Props) {
       customer_name: review.customer_name.trim(),
       customer_phone: review.customer_phone.trim() || undefined,
       job_location: review.job_location.trim() || undefined,
+      move_date_options: review.move_date_options.length > 0 ? review.move_date_options : undefined,
       job_date_requested: review.job_date_requested || undefined,
       service_type: review.service_type,
       urgency_flag: review.urgency_flag,
@@ -300,13 +310,27 @@ export function LeadCreate({ onClose }: Props) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date Requested</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Requested Dates</label>
+                <DateOptionsEditor
+                  values={review.move_date_options}
+                  onChange={values => setR('move_date_options', values)}
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Capture every date or date option shown in the screenshot.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Actual Booking Date</label>
                 <input
                   type="date"
                   className="w-full border rounded-lg px-3 py-2 text-sm"
                   value={review.job_date_requested}
                   onChange={e => setR('job_date_requested', e.target.value)}
                 />
+                <p className="mt-1 text-xs text-gray-400">
+                  Leave blank until the customer is actually booked.
+                </p>
               </div>
 
               <div>

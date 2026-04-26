@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type SetStateAction } from 'react'
+import { DateOptionsEditor } from '../../components/DateOptionsEditor'
+import { DurationWheelInput } from '../../components/DurationWheelInput'
+import { buildUploadUrl } from '../../services/api'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { mergeDateOptions, parseDateOptions, serializeDateOptions } from '../../utils/dateOptions'
 import { fmtLocalDateTime } from '../../utils/time'
 import {
   useAddNote,
@@ -77,14 +81,6 @@ function parseMoney(value: string): number | null {
   return Number.isFinite(parsed) ? roundMoney(parsed) : null
 }
 
-function parseDurationMinutes(value: string): number | null {
-  const normalized = value.trim()
-  if (!normalized) return null
-  if (!/^\d+$/.test(normalized)) return null
-  const parsed = Number.parseInt(normalized, 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-}
-
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -99,9 +95,7 @@ function buildInitialQuoteDraft(lead: Lead) {
     return {
       total: String(lead.quoted_price_total),
       lineItems: lead.quote_modifiers.map(item => createLineItem(item.note, String(item.amount))),
-      estimatedDurationMinutes: lead.estimated_job_duration_minutes != null
-        ? String(lead.estimated_job_duration_minutes)
-        : '',
+      estimatedDurationMinutes: lead.estimated_job_duration_minutes ?? null,
     }
   }
 
@@ -109,18 +103,14 @@ function buildInitialQuoteDraft(lead: Lead) {
     return {
       total: String(lead.quoted_price_total),
       lineItems: [createLineItem('Base quote', String(lead.quoted_price_total))],
-      estimatedDurationMinutes: lead.estimated_job_duration_minutes != null
-        ? String(lead.estimated_job_duration_minutes)
-        : '',
+      estimatedDurationMinutes: lead.estimated_job_duration_minutes ?? null,
     }
   }
 
   return {
     total: '',
     lineItems: [createLineItem('Base quote')],
-    estimatedDurationMinutes: lead.estimated_job_duration_minutes != null
-      ? String(lead.estimated_job_duration_minutes)
-      : '',
+    estimatedDurationMinutes: lead.estimated_job_duration_minutes ?? null,
   }
 }
 
@@ -138,8 +128,8 @@ function BookingModal({
 }: {
   quotedPriceTotal: string
   setQuotedPriceTotal: (value: string) => void
-  estimatedDurationMinutes: string
-  setEstimatedDurationMinutes: (value: string) => void
+  estimatedDurationMinutes: number | null
+  setEstimatedDurationMinutes: (value: number | null) => void
   lineItems: BookingLineItemDraft[]
   setLineItems: Dispatch<SetStateAction<BookingLineItemDraft[]>>
   error: string
@@ -210,16 +200,10 @@ function BookingModal({
           </label>
 
           <label className="block space-y-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Estimated duration (minutes)</span>
-            <input
-              type="number"
-              min="1"
-              step="15"
-              inputMode="numeric"
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Estimated duration</span>
+            <DurationWheelInput
               value={estimatedDurationMinutes}
-              onChange={event => setEstimatedDurationMinutes(event.target.value)}
-              placeholder="120"
-              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              onChange={setEstimatedDurationMinutes}
             />
             <p className="text-xs text-gray-400 dark:text-gray-500">
               Google Calendar will use this length when the job has a scheduled time slot.
@@ -343,7 +327,7 @@ export function LogPanel({ lead, leadId }: Props) {
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [bookingError, setBookingError] = useState('')
   const [quotedPriceTotal, setQuotedPriceTotal] = useState('')
-  const [estimatedDurationMinutes, setEstimatedDurationMinutes] = useState('')
+  const [estimatedDurationMinutes, setEstimatedDurationMinutes] = useState<number | null>(lead.estimated_job_duration_minutes ?? null)
   const [bookingLineItems, setBookingLineItems] = useState<BookingLineItemDraft[]>([])
   const [extractResults, setExtractResults] = useState<Record<string, OcrResult>>({})
   const [applyDraft, setApplyDraft] = useState<Record<string, Record<string, string>>>({})
@@ -375,9 +359,8 @@ export function LogPanel({ lead, leadId }: Props) {
       return
     }
 
-    const durationMinutes = parseDurationMinutes(estimatedDurationMinutes)
-    if (durationMinutes == null) {
-      setBookingError('Enter a valid estimated duration in minutes.')
+    if (estimatedDurationMinutes == null) {
+      setBookingError('Choose an estimated duration.')
       return
     }
 
@@ -415,7 +398,7 @@ export function LogPanel({ lead, leadId }: Props) {
         actor: user?.username,
         quotedPriceTotal: total,
         quoteModifiers: modifiers,
-        estimatedJobDurationMinutes: durationMinutes,
+        estimatedJobDurationMinutes: estimatedDurationMinutes,
       },
       {
         onSuccess: () => {
@@ -461,9 +444,18 @@ export function LogPanel({ lead, leadId }: Props) {
           if (!result.extracted_fields) return
           const fields = JSON.parse(result.extracted_fields) as OcrField[]
           const draft: Record<string, string> = {}
+          const requestedDates = mergeDateOptions(
+            ...fields
+              .filter(field => field.field === 'move_date_options' || field.field === 'job_date_requested')
+              .map(field => field.value),
+          )
           fields.forEach(field => {
+            if (field.field === 'move_date_options' || field.field === 'job_date_requested') return
             draft[field.field] = field.value
           })
+          if (requestedDates.length > 0) {
+            draft.move_date_options = serializeDateOptions(requestedDates)
+          }
           setApplyDraft(prev => ({ ...prev, [screenshotId]: draft }))
         },
       },
@@ -548,6 +540,10 @@ export function LogPanel({ lead, leadId }: Props) {
                 const extractedFields: OcrField[] = result?.extracted_fields
                   ? JSON.parse(result.extracted_fields)
                   : []
+                const requestedDates = parseDateOptions(draft.move_date_options)
+                const showRequestedDatesEditor =
+                  extractedFields.some(field => field.field === 'move_date_options' || field.field === 'job_date_requested') ||
+                  requestedDates.length > 0
                 const isExtracting =
                   triggerExtract.isPending &&
                   (triggerExtract.variables as { leadId: string; screenshotId: string } | undefined)?.screenshotId === screenshot.id
@@ -556,7 +552,7 @@ export function LogPanel({ lead, leadId }: Props) {
                   <div key={screenshot.id} className="space-y-3 rounded-xl border bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
                     <div className="flex items-center justify-between gap-2">
                       <a
-                        href={`/uploads/${screenshot.stored_path}`}
+                        href={buildUploadUrl(screenshot.stored_path)}
                         target="_blank"
                         rel="noreferrer"
                         className="flex-1 truncate text-xs text-blue-600 hover:underline dark:text-blue-400"
@@ -590,7 +586,55 @@ export function LogPanel({ lead, leadId }: Props) {
                     {extractedFields.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Extracted fields. Review before applying.</p>
-                        {extractedFields.map(field => (
+                        {showRequestedDatesEditor && (
+                          <div className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                            <div>
+                              <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Requested Dates
+                              </span>
+                              <div className="mt-1">
+                                <DateOptionsEditor
+                                  values={requestedDates}
+                                  onChange={values =>
+                                    setApplyDraft(prev => ({
+                                      ...prev,
+                                      [screenshot.id]: {
+                                        ...prev[screenshot.id],
+                                        move_date_options: serializeDateOptions(values),
+                                      },
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                                Keep every date option shown in the screenshot here.
+                              </p>
+                            </div>
+
+                            <label className="block">
+                              <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Actual Booking Date
+                              </span>
+                              <input
+                                type="date"
+                                className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                value={draft.job_date_requested ?? ''}
+                                onChange={event =>
+                                  setApplyDraft(prev => ({
+                                    ...prev,
+                                    [screenshot.id]: {
+                                      ...prev[screenshot.id],
+                                      job_date_requested: event.target.value,
+                                    },
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                        )}
+                        {extractedFields
+                          .filter(field => field.field !== 'move_date_options' && field.field !== 'job_date_requested')
+                          .map(field => (
                           <div key={field.field} className="flex items-center gap-2">
                             <span className="w-28 shrink-0 text-xs capitalize text-gray-500 dark:text-gray-400">
                               {field.field.replace(/_/g, ' ')}
@@ -609,7 +653,7 @@ export function LogPanel({ lead, leadId }: Props) {
                               }
                             />
                           </div>
-                        ))}
+                          ))}
                         <button
                           onClick={() => handleApply(screenshot.id)}
                           disabled={applyOcr.isPending}

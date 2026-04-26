@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useJobs, useSyncJobCalendar, type Job } from '../hooks/useJobs'
 import { apiFetch } from '../services/api'
@@ -85,7 +85,8 @@ function compareJobsBySchedule(left: Job, right: Job) {
 
 export function CalendarScreen() {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const [searchParams] = useSearchParams()
+  const { user } = useAuth()
   const today = new Date()
   const [monthCursor, setMonthCursor] = useState(startOfMonth(today))
   const [selectedDay, setSelectedDay] = useState(dateKey(today))
@@ -117,6 +118,16 @@ export function CalendarScreen() {
   const backTarget = user?.role === 'admin' || user?.role === 'facilitator' ? '/' : '/jobs'
   const showQuote = user?.role === 'admin' || user?.role === 'facilitator'
   const [syncErrorByJob, setSyncErrorByJob] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const requestedDate = searchParams.get('date')
+    if (!requestedDate || !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) return
+    const [year, month, day] = requestedDate.split('-').map(Number)
+    const nextDate = new Date(year, month - 1, day, 12)
+    if (Number.isNaN(nextDate.getTime())) return
+    setMonthCursor(startOfMonth(nextDate))
+    setSelectedDay(requestedDate)
+  }, [searchParams])
 
   function changeMonth(delta: number) {
     const nextMonth = addMonths(monthCursor, delta)
@@ -175,7 +186,6 @@ export function CalendarScreen() {
             Jobs
           </button>
           <span className="text-xs text-gray-500 dark:text-gray-400">{user?.username}</span>
-          <button onClick={logout} className="text-xs text-red-500 hover:text-red-700 dark:text-red-400">Sign out</button>
         </div>
       </header>
 

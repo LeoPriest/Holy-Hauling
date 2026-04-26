@@ -34,7 +34,7 @@ from app.services import lead_service, ocr_service
 # Fields eligible for silent auto-apply when OCR confidence is "high"
 _AUTO_APPLY_FIELDS = {
     "customer_name", "customer_phone", "job_location",
-    "job_date_requested", "service_type",
+    "service_type",
 }
 
 _SCREENSHOT_SOURCE_TYPES = {

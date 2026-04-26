@@ -23,9 +23,8 @@ from app.schemas.lead import LeadCreate, LeadStatusUpdate, LeadUpdate, NoteCreat
 
 # Resolved at import time. Tests monkeypatch this before any fixture runs.
 _SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
-SCREENSHOTS_DIR = os.path.normpath(
-    os.path.join(_SERVICE_DIR, "..", "..", "uploads", "screenshots")
-)
+_BASE_UPLOADS = os.environ.get("UPLOADS_DIR") or os.path.normpath(os.path.join(_SERVICE_DIR, "..", "..", "uploads"))
+SCREENSHOTS_DIR = os.path.join(_BASE_UPLOADS, "screenshots")
 
 _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _ALLOWED_SCREENSHOT_TYPES = {"intake", "correspondence", "before_job", "after_job"}

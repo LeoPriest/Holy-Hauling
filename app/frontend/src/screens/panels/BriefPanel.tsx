@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { DateOptionsEditor } from '../../components/DateOptionsEditor'
+import { DurationWheelInput } from '../../components/DurationWheelInput'
+import { buildUploadUrl } from '../../services/api'
 import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
 import { useUsers } from '../../hooks/useUsers'
 import { fmtDurationMinutes, fmtLocalDateTime, fmtTimeSlot } from '../../utils/time'
@@ -401,15 +404,19 @@ export function BriefPanel({ lead, aiReview }: Props) {
     patch.mutate({ id: lead.id, data })
   }
 
-  const saveEstimatedDuration = (value: string | null) => {
+  const saveMoveDateOptions = (values: string[]) => {
+    patch.mutate({
+      id: lead.id,
+      data: { move_date_options: values.length > 0 ? values : null },
+    })
+  }
+
+  const saveEstimatedDuration = (value: number | null) => {
     if (value == null) {
       patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: null } })
       return
     }
-
-    const parsed = Number.parseInt(value, 10)
-    if (!Number.isFinite(parsed) || parsed <= 0) return
-    patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: parsed } })
+    patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: value } })
   }
 
   const handleCopy = (text: string) => {
@@ -426,13 +433,13 @@ export function BriefPanel({ lead, aiReview }: Props) {
       {intakeShot && (
         <section>
           <a
-            href={`/uploads/${intakeShot.stored_path}`}
+            href={buildUploadUrl(intakeShot.stored_path)}
             target="_blank"
             rel="noreferrer"
             className="block rounded-xl overflow-hidden border border-gray-200 bg-gray-100"
           >
             <img
-              src={`/uploads/${intakeShot.stored_path}`}
+              src={buildUploadUrl(intakeShot.stored_path)}
               alt="Thumbtack screenshot"
               className="w-full object-cover max-h-48"
             />
@@ -528,7 +535,14 @@ export function BriefPanel({ lead, aiReview }: Props) {
             />
           </FieldRow>
 
-          <FieldRow label="Date">
+          <FieldRow label="Requested Dates">
+            <DateOptionsEditor
+              values={lead.move_date_options ?? []}
+              onChange={saveMoveDateOptions}
+            />
+          </FieldRow>
+
+          <FieldRow label="Booking Date">
             <EditableField
               value={lead.job_date_requested}
               onSave={v => save('job_date_requested', v)}
@@ -548,13 +562,18 @@ export function BriefPanel({ lead, aiReview }: Props) {
           </FieldRow>
 
           <FieldRow label="Est. Duration">
-            <EditableField
-              value={lead.estimated_job_duration_minutes != null ? String(lead.estimated_job_duration_minutes) : null}
-              onSave={saveEstimatedDuration}
-              placeholder="Tap to add minutesâ€¦"
-              type="number"
-              display={value => fmtDurationMinutes(Number(value))}
-            />
+            <div className="space-y-2">
+              <DurationWheelInput
+                value={lead.estimated_job_duration_minutes}
+                onChange={saveEstimatedDuration}
+                allowClear
+              />
+              {lead.estimated_job_duration_minutes != null && (
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Current: {fmtDurationMinutes(lead.estimated_job_duration_minutes)}
+                </p>
+              )}
+            </div>
           </FieldRow>
 
           <FieldRow label="Notes">

@@ -34,7 +34,7 @@ export function LeadQueue() {
   const { data: settings } = useSettings()
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
 
   const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
@@ -71,13 +71,6 @@ export function LeadQueue() {
               👥
             </button>
           )}
-          <button
-            onClick={logout}
-            className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400 px-1"
-            title="Sign out"
-          >
-            Sign out
-          </button>
           <button
             onClick={() => navigate('/settings')}
             className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl px-1"

@@ -4,6 +4,12 @@ export const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
 const BASE = '/leads'
 
+export function buildUploadUrl(storedPath: string): string {
+  if (/^https?:\/\//i.test(storedPath)) return storedPath
+  const relative = storedPath.replace(/^\/+/, '').replace(/^uploads\//, '')
+  return `${API_BASE}/uploads/${relative}`
+}
+
 export function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem('hh_token')
   const existing = (init.headers as Record<string, string>) ?? {}

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
+import { buildUploadUrl } from '../services/api'
 import { useNavigate } from 'react-router-dom'
 import { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
@@ -330,13 +331,13 @@ function JobPhotoSection({
           {photos.map(photo => (
             <a
               key={photo.id}
-              href={`/uploads/${photo.stored_path}`}
+              href={buildUploadUrl(photo.stored_path)}
               target="_blank"
               rel="noreferrer"
               className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-colors hover:border-indigo-300 dark:border-gray-700 dark:bg-gray-900"
             >
               <img
-                src={`/uploads/${photo.stored_path}`}
+                src={buildUploadUrl(photo.stored_path)}
                 alt={`${title} ${photo.original_filename}`}
                 className="h-28 w-full object-cover"
               />
@@ -368,6 +369,7 @@ interface JobModalProps {
   addAssignment: UseMutationResult<Job, Error, { jobId: string; userId: string }>
   removeAssignment: UseMutationResult<Job, Error, { jobId: string; userId: string }>
   onClose: () => void
+  onViewCalendar: (job: Job) => void
 }
 
 function JobModal({
@@ -379,6 +381,7 @@ function JobModal({
   addAssignment,
   removeAssignment,
   onClose,
+  onViewCalendar,
 }: JobModalProps) {
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [note, setNote] = useState('')
@@ -527,6 +530,15 @@ function JobModal({
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Est. duration: {fmtDurationMinutes(job.estimated_job_duration_minutes)}
               </p>
+            )}
+            {job.job_date_requested && (
+              <button
+                type="button"
+                onClick={() => onViewCalendar(job)}
+                className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
+              >
+                View in Calendar
+              </button>
             )}
           </div>
 
@@ -836,7 +848,7 @@ function JobModal({
 
 export function JobsScreen() {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const [jobView, setJobView] = useState<JobView>('scheduled')
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [now, setNow] = useState(Date.now())
@@ -885,7 +897,6 @@ export function JobsScreen() {
             Settings
           </button>
           <span className="text-xs text-gray-500 dark:text-gray-400">{user?.username}</span>
-          <button onClick={logout} className="text-xs text-red-500 hover:text-red-700 dark:text-red-400">Sign out</button>
         </div>
       </header>
 
@@ -957,6 +968,10 @@ export function JobsScreen() {
           addAssignment={addAssignment}
           removeAssignment={removeAssignment}
           onClose={() => setSelectedJob(null)}
+          onViewCalendar={job => {
+            setSelectedJob(null)
+            navigate(`/calendar?date=${job.job_date_requested ?? ''}`)
+          }}
         />
       )}
     </div>

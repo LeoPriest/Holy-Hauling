@@ -62,7 +62,7 @@ export function SettingsScreen() {
   const { data: availability } = useMyAvailability()
   const saveAvailability = useSaveMyAvailability()
   const push = usePushNotifications()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { isDark, toggleTheme } = useTheme()
 
   const isAdmin = user?.role === 'admin'
@@ -187,6 +187,21 @@ export function SettingsScreen() {
       </header>
 
       <div className="space-y-6 p-4 pb-20">
+        <section className="rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Account</h2>
+          <FieldRow label="Signed in as">
+            <span className="text-sm text-gray-700 dark:text-gray-200">{user?.username ?? 'Unknown user'}</span>
+          </FieldRow>
+          <div className="mt-4">
+            <button
+              onClick={logout}
+              className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/20"
+            >
+              Sign out
+            </button>
+          </div>
+        </section>
+
         <section className="rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Appearance</h2>
           <FieldRow label="Dark mode">
