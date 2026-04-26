@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   acknowledgeLead,
   addNote,
@@ -131,6 +131,7 @@ export function useTriggerExtraction() {
     onSuccess: (_, { leadId }) => {
       qc.invalidateQueries({ queryKey: ['lead', leadId] })
     },
+    onError: (err) => console.error('[Extract]', err),
   })
 }
 
@@ -150,7 +151,7 @@ export function useLatestAiReview(leadId: string) {
     queryKey: ['ai-review', leadId],
     queryFn: () => getLatestAiReview(leadId),
     enabled: !!leadId,
-    retry: false,  // 404 means no review yet — don't retry
+    retry: false,
   })
 }
 
@@ -162,6 +163,7 @@ export function useTriggerAiReview() {
     onSuccess: (_, { leadId }) => {
       qc.invalidateQueries({ queryKey: ['ai-review', leadId] })
     },
+    onError: (err) => console.error('[AI Review]', err),
   })
 }
 
