@@ -330,6 +330,8 @@ async def trigger_review(
     except HTTPException:
         raise
     except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).exception("AI review call failed")
         raise HTTPException(502, f"AI review call failed: {exc}") from exc
 
     # Validate A–H structure — raises 502 on missing keys or bad JSON
