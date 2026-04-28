@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { mergeDateOptions, parseDateOptions, serializeDateOptions } from '../../utils/dateOptions'
 import { fmtDurationMinutes, fmtLocalDateTime, fmtTimeSlot } from '../../utils/time'
+import { buildConfirmationText } from '../../utils/confirmationText'
 import {
   useAddNote,
   useApplyOcrFields,
@@ -116,40 +117,6 @@ function buildInitialQuoteDraft(lead: Lead) {
   }
 }
 
-function formatBookingDate(start: string | null | undefined, end: string | null | undefined): string {
-  if (!start) return ''
-  const fmt = (d: string) =>
-    new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-    })
-  return end ? `${fmt(start)} ? ${fmt(end)}` : fmt(start)
-}
-
-function buildConfirmationText(lead: Lead, quotedPrice: number): string {
-  const lines: string[] = []
-  const name = lead.customer_name ?? 'there'
-  const svc = lead.service_type === 'moving' ? 'move'
-    : lead.service_type === 'hauling' ? 'hauling job' : 'job'
-  lines.push(`Hi ${name}! Your ${svc} is confirmed with Holy Hauling.`)
-  lines.push('')
-  const dateStr = formatBookingDate(lead.job_date_requested, (lead as Record<string, unknown>).job_date_end as string | null)
-  if (dateStr) lines.push(`Date: ${dateStr}`)
-  if (lead.appointment_time_slot) lines.push(`Time: ${fmtTimeSlot(lead.appointment_time_slot)}`)
-  const from = lead.job_origin ?? lead.job_address ?? lead.job_location
-  if (from) lines.push(`From: ${from}`)
-  if (lead.job_destination) lines.push(`To: ${lead.job_destination}`)
-  if (lead.move_size_label) lines.push(`Move size: ${lead.move_size_label}`)
-  if (lead.estimated_job_duration_minutes)
-    lines.push(`Est. duration: ${fmtDurationMinutes(lead.estimated_job_duration_minutes)}`)
-  lines.push(`Quoted total: ${formatCurrency(quotedPrice)}`)
-  lines.push('')
-  lines.push('Any questions? Call or text us anytime.')
-  lines.push('Looking forward to helping you!')
-  lines.push('')
-  lines.push('\u2013 Holy Hauling')
-  return lines.join('\n')
-}
-
 
 function BookingModal({
   quotedPriceTotal,
@@ -164,8 +131,6 @@ function BookingModal({
   onConfirm,
   step,
   confirmationText,
-  copiedConfirmation,
-  onCopyConfirmation,
 }: {
   quotedPriceTotal: string
   setQuotedPriceTotal: (value: string) => void
@@ -179,14 +144,19 @@ function BookingModal({
   onConfirm: () => void
   step: 1 | 2
   confirmationText: string
-  copiedConfirmation: boolean
-  onCopyConfirmation: () => void
 }) {
   const quotedTotalValue = parseMoney(quotedPriceTotal)
   const summedLineItems = roundMoney(
     lineItems.reduce((sum, item) => sum + (parseMoney(item.amount) ?? 0), 0),
   )
   const difference = quotedTotalValue == null ? null : roundMoney(quotedTotalValue - summedLineItems)
+
+  const [draftText, setDraftText] = useState(confirmationText)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (confirmationText) setDraftText(confirmationText)
+  }, [confirmationText])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -201,28 +171,35 @@ function BookingModal({
   }, [isSubmitting, onClose])
 
   if (step === 2) {
+    const handleCopy = () => {
+      navigator.clipboard.writeText(draftText).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2500)
+      })
+    }
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
         <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
           <div className="border-b px-5 py-4 dark:border-gray-700">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Booking confirmed!</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Copy the message below and send it to your customer.</p>
-              </div>
-            </div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Booking confirmed!</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Edit if needed, then copy and send to your customer.</p>
           </div>
           <div className="px-5 py-4">
-            <pre className="whitespace-pre-wrap rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 leading-relaxed font-sans">{confirmationText}</pre>
+            <textarea
+              rows={12}
+              value={draftText}
+              onChange={e => setDraftText(e.target.value)}
+              className="w-full resize-y rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            />
           </div>
           <div className="flex items-center justify-between gap-2 border-t px-5 py-4 dark:border-gray-700">
             <button
               type="button"
-              onClick={onCopyConfirmation}
+              onClick={handleCopy}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              {copiedConfirmation ? 'Copied!' : 'Copy Message'}
+              {copied ? 'Copied!' : 'Copy Message'}
             </button>
             <button
               type="button"
@@ -409,7 +386,6 @@ export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpen
   const [showBookingModal, setShowBookingModal] = useState(false)
   const [bookingStep, setBookingStep] = useState<1 | 2>(1)
   const [confirmationText, setConfirmationText] = useState('')
-  const [copiedConfirmation, setCopiedConfirmation] = useState(false)
   const [bookingError, setBookingError] = useState('')
   const [quotedPriceTotal, setQuotedPriceTotal] = useState('')
   const [estimatedDurationMinutes, setEstimatedDurationMinutes] = useState<number | null>(lead.estimated_job_duration_minutes ?? null)
@@ -509,13 +485,6 @@ export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpen
         },
       },
     )
-  }
-
-  const handleCopyConfirmation = () => {
-    navigator.clipboard.writeText(confirmationText).then(() => {
-      setCopiedConfirmation(true)
-      setTimeout(() => setCopiedConfirmation(false), 2500)
-    })
   }
 
   const handleStatusChange = (status: LeadStatus) => {
@@ -837,8 +806,6 @@ export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpen
         <BookingModal
           step={bookingStep}
           confirmationText={confirmationText}
-          copiedConfirmation={copiedConfirmation}
-          onCopyConfirmation={handleCopyConfirmation}
           quotedPriceTotal={quotedPriceTotal}
           setQuotedPriceTotal={setQuotedPriceTotal}
           estimatedDurationMinutes={estimatedDurationMinutes}

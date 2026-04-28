@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { buildUploadUrl } from '../services/api'
+import { buildConfirmationText } from '../utils/confirmationText'
 import { useNavigate } from 'react-router-dom'
 import { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
@@ -370,6 +371,7 @@ interface JobModalProps {
   removeAssignment: UseMutationResult<Job, Error, { jobId: string; userId: string }>
   onClose: () => void
   onViewCalendar: (job: Job) => void
+  onViewLead: () => void
 }
 
 function JobModal({
@@ -382,11 +384,13 @@ function JobModal({
   removeAssignment,
   onClose,
   onViewCalendar,
+  onViewLead,
 }: JobModalProps) {
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [note, setNote] = useState('')
   const [streetViewFailed, setStreetViewFailed] = useState(false)
   const [photoUploadTarget, setPhotoUploadTarget] = useState<JobPhotoType | null>(null)
+  const [confirmationCopied, setConfirmationCopied] = useState(false)
   const addNote = useAddJobNote()
   const uploadScreenshot = useUploadScreenshot()
   const { data: leadDetail } = useLead(job.id)
@@ -531,15 +535,24 @@ function JobModal({
                 Est. duration: {fmtDurationMinutes(job.estimated_job_duration_minutes)}
               </p>
             )}
-            {job.job_date_requested && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {job.job_date_requested && (
+                <button
+                  type="button"
+                  onClick={() => onViewCalendar(job)}
+                  className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
+                >
+                  View in Calendar
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => onViewCalendar(job)}
-                className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
+                onClick={onViewLead}
+                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
-                View in Calendar
+                View Lead
               </button>
-            )}
+            </div>
           </div>
 
           {mapTarget && (
@@ -638,6 +651,23 @@ function JobModal({
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+              {leadDetail && (
+                <div className="mt-3 border-t border-emerald-200 pt-3 dark:border-emerald-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = buildConfirmationText(leadDetail, job.quoted_price_total!)
+                      navigator.clipboard.writeText(text).then(() => {
+                        setConfirmationCopied(true)
+                        setTimeout(() => setConfirmationCopied(false), 2500)
+                      })
+                    }}
+                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    {confirmationCopied ? 'Copied!' : 'Copy Confirmation'}
+                  </button>
                 </div>
               )}
             </div>
@@ -971,6 +1001,10 @@ export function JobsScreen() {
           onViewCalendar={job => {
             setSelectedJob(null)
             navigate(`/calendar?date=${job.job_date_requested ?? ''}`)
+          }}
+          onViewLead={() => {
+            setSelectedJob(null)
+            navigate(`/leads/${liveSelectedJob.id}`)
           }}
         />
       )}
