@@ -399,6 +399,9 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
   const save = (field: string, value: string | null) =>
     patch.mutate({ id: lead.id, data: { [field]: value } })
 
+  const saveJobDateRange = (start: string | null, end: string | null) =>
+    patch.mutate({ id: lead.id, data: { job_date_requested: start, job_date_end: end } })
+
   const saveAddressAndArea = (address: string | null, area?: string | null) => {
     const data: Record<string, string | null> = { job_address: address }
     if (area !== undefined) data.job_location = area
@@ -536,10 +539,35 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
             />
           </FieldRow>
 
+          <FieldRow label="Moving To">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex-1 min-w-0">
+                <EditableField
+                  value={lead.job_destination}
+                  onSave={v => save('job_destination', v)}
+                  placeholder="Destination address?"
+                />
+              </div>
+              {lead.job_destination && lead.dispatched_at ? (
+                <a
+                  href={`https://maps.google.com/maps?q=${encodeURIComponent(lead.job_destination)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-xs bg-indigo-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-indigo-700"
+                >
+                  Navigate
+                </a>
+              ) : lead.job_destination ? (
+                <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">Nav at dispatch</span>
+              ) : null}
+            </div>
+          </FieldRow>
+
           <FieldRow label="Requested Dates">
             <DateOptionsEditor
               values={lead.move_date_options ?? []}
               onChange={saveMoveDateOptions}
+              onSelectDate={d => { saveJobDateRange(d, null); onBookingDateSet?.() }}
             />
           </FieldRow>
 
@@ -584,6 +612,38 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
               placeholder="Tap to add scope notesâ€¦"
               type="textarea"
             />
+          </FieldRow>
+
+          <FieldRow label="Booking Date">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <EditableField
+                  value={lead.job_date_requested}
+                  onSave={v => { saveJobDateRange(v, v ? (lead.job_date_end ?? null) : null); if (v) onBookingDateSet?.() }}
+                  placeholder="Tap to set dateâ€¦"
+                  type="date"
+                />
+                {lead.job_date_requested && (
+                  <button
+                    onClick={() => saveJobDateRange(null, null)}
+                    className="text-xs text-gray-400 hover:text-red-500 shrink-0 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {lead.job_date_requested && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 shrink-0 w-14">Through</span>
+                  <EditableField
+                    value={lead.job_date_end ?? null}
+                    onSave={v => save('job_date_end', v)}
+                    placeholder="End date (optional)â€¦"
+                    type="date"
+                  />
+                </div>
+              )}
+            </div>
           </FieldRow>
 
         </div>

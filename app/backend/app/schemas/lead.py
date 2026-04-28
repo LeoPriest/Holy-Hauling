@@ -88,6 +88,8 @@ class LeadCreate(BaseModel):
     move_size_label: Optional[str] = None
     move_type: Optional[str] = None
     move_date_options: Optional[list[str]] = None
+    job_date_end: Optional[str] = None
+    job_date_end: Optional[str] = None
     accept_and_pay: bool = False
 
     _validate_appointment_time_slot = field_validator("appointment_time_slot", mode="before")(
@@ -123,6 +125,7 @@ class LeadUpdate(BaseModel):
     move_type: Optional[str] = None
     move_date_options: Optional[list[str]] = None
     quote_context: Optional[str] = None
+    job_date_end: Optional[str] = None
     # Confirmed physical address — setting this triggers auto-booking
     job_address: Optional[str] = None
 
@@ -218,6 +221,9 @@ class LeadOut(BaseModel):
     quoted_price_total: Optional[float] = None
     quote_modifiers: Optional[list[QuoteModifierOut]] = None
     job_address: Optional[str] = None
+    job_date_end: Optional[str] = None
+    dispatched_at: Optional[datetime] = None
+    started_at: Optional[datetime] = None
     # Computed — not stored; maps source_type to human-readable label
     source_category_label: str = ""
 

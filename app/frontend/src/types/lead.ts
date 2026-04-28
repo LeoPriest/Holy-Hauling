@@ -123,6 +123,7 @@ export interface Lead {
   job_origin: string | null
   job_destination: string | null
   job_date_requested: string | null
+  job_date_end: string | null
   appointment_time_slot: string | null
   estimated_job_duration_minutes: number | null
   scope_notes: string | null
@@ -134,6 +135,8 @@ export interface Lead {
   created_at: string
   acknowledged_at: string | null
   updated_at: string
+  dispatched_at: string | null
+  started_at: string | null
   // Slice 8
   move_distance_miles: number | null
   load_stairs: number | null
@@ -177,6 +180,7 @@ export interface LeadUpdate {
   job_origin?: string | null
   job_destination?: string | null
   job_date_requested?: string | null
+  job_date_end?: string | null
   appointment_time_slot?: string | null
   estimated_job_duration_minutes?: number | null
   scope_notes?: string | null

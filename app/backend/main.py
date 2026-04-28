@@ -337,6 +337,18 @@ async def _seed_default_admin(conn) -> None:
         print("[startup] default admin seeded (username: admin, PIN: 0000 — change immediately)")
 
 
+
+async def _migrate_leads_add_job_date_end(conn) -> None:
+    """Add job_date_end VARCHAR column for optional date range end."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "job_date_end" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN job_date_end VARCHAR"))
+    print("[startup] leads: added job_date_end column")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _validate_grounding_file()
@@ -356,6 +368,7 @@ async def lifespan(app: FastAPI):
         await _migrate_users_add_email(conn)
         await _migrate_leads_add_calendar_event_id(conn)
         await _migrate_leads_add_ingested_by(conn)
+        await _migrate_leads_add_job_date_end(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _seed_default_admin(conn)
 

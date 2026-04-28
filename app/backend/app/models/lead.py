@@ -53,6 +53,7 @@ class Lead(Base):
     service_type = Column(SAEnum(ServiceType), nullable=False, default=ServiceType.unknown)
     job_location = Column(String, nullable=True)
     job_date_requested = Column(Date, nullable=True)
+    job_date_end = Column(String, nullable=True)  # range end; ISO date string
     notes = Column(Text, nullable=True)
     ingested_by = Column(String, nullable=True)
     assigned_to = Column(String, nullable=True)

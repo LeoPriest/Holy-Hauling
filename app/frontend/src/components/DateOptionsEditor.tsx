@@ -4,10 +4,11 @@ import { normalizeDateOptions } from '../utils/dateOptions'
 interface Props {
   values: string[]
   onChange: (values: string[]) => void
+  onSelectDate?: (date: string) => void
   disabled?: boolean
 }
 
-export function DateOptionsEditor({ values, onChange, disabled = false }: Props) {
+export function DateOptionsEditor({ values, onChange, onSelectDate, disabled = false }: Props) {
   const [pendingValue, setPendingValue] = useState('')
 
   const inputClassName =
@@ -40,6 +41,16 @@ export function DateOptionsEditor({ values, onChange, disabled = false }: Props)
             onChange={event => handleExistingChange(index, event.target.value)}
             className={inputClassName}
           />
+          {onSelectDate && (
+            <button
+              type="button"
+              onClick={() => onSelectDate(value)}
+              disabled={disabled}
+              className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:border-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 whitespace-nowrap"
+            >
+              Use
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onChange(values.filter((_, currentIndex) => currentIndex !== index))}

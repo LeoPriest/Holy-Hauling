@@ -1,4 +1,5 @@
 import type { Lead } from '../types/lead'
+import { fmtLocalDateTime } from '../utils/time'
 import { AgeIndicator } from './AgeIndicator'
 import { SourceBadge } from './SourceBadge'
 import { StatusBadge } from './StatusBadge'
@@ -58,6 +59,12 @@ export function LeadCard({ lead, onClick, staleness, idleMinutes }: Props) {
           {lead.job_location && (
             <p className="text-xs text-gray-400 truncate mt-0.5">{lead.job_location}</p>
           )}
+          <div className="flex gap-2 mt-1.5 flex-wrap">
+            <span className="text-xs text-gray-400">Ingested {fmtLocalDateTime(lead.created_at)}</span>
+            {lead.acknowledged_at && (
+              <span className="text-xs text-gray-400">? Acked {fmtLocalDateTime(lead.acknowledged_at)}</span>
+            )}
+          </div>
         </div>
         <AgeIndicator createdAt={lead.created_at} />
       </div>
