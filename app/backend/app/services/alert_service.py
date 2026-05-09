@@ -154,6 +154,7 @@ async def fire_test_alert(
 _ACTIVE_STATUSES = {
     LeadStatus.new,
     LeadStatus.in_review,
+    LeadStatus.replied,
     LeadStatus.waiting_on_customer,
     LeadStatus.ready_for_quote,
     LeadStatus.ready_for_booking,
@@ -259,13 +260,53 @@ async def _process_stale_leads(db: AsyncSession, settings: SettingsOut, city_id:
             base_msg += " Escalated — backup handler also notified."
         subject = f"[Holy Hauling] Lead idle {idle_minutes}m — action needed"
 
-        recipients: list[tuple[str, str]] = [(settings.primary_sms, settings.primary_email)]
+        sms_recipients = [settings.primary_sms]
+        email_recipients = [settings.primary_email]
         if is_t2:
-            recipients.append((settings.backup_sms, settings.backup_email))
+            sms_recipients.append(settings.backup_sms)
+            email_recipients.append(settings.backup_email)
 
-        for sms_to, email_to in recipients:
-            await _alert_channel(db, lead, tier, "sms", sms_to, base_msg, subject, quiet, snapshot)
-            await _alert_channel(db, lead, tier, "email", email_to, base_msg, subject, quiet, snapshot)
+        want_push = settings.t2_push if is_t2 else settings.t1_push
+        want_sms = settings.t2_sms if is_t2 else settings.t1_sms
+        want_email = settings.t2_email if is_t2 else settings.t1_email
+
+        # Push — deduped via LeadAlert channel="push", bypasses quiet hours
+        if want_push:
+            existing_push = await db.execute(
+                select(LeadAlert).where(
+                    LeadAlert.lead_id == lead.id,
+                    LeadAlert.tier == tier,
+                    LeadAlert.channel == "push",
+                    LeadAlert.lead_updated_at_snapshot == snapshot,
+                    LeadAlert.suppressed.is_(False),
+                ).limit(1)
+            )
+            if not existing_push.scalar_one_or_none():
+                try:
+                    from app.services.push_service import send_push_to_roles
+                    push_roles = ["admin", "facilitator"] if not is_t2 else ["admin", "facilitator", "supervisor"]
+                    push_msg = f'Lead "{name}" idle {idle_minutes}m — tap to review'
+                    await send_push_to_roles(db, push_roles, push_msg, city_id=city_id)
+                    db.add(LeadAlert(
+                        id=str(uuid.uuid4()),
+                        lead_id=lead.id,
+                        tier=tier,
+                        channel="push",
+                        sent_at=datetime.now(timezone.utc),
+                        suppressed=False,
+                        lead_updated_at_snapshot=snapshot,
+                    ))
+                    await db.commit()
+                except Exception as exc:
+                    print(f"[alert_scheduler] push failed for lead {lead.id}: {exc}")
+
+        if want_sms:
+            for sms_to in sms_recipients:
+                await _alert_channel(db, lead, tier, "sms", sms_to, base_msg, subject, quiet, snapshot)
+
+        if want_email:
+            for email_to in email_recipients:
+                await _alert_channel(db, lead, tier, "email", email_to, base_msg, subject, quiet, snapshot)
 
         # T2: auto-advance to escalated and write audit event
         if is_t2 and lead.status != LeadStatus.escalated:

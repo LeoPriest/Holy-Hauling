@@ -15,6 +15,13 @@ _DEFAULTS: dict[str, str] = {
     "backup_name": "",
     "backup_sms": "",
     "backup_email": "",
+    # Alert channel toggles — which delivery methods fire at each tier
+    "t1_push": "true",
+    "t1_sms": "false",
+    "t1_email": "false",
+    "t2_push": "true",
+    "t2_sms": "true",
+    "t2_email": "false",
 }
 
 
@@ -29,6 +36,12 @@ class SettingsOut(BaseModel):
     backup_name: str = ""
     backup_sms: str = ""
     backup_email: str = ""
+    t1_push: bool = True
+    t1_sms: bool = False
+    t1_email: bool = False
+    t2_push: bool = True
+    t2_sms: bool = True
+    t2_email: bool = False
 
 
 class SettingsPatch(BaseModel):
@@ -42,6 +55,12 @@ class SettingsPatch(BaseModel):
     backup_name: Optional[str] = None
     backup_sms: Optional[str] = None
     backup_email: Optional[str] = None
+    t1_push: Optional[bool] = None
+    t1_sms: Optional[bool] = None
+    t1_email: Optional[bool] = None
+    t2_push: Optional[bool] = None
+    t2_sms: Optional[bool] = None
+    t2_email: Optional[bool] = None
 
 
 class TestAlertRequest(BaseModel):

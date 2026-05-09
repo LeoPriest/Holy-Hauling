@@ -59,7 +59,11 @@ async def test_fresh_lead_not_alerted(client, db_session):
 
 async def test_t1_lead_fires_alert(client, db_session):
     lead_id = await _make_stale_lead(client, db_session, minutes_ago=20)
-    settings = SettingsOut(t1_minutes=15, t2_minutes=30, primary_sms="+15550001111", primary_email="p@test.com")
+    settings = SettingsOut(
+        t1_minutes=15, t2_minutes=30,
+        primary_sms="+15550001111", primary_email="p@test.com",
+        t1_sms=True, t1_email=True,
+    )
     with patch("app.services.alert_service._send_sms", return_value=None) as mock_sms, \
          patch("app.services.alert_service._send_email", return_value=None) as mock_email:
         await _process_stale_leads(db_session, settings)
@@ -69,7 +73,7 @@ async def test_t1_lead_fires_alert(client, db_session):
 
 async def test_t1_alert_not_sent_twice(client, db_session):
     lead_id = await _make_stale_lead(client, db_session, minutes_ago=20)
-    settings = SettingsOut(t1_minutes=15, t2_minutes=30, primary_sms="+15550001111")
+    settings = SettingsOut(t1_minutes=15, t2_minutes=30, primary_sms="+15550001111", t1_sms=True)
     with patch("app.services.alert_service._send_sms", return_value=None) as mock_sms, \
          patch("app.services.alert_service._send_email", return_value=None):
         await _process_stale_leads(db_session, settings)

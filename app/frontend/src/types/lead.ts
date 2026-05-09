@@ -229,6 +229,12 @@ export interface Settings {
   backup_name: string
   backup_sms: string
   backup_email: string
+  t1_push: boolean
+  t1_sms: boolean
+  t1_email: boolean
+  t2_push: boolean
+  t2_sms: boolean
+  t2_email: boolean
 }
 
 export interface SettingsPatch {
@@ -242,6 +248,12 @@ export interface SettingsPatch {
   backup_name?: string
   backup_sms?: string
   backup_email?: string
+  t1_push?: boolean
+  t1_sms?: boolean
+  t1_email?: boolean
+  t2_push?: boolean
+  t2_sms?: boolean
+  t2_email?: boolean
 }
 
 export interface TestAlertRequest {

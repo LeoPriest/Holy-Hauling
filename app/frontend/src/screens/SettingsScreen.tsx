@@ -121,6 +121,12 @@ export function SettingsScreen() {
       backup_name: settings.backup_name,
       backup_sms: settings.backup_sms,
       backup_email: settings.backup_email,
+      t1_push: settings.t1_push,
+      t1_sms: settings.t1_sms,
+      t1_email: settings.t1_email,
+      t2_push: settings.t2_push,
+      t2_sms: settings.t2_sms,
+      t2_email: settings.t2_email,
     })
   }, [settings])
 
@@ -458,6 +464,53 @@ export function SettingsScreen() {
                   disabled={!canEditOpsSettings}
                 />
               </FieldRow>
+            </section>
+
+            <section className="space-y-4 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Alert Channels</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-400 dark:text-gray-500">
+                      <th className="pb-2 text-left font-medium w-24"></th>
+                      <th className="pb-2 text-center font-medium">Push</th>
+                      <th className="pb-2 text-center font-medium">SMS</th>
+                      <th className="pb-2 text-center font-medium">Email</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {([
+                      { label: 'T1 warning', pushKey: 't1_push', smsKey: 't1_sms', emailKey: 't1_email' },
+                      { label: 'T2 escalation', pushKey: 't2_push', smsKey: 't2_sms', emailKey: 't2_email' },
+                    ] as const).map(({ label, pushKey, smsKey, emailKey }) => (
+                      <tr key={label}>
+                        <td className="py-2.5 pr-3 text-gray-600 dark:text-gray-300 text-xs font-medium">{label}</td>
+                        {([pushKey, smsKey, emailKey] as const).map(key => (
+                          <td key={key} className="py-2.5 text-center">
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={!!form[key]}
+                              disabled={!canEditOpsSettings}
+                              onClick={() => set(key, !form[key])}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                                form[key] ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'
+                              }`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                                form[key] ? 'translate-x-4' : 'translate-x-0.5'
+                              }`} />
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                Push fires to all subscribed admin/facilitator devices. SMS and email use the recipient addresses below.
+              </p>
             </section>
 
             <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
