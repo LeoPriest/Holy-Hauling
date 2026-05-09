@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { CityProvider } from './context/CityContext'
 import { ThemeProvider } from './context/ThemeContext'
 import type { AuthUser } from './context/AuthContext'
 import { LoginScreen } from './screens/LoginScreen'
@@ -11,6 +12,7 @@ import { JobsScreen } from './screens/JobsScreen'
 import { AdminUsersScreen } from './screens/AdminUsersScreen'
 import { CalendarScreen } from './screens/CalendarScreen'
 import { AdminFinancesScreen } from './screens/AdminFinancesScreen'
+import { AdminCitiesScreen } from './screens/AdminCitiesScreen'
 
 const queryClient = new QueryClient()
 
@@ -44,6 +46,7 @@ function AppRoutes() {
       <Route path="/calendar" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><CalendarScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/users" element={<AuthGuard><RoleGuard roles={['admin']}><AdminUsersScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/finances" element={<AuthGuard><RoleGuard roles={['admin']}><AdminFinancesScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/admin/cities" element={<AuthGuard><RoleGuard roles={['admin']}><AdminCitiesScreen /></RoleGuard></AuthGuard>} />
       <Route path="*" element={<Navigate to={user ? defaultPath : '/login'} replace />} />
     </Routes>
   )
@@ -54,7 +57,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <AppRoutes />
+          <CityProvider>
+            <AppRoutes />
+          </CityProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

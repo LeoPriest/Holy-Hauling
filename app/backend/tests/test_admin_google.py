@@ -8,11 +8,13 @@ import pytest
 import pytest_asyncio
 from google_auth_oauthlib.flow import Flow
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
 from app.dependencies import require_auth
 from app.models.app_setting import AppSetting
+from app.models.city import City, DEFAULT_CITIES
 from app.models.user import User
 
 TEST_DB = "sqlite+aiosqlite:///:memory:"
@@ -24,6 +26,7 @@ def _mock_admin():
         username="admin",
         credential_hash="x",
         role="admin",
+        city_id="st-louis",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
@@ -36,6 +39,11 @@ async def client():
     engine = create_async_engine(TEST_DB)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        now = datetime.now(timezone.utc)
+        await conn.execute(insert(City), [
+            {**city, "is_active": True, "created_at": now, "updated_at": now}
+            for city in DEFAULT_CITIES
+        ])
     Factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
     async def override_get_db():

@@ -27,6 +27,7 @@ def _mock_user(role="supervisor"):
         username=f"mock-{role}",
         credential_hash="x",
         role=role,
+        city_id="st-louis",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
@@ -491,7 +492,7 @@ async def test_remove_assignment_clears_calendar_event_id_when_crew_empty(superv
         r = await client.delete(f"/jobs/{lead.id}/assignments/{crew_user.id}")
 
     assert r.status_code == 200
-    mock_delete.assert_called_once_with(unittest.mock.ANY, "gcal-existing")
+    mock_delete.assert_called_once_with(unittest.mock.ANY, "gcal-existing", "st-louis")
     async with factory() as s:
         result = await s.execute(_select(_Lead).where(_Lead.id == lead.id))
         db_lead = result.scalar_one()

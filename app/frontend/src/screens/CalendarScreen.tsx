@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { CitySwitcher } from '../components/CitySwitcher'
+import { useCity } from '../context/CityContext'
 import { useJobs, useSyncJobCalendar, type Job } from '../hooks/useJobs'
 import { apiFetch } from '../services/api'
 import { fmtDurationMinutes, fmtTimeSlot } from '../utils/time'
@@ -90,17 +92,18 @@ export function CalendarScreen() {
   const today = new Date()
   const [monthCursor, setMonthCursor] = useState(startOfMonth(today))
   const [selectedDay, setSelectedDay] = useState(dateKey(today))
+  const { requiredCityId, isAllCities } = useCity()
 
   const { data: jobs = [], isLoading } = useJobs()
   const syncJobCalendar = useSyncJobCalendar()
   const { data: calendarStatus } = useQuery<CalendarStatus>({
-    queryKey: ['google-calendar-status'],
+    queryKey: ['google-calendar-status', requiredCityId],
     queryFn: async () => {
-      const r = await apiFetch('/admin/google/status')
+      const r = await apiFetch(`/admin/google/status?city_id=${encodeURIComponent(requiredCityId)}`)
       if (!r.ok) return { configured: false, connected: false, missing: [], detail: null }
       return r.json()
     },
-    enabled: user?.role === 'admin',
+    enabled: user?.role === 'admin' && Boolean(requiredCityId),
   })
 
   const jobsByDay = jobs.reduce<Record<string, Job[]>>((acc, job) => {
@@ -179,6 +182,7 @@ export function CalendarScreen() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {user?.role === 'admin' && <CitySwitcher />}
           <button
             onClick={() => navigate('/jobs')}
             className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium"
@@ -338,7 +342,14 @@ export function CalendarScreen() {
                   <div key={job.id} className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">{job.customer_name ?? 'Unnamed customer'}</h3>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{job.customer_name ?? 'Unnamed customer'}</h3>
+                          {isAllCities && job.city_name && (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
+                              {job.city_name}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{job.service_type}</p>
                       </div>
                       <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
@@ -420,7 +431,14 @@ export function CalendarScreen() {
                   <div key={job.id} className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-white">{job.customer_name ?? 'Unnamed customer'}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-gray-900 dark:text-white">{job.customer_name ?? 'Unnamed customer'}</p>
+                          {isAllCities && job.city_name && (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
+                              {job.city_name}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{job.service_type}</p>
                         {showQuote && job.quoted_price_total != null && (
                           <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">

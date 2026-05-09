@@ -1,11 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { apiFetch } from '../services/api'
+import type { City } from '../types/city'
 
 export interface AuthUser {
   id: string
   username: string
   role: 'admin' | 'facilitator' | 'supervisor' | 'crew'
+  city_id: string | null
+  city_name?: string | null
+  city_slug?: string | null
   is_active: boolean
+  available_cities?: City[]
 }
 
 interface AuthContextValue {

@@ -22,11 +22,13 @@ export async function fetchLeads(params?: {
   status?: LeadStatus
   source_type?: string
   assigned_to?: string
+  city_id?: string
 }): Promise<Lead[]> {
   const q = new URLSearchParams()
   if (params?.status) q.set('status', params.status)
   if (params?.source_type) q.set('source_type', params.source_type)
   if (params?.assigned_to) q.set('assigned_to', params.assigned_to)
+  if (params?.city_id) q.set('city_id', params.city_id)
   const r = await apiFetch(`${BASE}?${q}`)
   if (!r.ok) throw new Error('Failed to fetch leads')
   return r.json()
@@ -141,10 +143,12 @@ export async function getExtractionResult(leadId: string, screenshotId: string):
 export async function ingestScreenshot(
   file: File,
   sourceType: string,
+  cityId?: string,
 ): Promise<IngestResult> {
   const form = new FormData()
   form.append('file', file)
   form.append('source_type', sourceType)
+  if (cityId) form.append('city_id', cityId)
   const r = await apiFetch('/ingest/screenshot', { method: 'POST', body: form })
   if (!r.ok) throw new Error(`Ingest failed: ${r.status}`)
   return r.json()
@@ -211,14 +215,16 @@ export async function sendChatMessage(
   return r.json()
 }
 
-export async function fetchSettings(): Promise<Settings> {
-  const r = await apiFetch('/settings')
+export async function fetchSettings(cityId?: string): Promise<Settings> {
+  const q = cityId ? `?city_id=${encodeURIComponent(cityId)}` : ''
+  const r = await apiFetch(`/settings${q}`)
   if (!r.ok) throw new Error('Failed to fetch settings')
   return r.json()
 }
 
-export async function patchSettings(data: SettingsPatch): Promise<Settings> {
-  const r = await apiFetch('/settings', {
+export async function patchSettings(data: SettingsPatch, cityId?: string): Promise<Settings> {
+  const q = cityId ? `?city_id=${encodeURIComponent(cityId)}` : ''
+  const r = await apiFetch(`/settings${q}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -227,8 +233,9 @@ export async function patchSettings(data: SettingsPatch): Promise<Settings> {
   return r.json()
 }
 
-export async function testAlert(data: TestAlertRequest): Promise<TestAlertResult> {
-  const r = await apiFetch('/settings/test-alert', {
+export async function testAlert(data: TestAlertRequest, cityId?: string): Promise<TestAlertResult> {
+  const q = cityId ? `?city_id=${encodeURIComponent(cityId)}` : ''
+  const r = await apiFetch(`/settings/test-alert${q}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),

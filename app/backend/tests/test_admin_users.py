@@ -6,10 +6,12 @@ import pytest_asyncio
 from datetime import datetime, timezone
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
 from app.dependencies import require_auth
+from app.models.city import City, DEFAULT_CITIES
 from app.models.user import User
 from app.services.auth_service import hash_pin
 
@@ -22,6 +24,7 @@ def _mock_user(role="admin"):
         username="mock-admin",
         credential_hash="x",
         role=role,
+        city_id="st-louis",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
@@ -32,6 +35,11 @@ async def _make_fixture(role):
     engine = create_async_engine(TEST_DB)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        now = datetime.now(timezone.utc)
+        await conn.execute(insert(City), [
+            {**city, "is_active": True, "created_at": now, "updated_at": now}
+            for city in DEFAULT_CITIES
+        ])
     Factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
     async def override_get_db():

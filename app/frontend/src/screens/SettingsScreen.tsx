@@ -6,6 +6,8 @@ import { useMyAvailability, useSaveMyAvailability } from '../hooks/useAvailabili
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import type { SettingsPatch, TestAlertRequest } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
+import { CitySwitcher } from '../components/CitySwitcher'
+import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
 import { apiFetch, fetchNotificationStatus } from '../services/api'
 
@@ -63,6 +65,7 @@ export function SettingsScreen() {
   const saveAvailability = useSaveMyAvailability()
   const push = usePushNotifications()
   const { user, logout } = useAuth()
+  const { requiredCityId } = useCity()
   const { isDark, toggleTheme } = useTheme()
 
   const isAdmin = user?.role === 'admin'
@@ -78,13 +81,13 @@ export function SettingsScreen() {
   const [weeklyAvailability, setWeeklyAvailability] = useState<WeekdayKey[]>([])
 
   const { data: calendarStatus, refetch: refetchCalendarStatus } = useQuery<CalendarStatus>({
-    queryKey: ['google-calendar-status'],
+    queryKey: ['google-calendar-status', requiredCityId],
     queryFn: async () => {
-      const response = await apiFetch('/admin/google/status')
+      const response = await apiFetch(`/admin/google/status?city_id=${encodeURIComponent(requiredCityId)}`)
       if (!response.ok) return { configured: false, connected: false, missing: [], detail: null }
       return response.json()
     },
-    enabled: isAdmin,
+    enabled: isAdmin && Boolean(requiredCityId),
   })
 
   const { data: notificationStatus, refetch: refetchNotificationStatus } = useQuery<NotificationStatus>({
@@ -95,7 +98,7 @@ export function SettingsScreen() {
 
   async function handleGoogleConnect() {
     setConnectError('')
-    const response = await apiFetch('/admin/google/connect')
+    const response = await apiFetch(`/admin/google/connect?city_id=${encodeURIComponent(requiredCityId)}`)
     if (!response.ok) {
       const error = await response.json().catch(() => ({}))
       setConnectError((error as { detail?: string }).detail ?? 'Failed to get Google connect URL')
@@ -176,14 +179,17 @@ export function SettingsScreen() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b px-4 py-3 bg-white dark:bg-gray-800 dark:border-gray-700">
-        <button
-          onClick={() => navigate(backTarget)}
-          className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-        >
-          Back
-        </button>
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Settings</h1>
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-3 bg-white dark:bg-gray-800 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(backTarget)}
+            className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            Back
+          </button>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Settings</h1>
+        </div>
+        {isAdmin && <CitySwitcher allowAll={false} />}
       </header>
 
       <div className="space-y-6 p-4 pb-20">
@@ -366,6 +372,18 @@ export function SettingsScreen() {
                 {notificationStatus.web_push.configured ? 'Configured' : 'Not configured'}
               </span>
             </FieldRow>
+          </section>
+        )}
+
+        {isAdmin && (
+          <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Cities</h2>
+            <button
+              onClick={() => navigate('/admin/cities')}
+              className="rounded-lg border px-3 py-1.5 text-xs hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Manage cities
+            </button>
           </section>
         )}
 

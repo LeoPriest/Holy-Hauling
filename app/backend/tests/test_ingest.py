@@ -14,6 +14,7 @@ async def _mock_facilitator():
         username="test-facilitator",
         credential_hash="placeholder",
         role="facilitator",
+        city_id="st-louis",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )

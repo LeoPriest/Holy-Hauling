@@ -110,6 +110,9 @@ export interface WebhookIngestResult {
 
 export interface Lead {
   id: string
+  city_id: string
+  city_name: string | null
+  city_slug: string | null
   source_type: LeadSourceType
   source_reference_id: string | null
   raw_payload: string | null
@@ -157,6 +160,7 @@ export interface Lead {
 }
 
 export interface LeadCreate {
+  city_id?: string
   source_type: LeadSourceType
   source_reference_id?: string
   raw_payload?: string

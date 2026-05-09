@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useCity } from '../context/CityContext'
 import { ingestScreenshot, triggerAiReview } from '../services/api'
 
 type Step = 'idle' | 'uploading' | 'reviewing' | 'done' | 'error'
@@ -18,16 +19,22 @@ interface Props {
 
 export function IngestProgressFlow({ onClose }: Props) {
   const navigate = useNavigate()
+  const { cities, requiredCityId } = useCity()
   const fileRef = useRef<HTMLInputElement>(null)
   const [step, setStep] = useState<Step>('idle')
+  const [selectedCityId, setSelectedCityId] = useState(requiredCityId)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const canDismiss = step === 'idle' || step === 'error'
+
+  useEffect(() => {
+    if (!selectedCityId && requiredCityId) setSelectedCityId(requiredCityId)
+  }, [requiredCityId, selectedCityId])
 
   const handleFile = async (file: File) => {
     setErrorMsg(null)
     try {
       setStep('uploading')
-      const result = await ingestScreenshot(file, 'thumbtack_screenshot')
+      const result = await ingestScreenshot(file, 'thumbtack_screenshot', selectedCityId || requiredCityId)
       const leadId = result.lead.id
 
       setStep('reviewing')
@@ -74,6 +81,15 @@ export function IngestProgressFlow({ onClose }: Props) {
             <p className="text-sm text-gray-500">
               Select your Thumbtack screenshot. The app will extract the lead data and run an AI review automatically.
             </p>
+            {cities.length > 1 && (
+              <select
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+                value={selectedCityId || requiredCityId}
+                onChange={event => setSelectedCityId(event.target.value)}
+              >
+                {cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
+              </select>
+            )}
             <button
               onClick={() => fileRef.current?.click()}
               className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2"

@@ -64,6 +64,7 @@ class QuoteModifierOut(QuoteModifierIn):
 
 
 class LeadCreate(BaseModel):
+    city_id: Optional[str] = None
     source_type: LeadSourceType
     source_reference_id: Optional[str] = None
     raw_payload: Optional[str] = None
@@ -185,6 +186,9 @@ class ScreenshotOut(BaseModel):
 
 class LeadOut(BaseModel):
     id: str
+    city_id: str
+    city_name: Optional[str] = None
+    city_slug: Optional[str] = None
     source_type: LeadSourceType
     source_reference_id: Optional[str]
     raw_payload: Optional[str]

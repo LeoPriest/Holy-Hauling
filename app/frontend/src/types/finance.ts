@@ -2,6 +2,9 @@ export type FinanceTransactionType = 'income' | 'expense'
 
 export interface FinanceTransaction {
   id: string
+  city_id: string
+  city_name: string | null
+  city_slug: string | null
   occurred_on: string
   transaction_type: FinanceTransactionType
   category: string
@@ -16,6 +19,7 @@ export interface FinanceTransaction {
 }
 
 export type FinanceTransactionInput = {
+  city_id?: string | null
   occurred_on: string
   transaction_type: FinanceTransactionType
   category: string
@@ -47,4 +51,5 @@ export type FinanceFilters = {
   start_date?: string
   end_date?: string
   transaction_type?: FinanceTransactionType | ''
+  city_id?: string
 }

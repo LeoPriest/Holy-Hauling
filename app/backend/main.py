@@ -20,6 +20,7 @@ _scheduler = AsyncIOScheduler()
 
 # Register all models with Base before create_all
 import app.models.lead  # noqa: F401
+import app.models.city  # noqa: F401
 import app.models.lead_event  # noqa: F401
 import app.models.screenshot  # noqa: F401
 import app.models.ocr_result  # noqa: F401
@@ -34,7 +35,8 @@ import app.models.push_subscription  # noqa: F401
 import app.models.job_assignment  # noqa: F401
 import app.models.finance  # noqa: F401
 
-from app.routers import admin_google, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, push, settings as settings_router, users
+from app.models.city import DEFAULT_CITIES, DEFAULT_CITY_ID
+from app.routers import admin_cities, admin_google, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, push, settings as settings_router, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "uploads")
@@ -44,6 +46,84 @@ os.makedirs(os.path.join(_UPLOADS_DIR, "screenshots"), exist_ok=True)
 def _existing_columns(rows) -> set[str]:
     """Return column names from PRAGMA table_info result rows."""
     return {row[1] for row in rows}
+
+
+async def _ensure_default_cities(conn) -> None:
+    await conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS cities (
+            id VARCHAR NOT NULL PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            slug VARCHAR NOT NULL UNIQUE,
+            timezone VARCHAR NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """))
+    now = datetime.now(timezone.utc).isoformat()
+    for city in DEFAULT_CITIES:
+        await conn.execute(text("""
+            INSERT OR IGNORE INTO cities (id, name, slug, timezone, is_active, created_at, updated_at)
+            VALUES (:id, :name, :slug, :timezone, 1, :now, :now)
+        """), {**city, "now": now})
+
+
+async def _migrate_users_add_city_id(conn) -> None:
+    result = await conn.execute(text("PRAGMA table_info(users)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "city_id" not in _existing_columns(rows):
+        await conn.execute(text(f"ALTER TABLE users ADD COLUMN city_id VARCHAR DEFAULT '{DEFAULT_CITY_ID}'"))
+        print("[startup] users: added city_id column")
+    await conn.execute(text("UPDATE users SET city_id = :city_id WHERE city_id IS NULL OR city_id = ''"), {"city_id": DEFAULT_CITY_ID})
+
+
+async def _migrate_leads_add_city_id(conn) -> None:
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "city_id" not in _existing_columns(rows):
+        await conn.execute(text(f"ALTER TABLE leads ADD COLUMN city_id VARCHAR NOT NULL DEFAULT '{DEFAULT_CITY_ID}'"))
+        print("[startup] leads: added city_id column")
+    await conn.execute(text("UPDATE leads SET city_id = :city_id WHERE city_id IS NULL OR city_id = ''"), {"city_id": DEFAULT_CITY_ID})
+
+
+async def _migrate_finance_add_city_id(conn) -> None:
+    result = await conn.execute(text("PRAGMA table_info(finance_transactions)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "city_id" not in _existing_columns(rows):
+        await conn.execute(text(f"ALTER TABLE finance_transactions ADD COLUMN city_id VARCHAR NOT NULL DEFAULT '{DEFAULT_CITY_ID}'"))
+        print("[startup] finance_transactions: added city_id column")
+    await conn.execute(text("UPDATE finance_transactions SET city_id = :city_id WHERE city_id IS NULL OR city_id = ''"), {"city_id": DEFAULT_CITY_ID})
+
+
+async def _migrate_app_settings_city_scope(conn) -> None:
+    result = await conn.execute(text("PRAGMA table_info(app_settings)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "city_id" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE app_settings RENAME TO _app_settings_old"))
+    await conn.execute(text("""
+        CREATE TABLE app_settings (
+            key VARCHAR NOT NULL,
+            city_id VARCHAR NOT NULL,
+            value VARCHAR,
+            PRIMARY KEY (key, city_id),
+            FOREIGN KEY(city_id) REFERENCES cities (id)
+        )
+    """))
+    await conn.execute(text("""
+        INSERT INTO app_settings (key, city_id, value)
+        SELECT key, :city_id, value FROM _app_settings_old
+    """), {"city_id": DEFAULT_CITY_ID})
+    await conn.execute(text("DROP TABLE _app_settings_old"))
+    print("[startup] app_settings: migrated to city scope")
 
 
 async def _migrate_customer_name_nullable(conn) -> None:
@@ -326,13 +406,14 @@ async def _seed_default_admin(conn) -> None:
     if count == 0:
         now = datetime.now(timezone.utc).isoformat()
         await conn.execute(text(
-            "INSERT INTO users (id, username, credential_hash, role, is_active, created_at) "
-            "VALUES (:id, :username, :hash, :role, 1, :now)"
+            "INSERT INTO users (id, username, credential_hash, role, city_id, is_active, created_at) "
+            "VALUES (:id, :username, :hash, :role, :city_id, 1, :now)"
         ), {
             "id": str(_uuid.uuid4()),
             "username": "admin",
             "hash": _hash_pin("0000"),
             "role": "admin",
+            "city_id": DEFAULT_CITY_ID,
             "now": now,
         })
         print("[startup] default admin seeded (username: admin, PIN: 0000 — change immediately)")
@@ -355,7 +436,12 @@ async def lifespan(app: FastAPI):
     _validate_grounding_file()
     _validate_google_oauth_config()
     async with engine.begin() as conn:
+        await _ensure_default_cities(conn)
+        await _migrate_users_add_city_id(conn)
+        await _migrate_finance_add_city_id(conn)
+        await _migrate_app_settings_city_scope(conn)
         await _migrate_customer_name_nullable(conn)
+        await _migrate_leads_add_city_id(conn)
         await _migrate_screenshots_add_ocr_status(conn)
         await _migrate_leads_add_v7_columns(conn)
         await _migrate_leads_add_v8_columns(conn)
@@ -394,6 +480,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router.router)
+app.include_router(admin_cities.router)
 app.include_router(admin_users.router)
 app.include_router(admin_google.router)
 app.include_router(users.router)

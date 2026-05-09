@@ -74,6 +74,7 @@ async def ingest_screenshot(
     source_type: LeadSourceType,
     actor: Optional[str] = None,
     actor_role: Optional[str] = None,
+    city_id: str | None = None,
 ) -> IngestResult:
     """
     Create a lead stub from a screenshot, run OCR, and auto-apply high-confidence fields.
@@ -86,6 +87,7 @@ async def ingest_screenshot(
     # 1. Create lead stub — no customer name yet
     stub = Lead(
         id=lead_service._id(),
+        city_id=city_id,
         source_type=source_type,
         customer_name=None,
         service_type=ServiceType.unknown,
@@ -105,7 +107,7 @@ async def ingest_screenshot(
     await db.refresh(stub)
 
     # 2. Save image file (reuses lead_service validation + storage)
-    screenshot = await lead_service.upload_screenshot(db, stub.id, file)
+    screenshot = await lead_service.upload_screenshot(db, stub.id, file, city_id=city_id)
 
     # 3. Run OCR if configured — silent failure, lead already created
     extraction: Optional[OcrResultOut] = None
@@ -186,6 +188,7 @@ def _normalize_thumbtack(tt: ThumbTackLead) -> dict:
 async def ingest_thumbtack_webhook(
     db: AsyncSession,
     payload: ThumbTackWebhookPayload,
+    city_id: str,
 ) -> WebhookIngestResult:
     """
     Normalize a Thumbtack webhook event into a lead.
@@ -202,6 +205,7 @@ async def ingest_thumbtack_webhook(
         select(Lead).where(
             Lead.source_type == LeadSourceType.thumbtack_api,
             Lead.source_reference_id == tt.leadID,
+            Lead.city_id == city_id,
         )
     )
     existing = existing_result.scalar_one_or_none()
@@ -215,6 +219,7 @@ async def ingest_thumbtack_webhook(
     norm = _normalize_thumbtack(tt)
     lead = Lead(
         id=lead_service._id(),
+        city_id=city_id,
         source_type=LeadSourceType.thumbtack_api,
         source_reference_id=tt.leadID,
         raw_payload=payload.model_dump_json(),

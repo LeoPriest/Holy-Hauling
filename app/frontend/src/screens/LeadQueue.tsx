@@ -10,6 +10,8 @@ import { useUsers } from '../hooks/useUsers'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
+import { CitySwitcher } from '../components/CitySwitcher'
+import { useCity } from '../context/CityContext'
 
 export function LeadQueue() {
   const navigate = useNavigate()
@@ -35,6 +37,7 @@ export function LeadQueue() {
   const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
   const { user } = useAuth()
+  const { isAllCities } = useCity()
 
   const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
@@ -64,6 +67,7 @@ export function LeadQueue() {
           </button>
           {user?.role === 'admin' && (
             <>
+              <CitySwitcher />
               <button
                 onClick={() => navigate('/admin/finances')}
                 className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
@@ -205,13 +209,17 @@ export function LeadQueue() {
           </p>
         )}
         {displayLeads.map(lead => (
-          <LeadCard
-            key={lead.id}
-            lead={lead}
-            onClick={id => navigate(`/leads/${id}`)}
-            staleness={t2Ids.has(lead.id) ? 't2' : t1Ids.has(lead.id) ? 't1' : null}
-            idleMinutes={idleMinuteMap.get(lead.id)}
-          />
+          <div key={lead.id} className="space-y-1">
+            {isAllCities && lead.city_name && (
+              <p className="px-1 text-xs font-semibold text-indigo-500 dark:text-indigo-300">{lead.city_name}</p>
+            )}
+            <LeadCard
+              lead={lead}
+              onClick={id => navigate(`/leads/${id}`)}
+              staleness={t2Ids.has(lead.id) ? 't2' : t1Ids.has(lead.id) ? 't1' : null}
+              idleMinutes={idleMinuteMap.get(lead.id)}
+            />
+          </div>
         ))}
       </main>
 

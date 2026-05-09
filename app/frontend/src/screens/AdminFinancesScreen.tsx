@@ -7,6 +7,8 @@ import {
   useFinanceTransactions,
   usePatchFinanceTransaction,
 } from '../hooks/useFinances'
+import { CitySwitcher } from '../components/CitySwitcher'
+import { useCity } from '../context/CityContext'
 import type { FinanceTransaction, FinanceTransactionInput, FinanceTransactionType } from '../types/finance'
 
 const EMPTY_FORM: FinanceTransactionInput = {
@@ -36,6 +38,7 @@ function centsToDollarsInput(cents: number) {
 
 export function AdminFinancesScreen() {
   const navigate = useNavigate()
+  const { cities, isAllCities, requiredCityId } = useCity()
   const [startDate, setStartDate] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
@@ -64,7 +67,7 @@ export function AdminFinancesScreen() {
 
   function openCreate(type: FinanceTransactionType = 'income') {
     setEditing(null)
-    setForm({ ...EMPTY_FORM, occurred_on: new Date().toISOString().slice(0, 10), transaction_type: type })
+    setForm({ ...EMPTY_FORM, city_id: requiredCityId, occurred_on: new Date().toISOString().slice(0, 10), transaction_type: type })
     setAmountInput('')
     setError('')
     setShowForm(true)
@@ -81,6 +84,7 @@ export function AdminFinancesScreen() {
       vendor_customer: transaction.vendor_customer ?? '',
       description: transaction.description ?? '',
       lead_id: transaction.lead_id,
+      city_id: transaction.city_id,
     })
     setAmountInput(centsToDollarsInput(transaction.amount_cents))
     setError('')
@@ -130,12 +134,15 @@ export function AdminFinancesScreen() {
           </button>
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">Finances</h1>
         </div>
-        <button
-          onClick={() => openCreate('income')}
-          className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          Add
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openCreate('income')}
+            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Add
+          </button>
+          <CitySwitcher />
+        </div>
       </header>
 
       <main className="space-y-4 p-4 pb-12">
@@ -199,6 +206,9 @@ export function AdminFinancesScreen() {
                       {[transaction.vendor_customer, transaction.payment_method].filter(Boolean).join(' - ')}
                     </p>
                   )}
+                  {isAllCities && transaction.city_name && (
+                    <p className="mt-1 text-xs font-medium text-indigo-500 dark:text-indigo-300">{transaction.city_name}</p>
+                  )}
                   {transaction.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{transaction.description}</p>}
                 </div>
                 <div className="text-right">
@@ -228,6 +238,11 @@ export function AdminFinancesScreen() {
                   <option value="expense">Expense</option>
                 </select>
               </div>
+              {cities.length > 1 && (
+                <select className={`${inputClass} w-full`} value={form.city_id ?? requiredCityId} onChange={e => setForm(prev => ({ ...prev, city_id: e.target.value }))}>
+                  {cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
+                </select>
+              )}
               <input className={`${inputClass} w-full`} placeholder="Category" value={form.category} onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))} />
               <input className={`${inputClass} w-full`} placeholder="Amount" inputMode="decimal" value={amountInput} onChange={e => setAmountInput(e.target.value)} />
               <input className={`${inputClass} w-full`} placeholder="Customer or vendor" value={form.vendor_customer ?? ''} onChange={e => setForm(prev => ({ ...prev, vendor_customer: e.target.value }))} />

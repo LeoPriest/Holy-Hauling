@@ -9,6 +9,7 @@ TransactionType = Literal["income", "expense"]
 
 
 class FinanceTransactionBase(BaseModel):
+    city_id: str | None = None
     occurred_on: date
     transaction_type: TransactionType
     category: str = Field(min_length=1, max_length=80)
@@ -24,6 +25,7 @@ class FinanceTransactionCreate(FinanceTransactionBase):
 
 
 class FinanceTransactionPatch(BaseModel):
+    city_id: str | None = None
     occurred_on: date | None = None
     transaction_type: TransactionType | None = None
     category: str | None = Field(default=None, min_length=1, max_length=80)
@@ -36,6 +38,9 @@ class FinanceTransactionPatch(BaseModel):
 
 class FinanceTransactionOut(FinanceTransactionBase):
     id: str
+    city_id: str
+    city_name: str | None = None
+    city_slug: str | None = None
     created_by: str | None = None
     created_at: datetime
     updated_at: datetime

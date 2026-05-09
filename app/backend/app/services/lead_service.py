@@ -169,8 +169,11 @@ async def list_leads(
     status: Optional[LeadStatus] = None,
     source_type: Optional[LeadSourceType] = None,
     assigned_to: Optional[str] = None,
+    city_id: Optional[str] = None,
 ) -> list[Lead]:
     q = select(Lead)
+    if city_id:
+        q = q.where(Lead.city_id == city_id)
     if status:
         q = q.where(Lead.status == status)
     if source_type:
@@ -182,8 +185,10 @@ async def list_leads(
     return list(result.scalars().all())
 
 
-async def get_lead(db: AsyncSession, lead_id: str, detailed: bool = False) -> Lead:
+async def get_lead(db: AsyncSession, lead_id: str, detailed: bool = False, city_id: Optional[str] = None) -> Lead:
     q = select(Lead).where(Lead.id == lead_id)
+    if city_id:
+        q = q.where(Lead.city_id == city_id)
     if detailed:
         q = q.options(selectinload(Lead.events), selectinload(Lead.screenshots))
     result = await db.execute(q)
@@ -216,9 +221,9 @@ async def get_lead(db: AsyncSession, lead_id: str, detailed: bool = False) -> Le
 
 
 async def update_lead(
-    db: AsyncSession, lead_id: str, data: LeadUpdate, actor: Optional[str] = None
+    db: AsyncSession, lead_id: str, data: LeadUpdate, actor: Optional[str] = None, city_id: Optional[str] = None
 ) -> Lead:
-    lead = await get_lead(db, lead_id)
+    lead = await get_lead(db, lead_id, city_id=city_id)
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return lead
@@ -276,8 +281,12 @@ async def update_lead(
             customer = lead.customer_name or "customer"
             svc = lead.service_type.value if lead.service_type is not None else "job"
             try:
-                await send_push_to_roles(db, ["supervisor", "crew"],
-                                          f"New job assigned: {customer} — {svc}")
+                await send_push_to_roles(
+                    db,
+                    ["supervisor", "crew"],
+                    f"New job assigned: {customer} — {svc}",
+                    city_id=lead.city_id,
+                )
             except Exception as exc:
                 _log.error("Push trigger failed: %s", exc)
 
@@ -312,9 +321,9 @@ async def update_lead(
 _JOB_PHASE_ORDER = {"dispatched": 1, "en_route": 2, "arrived": 3, "started": 4, "completed": 5}
 
 
-async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, actor: str | None = None) -> Lead:
+async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, actor: str | None = None, city_id: Optional[str] = None) -> Lead:
     from fastapi import HTTPException
-    lead = await get_lead(db, lead_id)
+    lead = await get_lead(db, lead_id, city_id=city_id)
     if lead.status != LeadStatus.booked:
         raise HTTPException(status_code=409, detail="Job is not in booked status")
 
@@ -373,8 +382,8 @@ async def update_job_status(db: AsyncSession, lead_id: str, job_status: str, act
     return lead
 
 
-async def update_lead_status(db: AsyncSession, lead_id: str, data: LeadStatusUpdate) -> Lead:
-    lead = await get_lead(db, lead_id)
+async def update_lead_status(db: AsyncSession, lead_id: str, data: LeadStatusUpdate, city_id: Optional[str] = None) -> Lead:
+    lead = await get_lead(db, lead_id, city_id=city_id)
     old_status = lead.status
     _apply_quote_breakdown(
         lead,
@@ -401,19 +410,27 @@ async def update_lead_status(db: AsyncSession, lead_id: str, data: LeadStatusUpd
     svc = lead.service_type.value if lead.service_type is not None else "job"
     try:
         if data.status == LeadStatus.booked:
-            await send_push_to_roles(db, ["supervisor", "crew"],
-                                      f"New job assigned: {customer} — {svc}")
+            await send_push_to_roles(
+                db,
+                ["supervisor", "crew"],
+                f"New job assigned: {customer} — {svc}",
+                city_id=lead.city_id,
+            )
         elif data.status == LeadStatus.escalated:
-            await send_push_to_roles(db, ["supervisor"],
-                                      f"Job escalated: {customer} — action needed")
+            await send_push_to_roles(
+                db,
+                ["supervisor"],
+                f"Job escalated: {customer} — action needed",
+                city_id=lead.city_id,
+            )
     except Exception as exc:
         _logging.getLogger(__name__).error("Push trigger failed: %s", exc)
 
     return lead
 
 
-async def acknowledge_lead(db: AsyncSession, lead_id: str, actor: Optional[str] = None) -> Lead:
-    lead = await get_lead(db, lead_id)
+async def acknowledge_lead(db: AsyncSession, lead_id: str, actor: Optional[str] = None, city_id: Optional[str] = None) -> Lead:
+    lead = await get_lead(db, lead_id, city_id=city_id)
     if lead.acknowledged_at is not None:
         raise HTTPException(status_code=409, detail="Lead already acknowledged")
     db.add(_apply_acknowledgement(lead, actor=actor))
@@ -422,8 +439,8 @@ async def acknowledge_lead(db: AsyncSession, lead_id: str, actor: Optional[str] 
     return lead
 
 
-async def get_lead_events(db: AsyncSession, lead_id: str) -> list[LeadEvent]:
-    await get_lead(db, lead_id)
+async def get_lead_events(db: AsyncSession, lead_id: str, city_id: Optional[str] = None) -> list[LeadEvent]:
+    await get_lead(db, lead_id, city_id=city_id)
     result = await db.execute(
         select(LeadEvent).where(LeadEvent.lead_id == lead_id).order_by(LeadEvent.created_at)
     )
@@ -432,9 +449,9 @@ async def get_lead_events(db: AsyncSession, lead_id: str) -> list[LeadEvent]:
 
 # ── operational notes ─────────────────────────────────────────────────────────
 
-async def add_note(db: AsyncSession, lead_id: str, data: NoteCreate) -> LeadEvent:
+async def add_note(db: AsyncSession, lead_id: str, data: NoteCreate, city_id: Optional[str] = None) -> LeadEvent:
     """Append an operational note to the lead's event log during live handling."""
-    await get_lead(db, lead_id)
+    await get_lead(db, lead_id, city_id=city_id)
     event = LeadEvent(
         id=_id(), lead_id=lead_id,
         event_type="note_added",
@@ -453,8 +470,9 @@ async def upload_screenshot(
     lead_id: str,
     file: UploadFile,
     screenshot_type: str = "intake",
+    city_id: Optional[str] = None,
 ) -> Screenshot:
-    await get_lead(db, lead_id)
+    await get_lead(db, lead_id, city_id=city_id)
 
     if file.content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="File must be JPEG, PNG, or WebP")
@@ -488,8 +506,8 @@ async def upload_screenshot(
     return record
 
 
-async def list_screenshots(db: AsyncSession, lead_id: str) -> list[Screenshot]:
-    await get_lead(db, lead_id)
+async def list_screenshots(db: AsyncSession, lead_id: str, city_id: Optional[str] = None) -> list[Screenshot]:
+    await get_lead(db, lead_id, city_id=city_id)
     result = await db.execute(
         select(Screenshot).where(Screenshot.lead_id == lead_id).order_by(Screenshot.created_at)
     )
@@ -498,9 +516,12 @@ async def list_screenshots(db: AsyncSession, lead_id: str) -> list[Screenshot]:
 
 # ── delete ────────────────────────────────────────────────────────────────────
 
-async def delete_lead(db: AsyncSession, lead_id: str) -> None:
+async def delete_lead(db: AsyncSession, lead_id: str, city_id: Optional[str] = None) -> None:
     """Hard-delete a lead and all its children. Raises 404 if not found."""
-    result = await db.execute(select(Lead).where(Lead.id == lead_id))
+    q = select(Lead).where(Lead.id == lead_id)
+    if city_id:
+        q = q.where(Lead.city_id == city_id)
+    result = await db.execute(q)
     lead = result.scalar_one_or_none()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")

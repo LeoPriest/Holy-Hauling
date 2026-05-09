@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../services/api'
+import { useCity } from '../context/CityContext'
 import type { QuoteModifier } from '../types/lead'
 import { parseUtc } from '../utils/time'
 
 export interface Job {
   id: string
+  city_id: string
+  city_name: string | null
+  city_slug: string | null
   customer_name: string | null
   service_type: string
   job_location: string | null
@@ -28,10 +32,12 @@ export interface Job {
 }
 
 export function useJobs() {
+  const { cityQueryId } = useCity()
   return useQuery<Job[]>({
-    queryKey: ['jobs'],
+    queryKey: ['jobs', cityQueryId],
     queryFn: async () => {
-      const r = await apiFetch('/jobs')
+      const q = cityQueryId ? `?city_id=${encodeURIComponent(cityQueryId)}` : ''
+      const r = await apiFetch(`/jobs${q}`)
       if (!r.ok) throw new Error('Failed to fetch jobs')
       return r.json()
     },
@@ -52,10 +58,9 @@ export function usePatchJobStatus() {
     },
     onSuccess: (_data, { id, status }) => {
       if (status === 'completed') {
-        qc.setQueryData<Job[]>(['jobs'], prev => (prev ?? []).filter(j => j.id !== id))
-      } else {
-        qc.invalidateQueries({ queryKey: ['jobs'] })
+        qc.removeQueries({ queryKey: ['lead', id] })
       }
+      qc.invalidateQueries({ queryKey: ['jobs'] })
     },
   })
 }

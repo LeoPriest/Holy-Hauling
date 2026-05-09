@@ -4,6 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel
 
+from app.models.city import DEFAULT_CITY_ID
 from app.schemas.lead import QuoteModifierOut
 
 JobStatus = Literal["dispatched", "en_route", "arrived", "started", "completed", "reset"]
@@ -11,6 +12,9 @@ JobStatus = Literal["dispatched", "en_route", "arrived", "started", "completed",
 
 class JobOut(BaseModel):
     id: str
+    city_id: str = DEFAULT_CITY_ID
+    city_name: Optional[str] = None
+    city_slug: Optional[str] = None
     customer_name: Optional[str] = None
     service_type: Optional[str] = None
     job_location: Optional[str] = None

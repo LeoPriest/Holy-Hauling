@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -15,6 +16,7 @@ async def _mock_admin():
         username="test-admin",
         credential_hash="placeholder",
         role="admin",
+        city_id="st-louis",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
@@ -33,6 +35,13 @@ async def client(tmp_path):
     engine = create_async_engine(TEST_DB)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        from sqlalchemy import insert
+        from app.models.city import City, DEFAULT_CITIES
+        now = datetime.now(timezone.utc)
+        await conn.execute(insert(City), [
+            {**city, "is_active": True, "created_at": now, "updated_at": now}
+            for city in DEFAULT_CITIES
+        ])
 
     TestSession = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

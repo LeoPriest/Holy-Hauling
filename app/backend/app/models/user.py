@@ -3,10 +3,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.models.city import DEFAULT_CITY_ID
 
 
 class User(Base):
@@ -16,6 +17,7 @@ class User(Base):
     username = Column(String, nullable=False, unique=True)
     credential_hash = Column(String, nullable=False)  # bcrypt hash; generic name allows password upgrade later
     role = Column(String, nullable=False)  # admin | facilitator | supervisor | crew
+    city_id = Column(String, ForeignKey("cities.id"), nullable=True, default=DEFAULT_CITY_ID)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     created_by = Column(String, nullable=True)  # user_id of admin who created this user

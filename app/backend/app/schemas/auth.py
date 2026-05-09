@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.city import CityOut
+
 
 class LoginRequest(BaseModel):
     username: str
@@ -14,8 +16,12 @@ class UserOut(BaseModel):
     id: str
     username: str
     role: str
+    city_id: Optional[str] = None
+    city_name: Optional[str] = None
+    city_slug: Optional[str] = None
     is_active: bool
     email: Optional[str] = None
+    available_cities: list[CityOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

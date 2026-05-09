@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.app_setting import AppSetting
+from app.models.city import City, DEFAULT_CITY_ID
 from app.models.job_assignment import JobAssignment
 from app.models.lead import Lead
 from app.models.user import User
@@ -22,7 +23,6 @@ from app.models.user import User
 _log = logging.getLogger(__name__)
 _SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 _TOKEN_URI = "https://oauth2.googleapis.com/token"
-_CALENDAR_TIME_ZONE = os.getenv("BUSINESS_TIME_ZONE", "America/Chicago")
 _DEFAULT_EVENT_DURATION_MINUTES = 60
 
 
@@ -33,22 +33,22 @@ class CalendarSyncResult:
     status_code: int = 200
 
 
-async def _build_calendar_service(db: AsyncSession):
-    credentials = await _get_credentials(db)
+async def _build_calendar_service(db: AsyncSession, city_id: str):
+    credentials = await _get_credentials(db, city_id)
     if credentials is None:
         return None
     await asyncio.to_thread(credentials.refresh, Request())
     return build("calendar", "v3", credentials=credentials)
 
 
-async def _get_credentials(db: AsyncSession) -> Credentials | None:
+async def _get_credentials(db: AsyncSession, city_id: str) -> Credentials | None:
     """Return refreshable credentials from app_settings, or None if not configured."""
     client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
     client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
     if not client_id or not client_secret:
         return None
     result = await db.execute(
-        select(AppSetting).where(AppSetting.key == "google_refresh_token")
+        select(AppSetting).where(AppSetting.key == "google_refresh_token", AppSetting.city_id == city_id)
     )
     row = result.scalar_one_or_none()
     if row is None or not row.value:
@@ -63,7 +63,13 @@ async def _get_credentials(db: AsyncSession) -> Credentials | None:
     )
 
 
-def _build_event_body(lead: Lead, crew_emails: list[str]) -> dict:
+async def _city_timezone(db: AsyncSession, city_id: str | None) -> str:
+    result = await db.execute(select(City).where(City.id == (city_id or DEFAULT_CITY_ID)))
+    city = result.scalar_one_or_none()
+    return city.timezone if city else os.getenv("BUSINESS_TIME_ZONE", "America/Chicago")
+
+
+def _build_event_body(lead: Lead, crew_emails: list[str], time_zone: str) -> dict:
     service_name = lead.service_type.value.title() if lead.service_type else "Job"
     customer = lead.customer_name or "Customer"
     if lead.job_date_requested:
@@ -85,8 +91,8 @@ def _build_event_body(lead: Lead, crew_emails: list[str]) -> dict:
     if lead.appointment_time_slot:
         start_dt = datetime.fromisoformat(f"{event_date}T{lead.appointment_time_slot}:00")
         end_dt = start_dt + timedelta(minutes=duration_minutes)
-        body["start"] = {"dateTime": start_dt.isoformat(), "timeZone": _CALENDAR_TIME_ZONE}
-        body["end"] = {"dateTime": end_dt.isoformat(), "timeZone": _CALENDAR_TIME_ZONE}
+        body["start"] = {"dateTime": start_dt.isoformat(), "timeZone": time_zone}
+        body["end"] = {"dateTime": end_dt.isoformat(), "timeZone": time_zone}
     else:
         body["start"] = {"date": event_date}
         body["end"] = {"date": event_date}
@@ -115,13 +121,14 @@ async def _insert_event_or_raise(
 ) -> str | None:
     if not crew_emails:
         return None
-    service = await _build_calendar_service(db)
+    service = await _build_calendar_service(db, lead.city_id)
     if service is None:
         return None
+    time_zone = await _city_timezone(db, lead.city_id)
     event = await asyncio.to_thread(
         service.events().insert(
             calendarId="primary",
-            body=_build_event_body(lead, crew_emails),
+            body=_build_event_body(lead, crew_emails, time_zone),
             sendUpdates="all",
         ).execute
     )
@@ -131,22 +138,23 @@ async def _insert_event_or_raise(
 async def _update_event_or_raise(
     db: AsyncSession, event_id: str, lead: Lead, crew_emails: list[str]
 ) -> bool:
-    service = await _build_calendar_service(db)
+    service = await _build_calendar_service(db, lead.city_id)
     if service is None:
         return False
+    time_zone = await _city_timezone(db, lead.city_id)
     await asyncio.to_thread(
         service.events().update(
             calendarId="primary",
             eventId=event_id,
-            body=_build_event_body(lead, crew_emails),
+            body=_build_event_body(lead, crew_emails, time_zone),
             sendUpdates="all",
         ).execute
     )
     return True
 
 
-async def _delete_event_or_raise(db: AsyncSession, event_id: str) -> bool:
-    service = await _build_calendar_service(db)
+async def _delete_event_or_raise(db: AsyncSession, event_id: str, city_id: str) -> bool:
+    service = await _build_calendar_service(db, city_id)
     if service is None:
         return False
     await asyncio.to_thread(
@@ -239,10 +247,10 @@ async def update_event(
         return False
 
 
-async def delete_event(db: AsyncSession, event_id: str) -> bool:
+async def delete_event(db: AsyncSession, event_id: str, city_id: str = DEFAULT_CITY_ID) -> bool:
     """Delete a Calendar event and notify attendees. Returns True on success."""
     try:
-        return await _delete_event_or_raise(db, event_id)
+        return await _delete_event_or_raise(db, event_id, city_id)
     except Exception as exc:
         _log.error("calendar delete_event failed: %s", exc)
         return False
@@ -264,7 +272,7 @@ async def sync_job_calendar(db: AsyncSession, lead_id: str) -> None:
             if crew_emails:
                 await update_event(db, lead.google_calendar_event_id, lead, crew_emails)
             else:
-                deleted = await delete_event(db, lead.google_calendar_event_id)
+                deleted = await delete_event(db, lead.google_calendar_event_id, lead.city_id)
                 if deleted:
                     lead.google_calendar_event_id = None
                     await db.commit()
@@ -280,7 +288,7 @@ async def sync_job_calendar(db: AsyncSession, lead_id: str) -> None:
 
 async def sync_job_calendar_now(db: AsyncSession, lead: Lead) -> CalendarSyncResult:
     """Synchronize one booked lead to Google Calendar and return a user-facing result."""
-    credentials = await _get_credentials(db)
+    credentials = await _get_credentials(db, lead.city_id)
     if credentials is None:
         return CalendarSyncResult(
             ok=False,

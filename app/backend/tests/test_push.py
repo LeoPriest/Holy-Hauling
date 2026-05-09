@@ -23,6 +23,7 @@ def _mock_user(role="crew"):
         username="crew1",
         credential_hash="x",
         role=role,
+        city_id="st-louis",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )

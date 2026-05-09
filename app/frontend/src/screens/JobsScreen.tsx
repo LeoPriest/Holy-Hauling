@@ -4,6 +4,8 @@ import { buildConfirmationText } from '../utils/confirmationText'
 import { useNavigate } from 'react-router-dom'
 import { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
+import { CitySwitcher } from '../components/CitySwitcher'
+import { useCity } from '../context/CityContext'
 import {
   type Job,
   useJobs,
@@ -163,10 +165,12 @@ function isUnavailableOnDate(user: TeamMember | undefined, day: string | null): 
 function JobCard({
   job,
   showQuote,
+  showCity,
   onClick,
 }: {
   job: Job
   showQuote: boolean
+  showCity: boolean
   onClick: () => void
 }) {
   const dispatchElapsed = useElapsedTime(job.en_route_at ? null : job.dispatched_at)
@@ -228,6 +232,11 @@ function JobCard({
               {job.customer_name ?? <span className="font-normal italic text-gray-400">Unnamed</span>}
             </p>
             {badge}
+            {showCity && job.city_name && (
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
+                {job.city_name}
+              </span>
+            )}
           </div>
           <p className="mt-0.5 text-sm capitalize text-gray-500 dark:text-gray-400">{job.service_type}</p>
           {mapTarget && <p className="mt-0.5 truncate text-sm text-gray-400 dark:text-gray-500">Location: {mapTarget}</p>}
@@ -421,7 +430,8 @@ function JobModal({
   const isAdmin = userRole === 'admin'
   const showQuote = userRole === 'admin' || userRole === 'facilitator'
   const jobDate = job.job_date_requested
-  const blockedUsers = users.filter(user => user.is_active && isUnavailableOnDate(user, jobDate))
+  const cityUsers = users.filter(user => user.city_id === job.city_id)
+  const blockedUsers = cityUsers.filter(user => user.is_active && isUnavailableOnDate(user, jobDate))
   const beforePhotos = (leadDetail?.screenshots ?? []).filter(photo => photo.screenshot_type === 'before_job')
   const afterPhotos = (leadDetail?.screenshots ?? []).filter(photo => photo.screenshot_type === 'after_job')
 
@@ -832,7 +842,7 @@ function JobModal({
                   <option value="" disabled>
                     Add member...
                   </option>
-                  {users
+                  {cityUsers
                     .filter(user => user.is_active && !job.crew.includes(user.username))
                     .map(user => {
                       const blocked = isUnavailableOnDate(user, jobDate)
@@ -879,6 +889,7 @@ function JobModal({
 export function JobsScreen() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isAllCities } = useCity()
   const [jobView, setJobView] = useState<JobView>('scheduled')
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const [now, setNow] = useState(Date.now())
@@ -915,6 +926,7 @@ export function JobsScreen() {
       <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">Jobs</h1>
         <div className="flex items-center gap-3">
+          {user?.role === 'admin' && <CitySwitcher />}
           {(user?.role === 'admin' || user?.role === 'facilitator') && (
             <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" title="Lead Queue">
               Inbox
@@ -981,7 +993,7 @@ export function JobsScreen() {
             </div>
             <div className="space-y-3">
               {group.jobs.map(job => (
-                <JobCard key={job.id} job={job} showQuote={showQuote} onClick={() => setSelectedJob(job)} />
+                <JobCard key={job.id} job={job} showQuote={showQuote} showCity={isAllCities} onClick={() => setSelectedJob(job)} />
               ))}
             </div>
           </section>

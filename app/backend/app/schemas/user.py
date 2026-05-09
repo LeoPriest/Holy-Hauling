@@ -13,11 +13,13 @@ class UserCreate(BaseModel):
     username: str
     pin: str = Field(min_length=4, max_length=4)
     role: UserRole
+    city_id: Optional[str] = None
     email: Optional[EmailStr] = None
 
 
 class UserPatch(BaseModel):
     role: Optional[UserRole] = None
+    city_id: Optional[str] = None
     pin: Optional[str] = Field(default=None, min_length=4, max_length=4)
     is_active: Optional[bool] = None
     email: Optional[EmailStr] = None
@@ -27,6 +29,9 @@ class UserListItem(BaseModel):
     id: str
     username: str
     role: str
+    city_id: Optional[str] = None
+    city_name: Optional[str] = None
+    city_slug: Optional[str] = None
     is_active: bool
     email: Optional[str] = None
     unavailable_dates: list[str] = Field(default_factory=list)

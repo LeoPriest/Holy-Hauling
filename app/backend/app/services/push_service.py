@@ -94,12 +94,15 @@ async def user_subscription_count(db: AsyncSession, user_id: str) -> int:
     return len(result.scalars().all())
 
 
-async def send_push_to_roles(db: AsyncSession, roles: list[str], message: str) -> int:
-    result = await db.execute(
+async def send_push_to_roles(db: AsyncSession, roles: list[str], message: str, city_id: str | None = None) -> int:
+    q = (
         select(PushSubscription)
         .join(User, PushSubscription.user_id == User.id)
         .where(User.role.in_(roles), User.is_active == True)
     )
+    if city_id:
+        q = q.where(User.city_id == city_id)
+    result = await db.execute(q)
     subs = result.scalars().all()
     sent = 0
     stale = []

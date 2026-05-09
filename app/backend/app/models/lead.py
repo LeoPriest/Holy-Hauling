@@ -4,10 +4,11 @@ import uuid
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Enum as SAEnum, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum as SAEnum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.models.city import DEFAULT_CITY_ID
 
 
 class LeadSourceType(str, enum.Enum):
@@ -42,6 +43,7 @@ class Lead(Base):
     __tablename__ = "leads"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    city_id = Column(String, ForeignKey("cities.id"), nullable=False, default=DEFAULT_CITY_ID)
     source_type = Column(SAEnum(LeadSourceType), nullable=False)
     source_reference_id = Column(String, nullable=True)  # provider's external ID (e.g. Thumbtack lead ID)
     raw_payload = Column(Text, nullable=True)

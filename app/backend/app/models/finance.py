@@ -8,6 +8,7 @@ from sqlalchemy import Column, Date, DateTime, Enum as SAEnum, ForeignKey, Integ
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.models.city import DEFAULT_CITY_ID
 
 
 class FinanceTransactionType(str, enum.Enum):
@@ -19,6 +20,7 @@ class FinanceTransaction(Base):
     __tablename__ = "finance_transactions"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    city_id = Column(String, ForeignKey("cities.id"), nullable=False, default=DEFAULT_CITY_ID)
     occurred_on = Column(Date, nullable=False, default=date.today)
     transaction_type = Column(SAEnum(FinanceTransactionType), nullable=False)
     category = Column(String, nullable=False)

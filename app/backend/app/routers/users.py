@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_auth, require_role
+from app.dependencies import city_scope, require_auth, require_role
+from app.models.city import City
 from app.models.user_availability import UserAvailability
 from app.models.user_weekly_availability import UserWeeklyAvailability
 from app.models.user import User
@@ -135,14 +136,22 @@ async def replace_my_weekly_availability(
     return UserWeeklyAvailabilityOut(weekdays=ordered)
 
 
-@router.get("", response_model=list[UserListItem], dependencies=[Depends(require_role("admin", "facilitator", "supervisor"))])
-async def list_active_users(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(User).where(User.is_active == True).order_by(User.role, User.username)
-    )
+@router.get("", response_model=list[UserListItem])
+async def list_active_users(
+    city_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "facilitator", "supervisor")),
+):
+    effective_city_id = city_scope(current_user, city_id)
+    q = select(User).where(User.is_active == True).order_by(User.role, User.username)
+    if effective_city_id:
+        q = q.where(User.city_id == effective_city_id)
+    result = await db.execute(q)
     users = result.scalars().all()
     if not users:
         return []
+    city_result = await db.execute(select(City))
+    city_map = {city.id: city for city in city_result.scalars().all()}
 
     user_ids = [user.id for user in users]
     availability_result = await db.execute(
@@ -167,6 +176,9 @@ async def list_active_users(db: AsyncSession = Depends(get_db)):
             id=user.id,
             username=user.username,
             role=user.role,
+            city_id=user.city_id,
+            city_name=city_map[user.city_id].name if user.city_id in city_map else None,
+            city_slug=city_map[user.city_id].slug if user.city_id in city_map else None,
             is_active=user.is_active,
             email=user.email,
             unavailable_dates=availability_map.get(user.id, []),

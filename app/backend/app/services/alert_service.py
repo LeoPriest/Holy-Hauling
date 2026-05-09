@@ -14,6 +14,7 @@ from app.database import AsyncSessionLocal
 from app.models.lead import Lead, LeadStatus
 from app.models.lead_alert import LeadAlert
 from app.models.lead_event import LeadEvent
+from app.models.city import City, DEFAULT_CITY_ID
 from app.schemas.settings import SettingsOut, TestAlertResult
 
 
@@ -227,7 +228,7 @@ async def _alert_channel(
     await db.commit()
 
 
-async def _process_stale_leads(db: AsyncSession, settings: SettingsOut) -> None:
+async def _process_stale_leads(db: AsyncSession, settings: SettingsOut, city_id: str = DEFAULT_CITY_ID) -> None:
     """Core check logic — accepts a session so tests can inject the test DB."""
     now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
     t1_cutoff = now_naive - timedelta(minutes=settings.t1_minutes)
@@ -237,6 +238,7 @@ async def _process_stale_leads(db: AsyncSession, settings: SettingsOut) -> None:
     result = await db.execute(
         select(Lead).where(
             Lead.status.in_(_ACTIVE_STATUSES),
+            Lead.city_id == city_id,
             Lead.updated_at < t1_cutoff,
         )
     )
@@ -286,7 +288,10 @@ async def check_stale_leads() -> None:
     from app.services import settings_service
     try:
         async with AsyncSessionLocal() as db:
-            settings = await settings_service.get_settings(db)
-            await _process_stale_leads(db, settings)
+            result = await db.execute(select(City).where(City.is_active == True))
+            cities = result.scalars().all()
+            for city in cities:
+                settings = await settings_service.get_settings(db, city.id)
+                await _process_stale_leads(db, settings, city.id)
     except Exception as exc:
         print(f"[alert_scheduler] Error: {exc}")

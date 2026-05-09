@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_role
+from app.dependencies import city_for_create, require_active_city, require_role
 from app.models.app_setting import AppSetting
 from app.models.user import User
 
@@ -167,10 +167,13 @@ def _callback_error_response(exc: Exception, redirect_uri: str) -> tuple[int, st
 @router.get("/connect")
 async def google_connect(
     request: Request,
+    city_id: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
     """Return the Google OAuth consent URL for the admin to open."""
+    resolved_city_id = city_for_create(current_user, city_id)
+    await require_active_city(db, resolved_city_id)
     flow = _make_flow(request)
     auth_url, state = flow.authorization_url(
         access_type="offline",
@@ -179,20 +182,21 @@ async def google_connect(
     )
     result = await db.execute(
         select(AppSetting).where(AppSetting.key.in_([_STATE_KEY, _CODE_VERIFIER_KEY]))
+        .where(AppSetting.city_id == resolved_city_id)
     )
     existing = {row.key: row for row in result.scalars().all()}
     state_row = existing.get(_STATE_KEY)
     if state_row:
         state_row.value = state
     else:
-        db.add(AppSetting(key=_STATE_KEY, value=state))
+        db.add(AppSetting(key=_STATE_KEY, city_id=resolved_city_id, value=state))
 
     if flow.code_verifier:
         verifier_row = existing.get(_CODE_VERIFIER_KEY)
         if verifier_row:
             verifier_row.value = flow.code_verifier
         else:
-            db.add(AppSetting(key=_CODE_VERIFIER_KEY, value=flow.code_verifier))
+            db.add(AppSetting(key=_CODE_VERIFIER_KEY, city_id=resolved_city_id, value=flow.code_verifier))
     await db.commit()
     return {"url": auth_url}
 
@@ -211,11 +215,18 @@ async def google_callback(
     during /connect to prevent CSRF.
     """
     result = await db.execute(
-        select(AppSetting).where(AppSetting.key.in_([_STATE_KEY, _CODE_VERIFIER_KEY]))
+        select(AppSetting).where(AppSetting.key == _STATE_KEY, AppSetting.value == state)
     )
-    existing = {row.key: row for row in result.scalars().all()}
-    state_row = existing.get(_STATE_KEY)
-    code_verifier_row = existing.get(_CODE_VERIFIER_KEY)
+    state_row = result.scalar_one_or_none()
+    code_verifier_row = None
+    if state_row:
+        verifier_result = await db.execute(
+            select(AppSetting).where(
+                AppSetting.key == _CODE_VERIFIER_KEY,
+                AppSetting.city_id == state_row.city_id,
+            )
+        )
+        code_verifier_row = verifier_result.scalar_one_or_none()
     if not state_row or state_row.value != state:
         raise HTTPException(status_code=400, detail="Invalid OAuth state - please try connecting again.")
 
@@ -240,13 +251,13 @@ async def google_callback(
         await db.delete(code_verifier_row)
     await db.commit()
     result = await db.execute(
-        select(AppSetting).where(AppSetting.key == _REFRESH_TOKEN_KEY)
+        select(AppSetting).where(AppSetting.key == _REFRESH_TOKEN_KEY, AppSetting.city_id == state_row.city_id)
     )
     row = result.scalar_one_or_none()
     if row:
         row.value = refresh_token
     else:
-        db.add(AppSetting(key=_REFRESH_TOKEN_KEY, value=refresh_token))
+        db.add(AppSetting(key=_REFRESH_TOKEN_KEY, city_id=state_row.city_id, value=refresh_token))
     await db.commit()
     return {"connected": True, "message": "Google Calendar connected. You can close this tab."}
 
@@ -254,13 +265,16 @@ async def google_callback(
 @router.get("/status")
 async def google_status(
     request: Request,
+    city_id: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
     """Return Google OAuth configuration and connection status."""
     status = google_oauth_config_status()
+    resolved_city_id = city_for_create(current_user, city_id)
+    await require_active_city(db, resolved_city_id)
     result = await db.execute(
-        select(AppSetting).where(AppSetting.key == _REFRESH_TOKEN_KEY)
+        select(AppSetting).where(AppSetting.key == _REFRESH_TOKEN_KEY, AppSetting.city_id == resolved_city_id)
     )
     row = result.scalar_one_or_none()
     connected = bool(status["configured"] and row and row.value)

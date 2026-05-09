@@ -17,12 +17,15 @@ import {
   updateLeadStatus,
   uploadScreenshot,
 } from '../services/api'
+import { useCity } from '../context/CityContext'
 import type { LeadCreate, LeadSourceType, LeadStatus, LeadUpdate, QuoteModifier } from '../types/lead'
 
 export function useLeads(filters?: { status?: LeadStatus; source_type?: LeadSourceType; assigned_to?: string }) {
+  const { cityQueryId } = useCity()
+  const scopedFilters = { ...filters, city_id: cityQueryId }
   return useQuery({
-    queryKey: ['leads', filters],
-    queryFn: () => fetchLeads(filters),
+    queryKey: ['leads', scopedFilters],
+    queryFn: () => fetchLeads(scopedFilters),
     refetchInterval: 30_000,
   })
 }
@@ -37,8 +40,9 @@ export function useLead(id: string) {
 
 export function useCreateLead() {
   const qc = useQueryClient()
+  const { requiredCityId } = useCity()
   return useMutation({
-    mutationFn: (data: LeadCreate) => createLead(data),
+    mutationFn: (data: LeadCreate) => createLead({ ...data, city_id: data.city_id ?? requiredCityId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['leads'] }),
   })
 }
@@ -137,9 +141,10 @@ export function useTriggerExtraction() {
 
 export function useIngestScreenshot() {
   const qc = useQueryClient()
+  const { requiredCityId } = useCity()
   return useMutation({
-    mutationFn: ({ file, sourceType }: { file: File; sourceType: string }) =>
-      ingestScreenshot(file, sourceType),
+    mutationFn: ({ file, sourceType, cityId }: { file: File; sourceType: string; cityId?: string }) =>
+      ingestScreenshot(file, sourceType, cityId ?? requiredCityId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leads'] })
     },

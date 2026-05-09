@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DateOptionsEditor } from '../components/DateOptionsEditor'
+import { useCity } from '../context/CityContext'
 import { useCreateLead, useIngestScreenshot, usePatchLead } from '../hooks/useLeads'
 import type { IngestResult, LeadCreate, LeadSourceType, LeadUpdate, OcrField, ServiceType } from '../types/lead'
 import { mergeDateOptions } from '../utils/dateOptions'
@@ -28,9 +29,11 @@ function parseAllFields(extraction: IngestResult['extraction']): Record<string, 
 }
 
 export function LeadCreate({ onClose }: Props) {
+  const { cities, requiredCityId } = useCity()
   const [mode, setMode] = useState<Mode>('select')
   const [stage, setStage] = useState<ScreenshotStage>('upload')
   const [sourceType, setSourceType] = useState<LeadSourceType>('thumbtack_screenshot')
+  const [selectedCityId, setSelectedCityId] = useState(requiredCityId)
   const [ingestResult, setIngestResult] = useState<IngestResult | null>(null)
   const [ingestError, setIngestError] = useState<string | null>(null)
 
@@ -62,13 +65,17 @@ export function LeadCreate({ onClose }: Props) {
   const { mutate: patchLead, isPending: patching } = usePatchLead()
   const canDismiss = !(mode === 'screenshot' && stage === 'processing') && !creating && !patching
 
+  useEffect(() => {
+    if (!selectedCityId && requiredCityId) setSelectedCityId(requiredCityId)
+  }, [requiredCityId, selectedCityId])
+
   // ── screenshot path ──────────────────────────────────────────────────────
 
   const handleFileSelect = (file: File) => {
     setIngestError(null)
     setStage('processing')
     ingest.mutate(
-      { file, sourceType },
+      { file, sourceType, cityId: selectedCityId || requiredCityId },
       {
         onSuccess: (result) => {
           setIngestResult(result)
@@ -132,7 +139,7 @@ export function LeadCreate({ onClose }: Props) {
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setManualError(null)
-    createLead(form, {
+    createLead({ ...form, city_id: selectedCityId || requiredCityId }, {
       onSuccess: () => onClose(),
       onError: () => setManualError('Failed to create lead. Try again.'),
     })
@@ -160,6 +167,18 @@ export function LeadCreate({ onClose }: Props) {
         </div>
 
         <div className="p-5 overflow-y-auto max-h-[80vh]">
+          {cities.length > 1 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+              <select
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+                value={selectedCityId || requiredCityId}
+                onChange={event => setSelectedCityId(event.target.value)}
+              >
+                {cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* ── mode select ── */}
           {mode === 'select' && (

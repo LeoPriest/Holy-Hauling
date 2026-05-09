@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_auth, require_role
+from app.dependencies import city_for_create, city_scope, require_active_city, require_auth, require_role
 from app.models.user import User
 from app.schemas.settings import (
     NotificationStatusOut,
@@ -20,29 +20,38 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 @router.get("", response_model=SettingsOut)
 async def get_settings(
-    _: User = Depends(require_auth),
+    city_id: str | None = None,
+    current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    return await settings_service.get_settings(db)
+    resolved_city_id = city_for_create(current_user, city_id) if current_user.role == "admin" else city_scope(current_user, city_id)
+    await require_active_city(db, resolved_city_id)
+    return await settings_service.get_settings(db, resolved_city_id)
 
 
 @router.patch("", response_model=SettingsOut)
 async def patch_settings(
     data: SettingsPatch,
-    _: User = Depends(require_role("admin")),
+    city_id: str | None = None,
+    current_user: User = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
     updates = data.model_dump(exclude_unset=True)
-    return await settings_service.patch_settings(db, updates)
+    resolved_city_id = city_for_create(current_user, city_id)
+    await require_active_city(db, resolved_city_id)
+    return await settings_service.patch_settings(db, updates, resolved_city_id)
 
 
 @router.post("/test-alert", response_model=TestAlertResult)
 async def test_alert(
     data: TestAlertRequest,
-    _: User = Depends(require_role("admin")),
+    city_id: str | None = None,
+    current_user: User = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
-    settings = await settings_service.get_settings(db)
+    resolved_city_id = city_for_create(current_user, city_id)
+    await require_active_city(db, resolved_city_id)
+    settings = await settings_service.get_settings(db, resolved_city_id)
     return await alert_service.fire_test_alert(settings, data.channel, data.recipient)
 
 

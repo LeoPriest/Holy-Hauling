@@ -8,7 +8,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_auth, require_role
+from app.dependencies import city_scope, require_auth, require_role
+from app.models.city import City
 from app.models.job_assignment import JobAssignment
 from app.models.lead import Lead, LeadStatus
 from app.models.user import User
@@ -58,12 +59,22 @@ def _quote_modifiers(lead: Lead) -> list[dict] | None:
     return parsed if isinstance(parsed, list) else None
 
 
-async def _to_job_out(db: AsyncSession, lead: Lead, role: str) -> JobOut:
+async def _city_map(db: AsyncSession) -> dict[str, City]:
+    result = await db.execute(select(City))
+    return {city.id: city for city in result.scalars().all()}
+
+
+async def _to_job_out(db: AsyncSession, lead: Lead, role: str, cities: dict[str, City] | None = None) -> JobOut:
     crew = await _get_crew(db, lead.id)
+    cities = cities or await _city_map(db)
+    city = cities.get(lead.city_id)
     date_str = lead.job_date_requested.isoformat() if lead.job_date_requested else None
     show_quote = role in ("admin", "facilitator")
     return JobOut(
         id=lead.id,
+        city_id=lead.city_id,
+        city_name=city.name if city else None,
+        city_slug=city.slug if city else None,
         customer_name=lead.customer_name,
         service_type=lead.service_type.value if lead.service_type is not None else None,
         job_location=lead.job_location,
@@ -88,9 +99,11 @@ async def _to_job_out(db: AsyncSession, lead: Lead, role: str) -> JobOut:
 
 @router.get("", response_model=list[JobOut])
 async def get_jobs(
+    city_id: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
+    effective_city_id = city_scope(current_user, city_id)
     sort_order = (
         Lead.job_date_requested.is_(None),
         Lead.job_date_requested,
@@ -99,20 +112,24 @@ async def get_jobs(
         Lead.created_at,
     )
     if current_user.role in ("supervisor", "admin", "facilitator"):
-        result = await db.execute(
-            select(Lead)
-            .where(Lead.status == LeadStatus.booked)
-            .order_by(*sort_order)
-        )
+        q = select(Lead).where(Lead.status == LeadStatus.booked)
+        if effective_city_id:
+            q = q.where(Lead.city_id == effective_city_id)
+        result = await db.execute(q.order_by(*sort_order))
     else:
         result = await db.execute(
             select(Lead)
             .join(JobAssignment, Lead.id == JobAssignment.lead_id)
-            .where(Lead.status == LeadStatus.booked, JobAssignment.user_id == current_user.id)
+            .where(
+                Lead.status == LeadStatus.booked,
+                JobAssignment.user_id == current_user.id,
+                Lead.city_id == effective_city_id,
+            )
             .order_by(*sort_order)
         )
     leads = result.scalars().all()
-    return [await _to_job_out(db, lead, current_user.role) for lead in leads]
+    cities = await _city_map(db)
+    return [await _to_job_out(db, lead, current_user.role, cities) for lead in leads]
 
 
 @router.patch("/{lead_id}/status", response_model=JobOut)
@@ -122,7 +139,13 @@ async def patch_job_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("supervisor", "admin")),
 ):
-    lead = await lead_service.update_job_status(db, lead_id, data.status, actor=current_user.username)
+    lead = await lead_service.update_job_status(
+        db,
+        lead_id,
+        data.status,
+        actor=current_user.username,
+        city_id=city_scope(current_user),
+    )
     return await _to_job_out(db, lead, current_user.role)
 
 
@@ -135,11 +158,14 @@ async def add_assignment(
 ):
     result = await db.execute(select(Lead).where(Lead.id == lead_id, Lead.status == LeadStatus.booked))
     lead = result.scalar_one_or_none()
-    if lead is None:
+    if lead is None or (current_user.role != "admin" and lead.city_id != current_user.city_id):
         raise HTTPException(status_code=404, detail="Job not found")
     result = await db.execute(select(User).where(User.id == data.user_id))
-    if result.scalar_one_or_none() is None:
+    assignee = result.scalar_one_or_none()
+    if assignee is None:
         raise HTTPException(status_code=404, detail="User not found")
+    if assignee.city_id != lead.city_id:
+        raise HTTPException(status_code=400, detail="Crew member belongs to a different city")
     result = await db.execute(
         select(JobAssignment).where(JobAssignment.lead_id == lead_id, JobAssignment.user_id == data.user_id)
     )
@@ -169,7 +195,7 @@ async def remove_assignment(
     # Verify lead exists before deleting
     lead_result = await db.execute(select(Lead).where(Lead.id == lead_id))
     lead = lead_result.scalar_one_or_none()
-    if lead is None:
+    if lead is None or (current_user.role != "admin" and lead.city_id != current_user.city_id):
         raise HTTPException(status_code=404, detail="Job not found")
     await db.delete(assignment)
     await db.commit()
@@ -185,7 +211,7 @@ async def sync_google_calendar_job(
 ):
     result = await db.execute(select(Lead).where(Lead.id == lead_id, Lead.status == LeadStatus.booked))
     lead = result.scalar_one_or_none()
-    if lead is None:
+    if lead is None or (current_user.role != "admin" and lead.city_id != current_user.city_id):
         raise HTTPException(status_code=404, detail="Job not found")
 
     sync_result = await calendar_service.sync_job_calendar_now(db, lead)
