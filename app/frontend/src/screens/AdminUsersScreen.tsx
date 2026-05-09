@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
@@ -126,10 +127,10 @@ export function AdminUsersScreen() {
   if (isLoading) return <div className="p-8 text-gray-400 dark:text-gray-500">Loading…</div>
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
       <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg">←</button>
+          <button onClick={() => navigate('/admin')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg">←</button>
           <h1 className="font-bold text-gray-900 dark:text-white text-lg">Team</h1>
         </div>
         <div className="flex items-center gap-3">
@@ -312,6 +313,7 @@ export function AdminUsersScreen() {
           </div>
         </div>
       )}
+      <BottomNav />
     </div>
   )
 }

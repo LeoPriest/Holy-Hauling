@@ -7,6 +7,7 @@ import {
   useFinanceTransactions,
   usePatchFinanceTransaction,
 } from '../hooks/useFinances'
+import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import type { FinanceTransaction, FinanceTransactionInput, FinanceTransactionType } from '../types/finance'
@@ -126,10 +127,10 @@ export function AdminFinancesScreen() {
   const inputClass = 'rounded-lg border px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
       <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
+          <button onClick={() => navigate('/admin')} className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
             Back
           </button>
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">Finances</h1>
@@ -265,6 +266,7 @@ export function AdminFinancesScreen() {
           </div>
         </div>
       )}
+      <BottomNav />
     </div>
   )
 }

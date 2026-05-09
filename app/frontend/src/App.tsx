@@ -10,6 +10,7 @@ import { LeadQueue } from './screens/LeadQueue'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { JobsScreen } from './screens/JobsScreen'
 import { AdminUsersScreen } from './screens/AdminUsersScreen'
+import { AdminScreen } from './screens/AdminScreen'
 import { CalendarScreen } from './screens/CalendarScreen'
 import { AdminFinancesScreen } from './screens/AdminFinancesScreen'
 import { AdminCitiesScreen } from './screens/AdminCitiesScreen'
@@ -44,6 +45,7 @@ function AppRoutes() {
       <Route path="/settings" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><SettingsScreen /></RoleGuard></AuthGuard>} />
       <Route path="/jobs" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><JobsScreen /></RoleGuard></AuthGuard>} />
       <Route path="/calendar" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><CalendarScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/admin" element={<AuthGuard><RoleGuard roles={['admin']}><AdminScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/users" element={<AuthGuard><RoleGuard roles={['admin']}><AdminUsersScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/finances" element={<AuthGuard><RoleGuard roles={['admin']}><AdminFinancesScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/cities" element={<AuthGuard><RoleGuard roles={['admin']}><AdminCitiesScreen /></RoleGuard></AuthGuard>} />
