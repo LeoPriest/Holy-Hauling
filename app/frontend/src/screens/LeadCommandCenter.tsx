@@ -2,6 +2,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { AgeIndicator } from '../components/AgeIndicator'
 import { GateIndicator } from '../components/GateIndicator'
+import { ScheduleDateModal } from '../components/ScheduleDateModal'
 import { StatusBadge } from '../components/StatusBadge'
 import { useLead, useLatestAiReview, useUpdateStatus } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
@@ -16,6 +17,7 @@ export function LeadCommandCenter() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('brief')
   const [triggerBookingModal, setTriggerBookingModal] = useState(false)
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
@@ -83,8 +85,16 @@ export function LeadCommandCenter() {
             View in Jobs
           </button>
         )}
+        {lead.status !== 'released' && lead.status !== 'lost' && (
+          <button
+            onClick={() => setShowScheduleModal(true)}
+            className="text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 hover:text-indigo-600 shrink-0 font-medium transition-colors"
+          >
+            Schedule
+          </button>
+        )}
         <button
-          onClick={() => navigate('/calendar')}
+          onClick={() => navigate(lead.job_date_requested ? `/calendar?date=${lead.job_date_requested}` : '/calendar')}
           className="text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 hover:text-indigo-600 shrink-0 font-medium transition-colors"
         >
           Calendar
@@ -145,6 +155,10 @@ export function LeadCommandCenter() {
           />
         )}
       </main>
+
+      {showScheduleModal && (
+        <ScheduleDateModal lead={lead} onClose={() => setShowScheduleModal(false)} />
+      )}
 
     </div>
   )
