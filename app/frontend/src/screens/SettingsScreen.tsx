@@ -6,6 +6,7 @@ import { useMyAvailability, useSaveMyAvailability } from '../hooks/useAvailabili
 import { usePushNotifications } from '../hooks/usePushNotifications'
 import type { SettingsPatch, TestAlertRequest } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
+import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
@@ -184,7 +185,7 @@ export function SettingsScreen() {
     'border dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
       <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-3 bg-white dark:bg-gray-800 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <button
@@ -657,6 +658,7 @@ export function SettingsScreen() {
           </button>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

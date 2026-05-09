@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import { useJobs, useSyncJobCalendar, type Job } from '../hooks/useJobs'
@@ -167,7 +168,7 @@ export function CalendarScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
       <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button
@@ -183,12 +184,6 @@ export function CalendarScreen() {
         </div>
         <div className="flex items-center gap-3">
           {user?.role === 'admin' && <CitySwitcher />}
-          <button
-            onClick={() => navigate('/jobs')}
-            className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium"
-          >
-            Jobs
-          </button>
           <span className="text-xs text-gray-500 dark:text-gray-400">{user?.username}</span>
         </div>
       </header>
@@ -468,6 +463,7 @@ export function CalendarScreen() {
           <div className="text-sm text-gray-400 dark:text-gray-500">Loading calendar...</div>
         )}
       </main>
+      <BottomNav />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AgeIndicator } from '../components/AgeIndicator'
 import { GateIndicator } from '../components/GateIndicator'
@@ -119,23 +119,6 @@ export function LeadCommandCenter() {
         )}
       </header>
 
-      {/* ── Tab bar ──────────────────────────────────────── */}
-      <nav className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex shrink-0">
-        {(['brief', 'quote', 'log'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-3 text-sm font-medium capitalize transition-colors border-b-2 ${
-              tab === t
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </nav>
-
       {/* ── Scrollable panel ─────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
         {tab === 'brief' && (
@@ -155,6 +138,40 @@ export function LeadCommandCenter() {
           />
         )}
       </main>
+
+      {/* ── Bottom tab bar ───────────────────────────────── */}
+      <nav className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex shrink-0">
+        {([
+          { id: 'brief', label: 'Brief', icon: (active: boolean) => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+          )},
+          { id: 'quote', label: 'Quote', icon: (active: boolean) => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          )},
+          { id: 'log', label: 'Log', icon: (active: boolean) => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          )},
+        ] as { id: Tab; label: string; icon: (active: boolean) => React.ReactNode }[]).map(({ id, label, icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 pb-3 transition-colors ${
+              tab === id
+                ? 'text-indigo-600 dark:text-indigo-400'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            {icon(tab === id)}
+            <span className="text-[10px] font-medium leading-none">{label}</span>
+          </button>
+        ))}
+      </nav>
 
       {showScheduleModal && (
         <ScheduleDateModal lead={lead} onClose={() => setShowScheduleModal(false)} />

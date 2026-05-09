@@ -4,6 +4,7 @@ import { buildConfirmationText } from '../utils/confirmationText'
 import { useNavigate } from 'react-router-dom'
 import { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
+import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import {
@@ -922,19 +923,11 @@ export function JobsScreen() {
   const liveSelectedJob = selectedJob ? jobs.find(job => job.id === selectedJob.id) ?? null : null
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">Jobs</h1>
         <div className="flex items-center gap-3">
           {user?.role === 'admin' && <CitySwitcher />}
-          {(user?.role === 'admin' || user?.role === 'facilitator') && (
-            <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" title="Lead Queue">
-              Inbox
-            </button>
-          )}
-          <button onClick={() => navigate('/calendar')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" title="Calendar">
-            Calendar
-          </button>
           <button onClick={() => navigate('/settings')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" title="Settings">
             Settings
           </button>
@@ -1020,6 +1013,7 @@ export function JobsScreen() {
           }}
         />
       )}
+      <BottomNav />
     </div>
   )
 }

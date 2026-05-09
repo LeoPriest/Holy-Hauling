@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BottomNav } from '../components/BottomNav'
 import { LeadCard } from '../components/LeadCard'
 import { IngestProgressFlow } from '../components/IngestProgressFlow'
 import { StaleLeadBanner } from '../components/StaleLeadBanner'
@@ -42,7 +43,7 @@ export function LeadQueue() {
   const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
       <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
         <div>
           <h1 className="font-bold text-gray-900 dark:text-white text-lg leading-tight">Lead Queue</h1>
@@ -51,20 +52,6 @@ export function LeadQueue() {
           )}
         </div>
         <div className="flex items-center justify-end gap-2 flex-wrap">
-          <button
-            onClick={() => navigate('/jobs')}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
-            title="Jobs"
-          >
-            📋
-          </button>
-          <button
-            onClick={() => navigate('/calendar')}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
-            title="Calendar"
-          >
-            📅
-          </button>
           {user?.role === 'admin' && (
             <>
               <CitySwitcher />
@@ -84,13 +71,6 @@ export function LeadQueue() {
               </button>
             </>
           )}
-          <button
-            onClick={() => navigate('/settings')}
-            className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xl px-1"
-            title="Settings"
-          >
-            ⚙
-          </button>
           <button
             onClick={() => setShowManual(true)}
             className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium px-2 py-1"
@@ -226,6 +206,7 @@ export function LeadQueue() {
 
       {showIngest && <IngestProgressFlow onClose={() => setShowIngest(false)} />}
       {showManual && <LeadCreate onClose={() => setShowManual(false)} />}
+      <BottomNav />
     </div>
   )
 }
