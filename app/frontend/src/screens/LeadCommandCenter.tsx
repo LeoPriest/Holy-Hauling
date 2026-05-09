@@ -83,6 +83,12 @@ export function LeadCommandCenter() {
             View in Jobs
           </button>
         )}
+        <button
+          onClick={() => navigate('/calendar')}
+          className="text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 hover:text-indigo-600 shrink-0 font-medium transition-colors"
+        >
+          Calendar
+        </button>
         {(lead.status === 'new' || lead.status === 'in_review') && (
           <button
             onClick={() => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username })}
