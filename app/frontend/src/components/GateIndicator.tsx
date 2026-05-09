@@ -5,6 +5,7 @@ const STEPS = ['Gate 0', 'Gate 1', 'Gate 2A', 'Gate 2B', 'Booked']
 const STATUS_TO_STEP: Partial<Record<LeadStatus, number>> = {
   new: 0,
   in_review: 1,
+  replied: 1,
   waiting_on_customer: 1,
   ready_for_quote: 2,
   ready_for_booking: 3,

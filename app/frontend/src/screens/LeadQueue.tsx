@@ -150,6 +150,7 @@ export function LeadQueue() {
             <option value="">All Statuses</option>
             <option value="new">New</option>
             <option value="in_review">In Review</option>
+            <option value="replied">Replied</option>
             <option value="waiting_on_customer">Waiting</option>
             <option value="ready_for_quote">Ready to Quote</option>
             <option value="ready_for_booking">Ready to Book</option>

@@ -23,6 +23,7 @@ class LeadSourceType(str, enum.Enum):
 class LeadStatus(str, enum.Enum):
     new = "new"
     in_review = "in_review"
+    replied = "replied"
     waiting_on_customer = "waiting_on_customer"
     ready_for_quote = "ready_for_quote"
     ready_for_booking = "ready_for_booking"

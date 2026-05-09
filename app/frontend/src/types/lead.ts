@@ -1,6 +1,7 @@
 export type LeadStatus =
   | 'new'
   | 'in_review'
+  | 'replied'
   | 'waiting_on_customer'
   | 'ready_for_quote'
   | 'ready_for_booking'

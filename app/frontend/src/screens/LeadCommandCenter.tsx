@@ -83,6 +83,15 @@ export function LeadCommandCenter() {
             View in Jobs
           </button>
         )}
+        {(lead.status === 'new' || lead.status === 'in_review') && (
+          <button
+            onClick={() => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username })}
+            disabled={updateStatus.isPending}
+            className="text-xs bg-teal-600 text-white rounded-lg px-3 py-2 hover:bg-teal-700 disabled:opacity-50 shrink-0 font-medium"
+          >
+            Mark Replied
+          </button>
+        )}
         {lead.status !== 'released' && lead.status !== 'lost' && (
           <button
             onClick={() => updateStatus.mutate({ id: id!, status: 'lost', actor: user?.username })}

@@ -250,9 +250,9 @@ async def update_lead(
                 sources[f] = "edited"
         lead.field_sources = json.dumps(sources) if sources else lead.field_sources
 
-        # Valid phone entered on in_review lead → advance to waiting_on_customer
+        # Valid phone entered on in_review or replied lead → advance to waiting_on_customer
         phone_newly_set = "customer_phone" in changed and _is_valid_phone(lead.customer_phone)
-        if phone_newly_set and lead.status == LeadStatus.in_review:
+        if phone_newly_set and lead.status in {LeadStatus.in_review, LeadStatus.replied}:
             lead.status = LeadStatus.waiting_on_customer
             db.add(LeadEvent(
                 id=_id(), lead_id=lead_id,

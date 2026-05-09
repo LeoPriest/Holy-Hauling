@@ -20,6 +20,7 @@ import type { Lead, LeadStatus, OcrField, OcrResult, QuoteModifier } from '../..
 const ALL_STATUSES: LeadStatus[] = [
   'new',
   'in_review',
+  'replied',
   'waiting_on_customer',
   'ready_for_quote',
   'ready_for_booking',
@@ -32,6 +33,7 @@ const ALL_STATUSES: LeadStatus[] = [
 const STATUS_LABELS: Record<LeadStatus, string> = {
   new: 'New',
   in_review: 'In Review',
+  replied: 'Replied',
   waiting_on_customer: 'Waiting',
   ready_for_quote: 'Ready to Quote',
   ready_for_booking: 'Ready to Book',
