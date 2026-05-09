@@ -8,6 +8,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, field_validator, model_validator
 
 from app.models.lead import LeadSourceType, LeadStatus, ServiceType
+from app.schemas.followup import FollowupOut
 
 _SOURCE_LABELS: dict[str, str] = {
     "thumbtack_api":        "Thumbtack API",
@@ -230,6 +231,8 @@ class LeadOut(BaseModel):
     started_at: Optional[datetime] = None
     # Computed — not stored; maps source_type to human-readable label
     source_category_label: str = ""
+    # Injected by router — not a DB column
+    active_followup: Optional[FollowupOut] = None
 
     model_config = {"from_attributes": True}
 

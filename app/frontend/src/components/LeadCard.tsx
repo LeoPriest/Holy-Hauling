@@ -59,10 +59,18 @@ export function LeadCard({ lead, onClick, staleness, idleMinutes }: Props) {
           {lead.job_location && (
             <p className="text-xs text-gray-400 truncate mt-0.5">{lead.job_location}</p>
           )}
-          <div className="flex gap-2 mt-1.5 flex-wrap">
+          <div className="flex gap-2 mt-1.5 flex-wrap items-center">
             <span className="text-xs text-gray-400">Ingested {fmtLocalDateTime(lead.created_at)}</span>
             {lead.acknowledged_at && (
               <span className="text-xs text-gray-400">? Acked {fmtLocalDateTime(lead.acknowledged_at)}</span>
+            )}
+            {lead.active_followup && (
+              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
+                <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {new Date(lead.active_followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
             )}
           </div>
         </div>

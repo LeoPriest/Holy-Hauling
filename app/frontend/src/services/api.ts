@@ -1,4 +1,4 @@
-import type { AiReview, ChatMessage, ChatResponse, IngestResult, Lead, LeadCreate, LeadEvent, LeadStatus, LeadUpdate, OcrResult, QuoteModifier, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
+import type { AiReview, ChatMessage, ChatResponse, FollowupCreate, IngestResult, Lead, LeadCreate, LeadEvent, LeadFollowup, LeadStatus, LeadUpdate, OcrResult, QuoteModifier, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
@@ -312,4 +312,29 @@ export async function saveMyAvailability(weekdays: WeeklyAvailability['weekdays'
   })
   if (!r.ok) throw new Error('Failed to save availability')
   return r.json()
+}
+
+// ── Follow-up ──────────────────────────────────────────────────────────────
+
+export async function fetchFollowup(leadId: string): Promise<LeadFollowup | null> {
+  const r = await apiFetch(`${BASE}/${leadId}/followup`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error('Failed to fetch followup')
+  const data = await r.json()
+  return data ?? null
+}
+
+export async function upsertFollowup(leadId: string, payload: FollowupCreate): Promise<LeadFollowup> {
+  const r = await apiFetch(`${BASE}/${leadId}/followup`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!r.ok) throw new Error('Failed to save followup')
+  return r.json()
+}
+
+export async function cancelFollowup(leadId: string): Promise<void> {
+  const r = await apiFetch(`${BASE}/${leadId}/followup`, { method: 'DELETE' })
+  if (!r.ok && r.status !== 404) throw new Error('Failed to cancel followup')
 }

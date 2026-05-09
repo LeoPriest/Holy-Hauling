@@ -28,6 +28,7 @@ import app.models.ai_review  # noqa: F401
 import app.models.lead_chat_message  # noqa: F401
 import app.models.app_setting   # noqa: F401
 import app.models.lead_alert    # noqa: F401
+import app.models.lead_followup  # noqa: F401
 import app.models.user  # noqa: F401
 import app.models.user_availability  # noqa: F401
 import app.models.user_weekly_availability  # noqa: F401
@@ -460,7 +461,9 @@ async def lifespan(app: FastAPI):
         await _seed_default_admin(conn)
 
     from app.services.alert_service import check_stale_leads
+    from app.services.followup_service import check_due_followups
     _scheduler.add_job(check_stale_leads, "interval", minutes=5, id="check_stale_leads", replace_existing=True)
+    _scheduler.add_job(check_due_followups, "interval", minutes=1, id="check_due_followups", replace_existing=True)
     _scheduler.start()
 
     yield

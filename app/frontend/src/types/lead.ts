@@ -154,6 +154,7 @@ export interface Lead {
   quote_modifiers: QuoteModifier[] | null
   job_address: string | null
   source_category_label: string
+  active_followup?: LeadFollowup | null
   events?: LeadEvent[]
   screenshots?: Screenshot[]
 }
@@ -261,4 +262,19 @@ export interface TestAlertRequest {
 export interface TestAlertResult {
   sent: boolean
   reason?: string | null
+}
+
+export interface LeadFollowup {
+  id: string
+  lead_id: string
+  scheduled_at: string
+  note: string | null
+  fired: boolean
+  created_by: string | null
+  created_at: string
+}
+
+export interface FollowupCreate {
+  scheduled_at: string
+  note?: string | null
 }

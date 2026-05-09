@@ -22,8 +22,9 @@ from app.schemas.lead import (
     ScreenshotOut,
 )
 from app.schemas.ai_review import AiReviewOut
+from app.schemas.followup import FollowupCreate, FollowupOut
 from app.schemas.ocr import OcrApply, OcrResultOut
-from app.services import ai_review_service, lead_service, ocr_service
+from app.services import ai_review_service, followup_service, lead_service, ocr_service
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -39,6 +40,27 @@ async def _attach_city_names(db: AsyncSession, leads):
     return leads
 
 
+async def _attach_followups(db: AsyncSession, leads):
+    from app.models.lead_followup import LeadFollowup as LF
+    rows = leads if isinstance(leads, list) else [leads]
+    lead_ids = [l.id for l in rows]
+    if not lead_ids:
+        return leads
+    fu_result = await db.execute(
+        select(LF).where(LF.lead_id.in_(lead_ids), LF.fired == False)
+    )
+    fu_map = {fu.lead_id: fu for fu in fu_result.scalars().all()}
+    for lead in rows:
+        setattr(lead, "active_followup", fu_map.get(lead.id))
+    return leads
+
+
+async def _enrich(db: AsyncSession, leads):
+    await _attach_city_names(db, leads)
+    await _attach_followups(db, leads)
+    return leads
+
+
 @router.post("", response_model=LeadOut, status_code=201)
 async def create_lead(
     data: LeadCreate,
@@ -48,7 +70,7 @@ async def create_lead(
     data.city_id = city_for_create(current_user, data.city_id)
     await require_active_city(db, data.city_id)
     lead = await lead_service.create_lead(db, data, actor=current_user.username)
-    return await _attach_city_names(db, lead)
+    return await _enrich(db, lead)
 
 
 @router.get("", response_model=list[LeadOut])
@@ -67,7 +89,7 @@ async def list_leads(
         assigned_to=assigned_to,
         city_id=city_scope(current_user, city_id),
     )
-    return await _attach_city_names(db, leads)
+    return await _enrich(db, leads)
 
 
 @router.get("/{lead_id}", response_model=LeadDetailOut)
@@ -77,7 +99,7 @@ async def get_lead(
     db: AsyncSession = Depends(get_db),
 ):
     lead = await lead_service.get_lead(db, lead_id, detailed=True, city_id=city_scope(current_user))
-    return await _attach_city_names(db, lead)
+    return await _enrich(db, lead)
 
 
 @router.delete("/{lead_id}", status_code=204)
@@ -100,7 +122,7 @@ async def update_lead(
 ):
     effective_actor = actor or current_user.username
     lead = await lead_service.update_lead(db, lead_id, data, actor=effective_actor, city_id=city_scope(current_user))
-    return await _attach_city_names(db, lead)
+    return await _enrich(db, lead)
 
 
 @router.patch("/{lead_id}/status", response_model=LeadOut)
@@ -111,7 +133,7 @@ async def update_status(
     db: AsyncSession = Depends(get_db),
 ):
     lead = await lead_service.update_lead_status(db, lead_id, data, city_id=city_scope(current_user))
-    return await _attach_city_names(db, lead)
+    return await _enrich(db, lead)
 
 
 @router.post("/{lead_id}/acknowledge", response_model=LeadOut)
@@ -122,7 +144,7 @@ async def acknowledge_lead(
     db: AsyncSession = Depends(get_db),
 ):
     lead = await lead_service.acknowledge_lead(db, lead_id, actor=actor or current_user.username, city_id=city_scope(current_user))
-    return await _attach_city_names(db, lead)
+    return await _enrich(db, lead)
 
 
 @router.post("/{lead_id}/notes", response_model=LeadEventOut, status_code=201)
@@ -198,7 +220,7 @@ async def apply_extraction_fields(
 ):
     await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))
     lead = await ocr_service.apply_ocr_fields(db, lead_id, screenshot_id, data)
-    return await _attach_city_names(db, lead)
+    return await _enrich(db, lead)
 
 
 # ── AI review ─────────────────────────────────────────────────────────────────
@@ -222,3 +244,43 @@ async def get_latest_ai_review(
 ):
     await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))
     return await ai_review_service.get_latest_review(db, lead_id)
+
+
+# ── Follow-up scheduler ───────────────────────────────────────────────────────
+
+@router.get("/{lead_id}/followup", response_model=FollowupOut | None)
+async def get_followup(
+    lead_id: str,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))
+    return await followup_service.get_active_followup(db, lead_id)
+
+
+@router.put("/{lead_id}/followup", response_model=FollowupOut, status_code=200)
+async def upsert_followup(
+    lead_id: str,
+    payload: FollowupCreate,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))
+    return await followup_service.upsert_followup(
+        db,
+        lead_id=lead_id,
+        scheduled_at=payload.scheduled_at,
+        note=payload.note,
+        created_by=current_user.username,
+    )
+
+
+@router.delete("/{lead_id}/followup", status_code=204)
+async def cancel_followup(
+    lead_id: str,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))
+    await followup_service.cancel_followup(db, lead_id)
+    return Response(status_code=204)

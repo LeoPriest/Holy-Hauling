@@ -1,9 +1,11 @@
 ﻿import React, { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AgeIndicator } from '../components/AgeIndicator'
+import FollowUpModal from '../components/FollowUpModal'
 import { GateIndicator } from '../components/GateIndicator'
 import { ScheduleDateModal } from '../components/ScheduleDateModal'
 import { StatusBadge } from '../components/StatusBadge'
+import { useFollowup } from '../hooks/useFollowup'
 import { useLead, useLatestAiReview, useUpdateStatus } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
 import { BriefPanel } from './panels/BriefPanel'
@@ -18,11 +20,13 @@ export function LeadCommandCenter() {
   const [tab, setTab] = useState<Tab>('brief')
   const [triggerBookingModal, setTriggerBookingModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
   const { data: aiReview } = useLatestAiReview(id!)
   const updateStatus = useUpdateStatus()
+  const { followup, saving: followupSaving, save: saveFollowup, cancel: cancelFollowup } = useFollowup(id!)
 
   if (isLoading) {
     return (
@@ -71,6 +75,17 @@ export function LeadCommandCenter() {
               </span>
             )}
             <AgeIndicator createdAt={lead.created_at} />
+            {followup && (
+              <button
+                onClick={() => setShowFollowUpModal(true)}
+                className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {new Date(followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </button>
+            )}
           </div>
           <div className="mt-1">
             <GateIndicator status={lead.status} />
@@ -93,6 +108,16 @@ export function LeadCommandCenter() {
             Schedule
           </button>
         )}
+        <button
+          onClick={() => setShowFollowUpModal(true)}
+          className={`text-xs rounded-lg px-3 py-2 shrink-0 font-medium transition-colors border ${
+            followup
+              ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700'
+          }`}
+        >
+          Follow Up
+        </button>
         <button
           onClick={() => navigate(lead.job_date_requested ? `/calendar?date=${lead.job_date_requested}` : '/calendar')}
           className="text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 hover:text-indigo-600 shrink-0 font-medium transition-colors"
@@ -175,6 +200,17 @@ export function LeadCommandCenter() {
 
       {showScheduleModal && (
         <ScheduleDateModal lead={lead} onClose={() => setShowScheduleModal(false)} />
+      )}
+
+      {showFollowUpModal && (
+        <FollowUpModal
+          leadId={id!}
+          existing={followup}
+          onSave={(scheduledAt, note) => saveFollowup({ scheduled_at: scheduledAt, note })}
+          onCancel={cancelFollowup}
+          onClose={() => setShowFollowUpModal(false)}
+          saving={followupSaving}
+        />
       )}
 
     </div>
