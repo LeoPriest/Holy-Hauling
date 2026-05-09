@@ -32,8 +32,9 @@ import app.models.user_availability  # noqa: F401
 import app.models.user_weekly_availability  # noqa: F401
 import app.models.push_subscription  # noqa: F401
 import app.models.job_assignment  # noqa: F401
+import app.models.finance  # noqa: F401
 
-from app.routers import admin_google, admin_users, auth as auth_router, chat, ingest, jobs, leads, push, settings as settings_router, users
+from app.routers import admin_google, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, push, settings as settings_router, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "uploads")
@@ -402,6 +403,7 @@ app.include_router(chat.router)
 app.include_router(settings_router.router)
 app.include_router(jobs.router)
 app.include_router(push.router)
+app.include_router(finance.router)
 app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 
 

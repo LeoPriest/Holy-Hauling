@@ -10,6 +10,7 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { JobsScreen } from './screens/JobsScreen'
 import { AdminUsersScreen } from './screens/AdminUsersScreen'
 import { CalendarScreen } from './screens/CalendarScreen'
+import { AdminFinancesScreen } from './screens/AdminFinancesScreen'
 
 const queryClient = new QueryClient()
 
@@ -42,6 +43,7 @@ function AppRoutes() {
       <Route path="/jobs" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><JobsScreen /></RoleGuard></AuthGuard>} />
       <Route path="/calendar" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><CalendarScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/users" element={<AuthGuard><RoleGuard roles={['admin']}><AdminUsersScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/admin/finances" element={<AuthGuard><RoleGuard roles={['admin']}><AdminFinancesScreen /></RoleGuard></AuthGuard>} />
       <Route path="*" element={<Navigate to={user ? defaultPath : '/login'} replace />} />
     </Routes>
   )

@@ -9,6 +9,7 @@ docs/.env
 uploads/
 app/backend/uploads/
 holy_hauling.db
+*.db-journal
 
 # Python
 __pycache__/

@@ -63,13 +63,22 @@ export function LeadQueue() {
             📅
           </button>
           {user?.role === 'admin' && (
-            <button
-              onClick={() => navigate('/admin/users')}
-              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
-              title="Team"
-            >
-              👥
-            </button>
+            <>
+              <button
+                onClick={() => navigate('/admin/finances')}
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
+                title="Finances"
+              >
+                $
+              </button>
+              <button
+                onClick={() => navigate('/admin/users')}
+                className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg px-1"
+                title="Team"
+              >
+                👥
+              </button>
+            </>
           )}
           <button
             onClick={() => navigate('/settings')}
