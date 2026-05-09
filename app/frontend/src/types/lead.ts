@@ -149,8 +149,6 @@ export interface Lead {
   move_type: string | null
   move_date_options: string[] | null
   accept_and_pay: boolean
-  contact_status: 'locked' | 'unlocked'
-  acknowledgment_sent: boolean
   quote_context: string | null
   quoted_price_total: number | null
   quote_modifiers: QuoteModifier[] | null
@@ -199,7 +197,6 @@ export interface LeadUpdate {
   move_size_label?: string | null
   move_type?: string | null
   move_date_options?: string[] | null
-  acknowledgment_sent?: boolean
   quote_context?: string | null
   job_address?: string | null
 }
