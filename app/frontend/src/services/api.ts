@@ -1,5 +1,6 @@
 import type { AiReview, ChatMessage, ChatResponse, FollowupCreate, IngestResult, Lead, LeadCreate, LeadEvent, LeadFollowup, LeadStatus, LeadUpdate, OcrResult, QuoteModifier, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
 import type { AdminMetrics } from '../types/metrics'
+import type { LeadPayment, PaymentRequestCreate } from '../types/payment'
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
@@ -341,6 +342,33 @@ export async function cancelFollowup(leadId: string): Promise<void> {
 }
 
 // ── Admin metrics ──────────────────────────────────────────────────────────
+
+// ── Square payments ────────────────────────────────────────────────────────
+
+export async function fetchPayment(leadId: string): Promise<LeadPayment | null> {
+  const r = await apiFetch(`${BASE}/${leadId}/payment`)
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error('Failed to fetch payment')
+  const data = await r.json()
+  return data ?? null
+}
+
+export async function requestPayment(leadId: string, payload: PaymentRequestCreate = {}): Promise<LeadPayment> {
+  const r = await apiFetch(`${BASE}/${leadId}/payment-request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}))
+    throw new Error((err as { detail?: string }).detail ?? 'Failed to send payment request')
+  }
+  return r.json()
+}
+
+export async function cancelPayment(leadId: string): Promise<void> {
+  await apiFetch(`${BASE}/${leadId}/payment`, { method: 'DELETE' })
+}
 
 export async function fetchAdminMetrics(cityId?: string | null, days = 30): Promise<AdminMetrics> {
   const params = new URLSearchParams({ days: String(days) })

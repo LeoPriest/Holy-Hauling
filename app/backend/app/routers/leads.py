@@ -55,9 +55,33 @@ async def _attach_followups(db: AsyncSession, leads):
     return leads
 
 
+async def _attach_payments(db: AsyncSession, leads):
+    from app.models.lead_payment import LeadPayment as LP
+    rows = leads if isinstance(leads, list) else [leads]
+    lead_ids = [l.id for l in rows]
+    if not lead_ids:
+        return leads
+    # Most recent payment per lead
+    from sqlalchemy import func
+    subq = (
+        select(LP.lead_id, func.max(LP.created_at).label("latest"))
+        .where(LP.lead_id.in_(lead_ids))
+        .group_by(LP.lead_id)
+        .subquery()
+    )
+    pay_result = await db.execute(
+        select(LP).join(subq, (LP.lead_id == subq.c.lead_id) & (LP.created_at == subq.c.latest))
+    )
+    pay_map = {p.lead_id: p for p in pay_result.scalars().all()}
+    for lead in rows:
+        setattr(lead, "active_payment", pay_map.get(lead.id))
+    return leads
+
+
 async def _enrich(db: AsyncSession, leads):
     await _attach_city_names(db, leads)
     await _attach_followups(db, leads)
+    await _attach_payments(db, leads)
     return leads
 
 

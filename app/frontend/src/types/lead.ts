@@ -155,6 +155,7 @@ export interface Lead {
   job_address: string | null
   source_category_label: string
   active_followup?: LeadFollowup | null
+  active_payment?: import('./payment').LeadPayment | null
   events?: LeadEvent[]
   screenshots?: Screenshot[]
 }

@@ -9,6 +9,7 @@ from pydantic import BaseModel, field_validator, model_validator
 
 from app.models.lead import LeadSourceType, LeadStatus, ServiceType
 from app.schemas.followup import FollowupOut
+from app.schemas.payment import PaymentOut
 
 _SOURCE_LABELS: dict[str, str] = {
     "thumbtack_api":        "Thumbtack API",
@@ -231,8 +232,9 @@ class LeadOut(BaseModel):
     started_at: Optional[datetime] = None
     # Computed — not stored; maps source_type to human-readable label
     source_category_label: str = ""
-    # Injected by router — not a DB column
+    # Injected by router — not DB columns
     active_followup: Optional[FollowupOut] = None
+    active_payment: Optional[PaymentOut] = None
 
     model_config = {"from_attributes": True}
 

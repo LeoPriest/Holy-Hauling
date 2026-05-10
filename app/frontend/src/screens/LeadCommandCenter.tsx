@@ -6,6 +6,7 @@ import { GateIndicator } from '../components/GateIndicator'
 import { ScheduleDateModal } from '../components/ScheduleDateModal'
 import { StatusBadge } from '../components/StatusBadge'
 import { useFollowup } from '../hooks/useFollowup'
+import { usePayment } from '../hooks/usePayment'
 import { useLead, useLatestAiReview, useUpdateStatus } from '../hooks/useLeads'
 import { useAuth } from '../context/AuthContext'
 import { BriefPanel } from './panels/BriefPanel'
@@ -61,6 +62,14 @@ function IconXMark() {
   return (
     <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 18 18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+function IconCreditCard() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
     </svg>
   )
 }
@@ -130,6 +139,7 @@ export function LeadCommandCenter() {
   const { data: aiReview } = useLatestAiReview(id!)
   const updateStatus = useUpdateStatus()
   const { followup, saving: followupSaving, save: saveFollowup, cancel: cancelFollowup } = useFollowup(id!)
+  const { payment, saving: paymentSaving, error: paymentError, sendRequest: sendPaymentRequest, cancel: cancelPaymentRequest } = usePayment(id!)
 
   if (isLoading) {
     return (
@@ -160,9 +170,22 @@ export function LeadCommandCenter() {
     ? { label: 'View Jobs', color: 'bg-green-600 hover:bg-green-700 text-white', action: () => navigate('/jobs') }
     : null
 
+  const canRequestPayment = isActive && !!lead.quoted_price_total && (!payment || payment.status === 'failed' || payment.status === 'cancelled')
+  const paymentLabel = payment?.status === 'pending'
+    ? `Resend Payment ($${(payment.amount_cents / 100).toFixed(2)})`
+    : lead.quoted_price_total
+    ? `Request Payment ($${lead.quoted_price_total.toFixed(2)})`
+    : 'Request Payment'
+
   const actionSheetItems: ActionItem[] = [
     ...(isActive ? [{ label: 'Schedule Date', icon: <IconCalendar />, onClick: () => setShowScheduleModal(true) }] : []),
     { label: followup ? 'Edit Follow-Up' : 'Set Follow-Up', icon: <IconClock />, onClick: () => setShowFollowUpModal(true) },
+    ...(canRequestPayment || payment?.status === 'pending' ? [{
+      label: paymentLabel,
+      icon: <IconCreditCard />,
+      onClick: () => sendPaymentRequest(),
+      variant: (payment?.status === 'paid' ? undefined : 'primary') as ActionItem['variant'],
+    }] : []),
     { label: 'View in Calendar', icon: <IconMapPin />, onClick: () => navigate(lead.job_date_requested ? `/calendar?date=${lead.job_date_requested}` : '/calendar') },
     ...(canReply ? [{ label: 'Mark Replied', icon: <IconCheck />, onClick: () => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username }), variant: 'primary' as const }] : []),
     ...(lead.status === 'booked' ? [{ label: 'View in Jobs', icon: <IconBriefcase />, onClick: () => navigate('/jobs') }] : []),
@@ -209,6 +232,20 @@ export function LeadCommandCenter() {
                   {new Date(followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </button>
               )}
+              {payment && payment.status !== 'cancelled' && (
+                <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                  payment.status === 'paid'
+                    ? 'bg-green-100 text-green-700 border-green-200'
+                    : payment.status === 'pending'
+                    ? 'bg-blue-100 text-blue-700 border-blue-200'
+                    : 'bg-gray-100 text-gray-500 border-gray-200'
+                }`}>
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+                  </svg>
+                  {payment.status === 'paid' ? 'Paid' : payment.status === 'pending' ? 'Payment Sent' : payment.status}
+                </span>
+              )}
             </div>
           </div>
 
@@ -240,6 +277,13 @@ export function LeadCommandCenter() {
           <GateIndicator status={lead.status} />
         </div>
       </header>
+
+      {/* Payment error banner */}
+      {paymentError && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2">
+          <p className="text-xs text-red-700">{paymentError}</p>
+        </div>
+      )}
 
       {/* ── Scrollable panel ─────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
