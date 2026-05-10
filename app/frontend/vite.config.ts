@@ -15,6 +15,9 @@ export default defineConfig({
       '/users': 'http://localhost:8000',
       '/push': 'http://localhost:8000',
       '/jobs': 'http://localhost:8000',
+      '/square': 'http://localhost:8000',
+      '/finance': 'http://localhost:8000',
+      '/chat': 'http://localhost:8000',
     },
   },
 })
