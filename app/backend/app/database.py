@@ -3,7 +3,8 @@ import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./holy_hauling.db")
+_default_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "holy_hauling.db")
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{_default_db}")
 
 engine = create_async_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
