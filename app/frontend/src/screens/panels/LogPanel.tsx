@@ -552,7 +552,7 @@ export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpen
 
   return (
     <>
-      <div className="space-y-5 p-4 pb-10">
+      <div className="space-y-5 p-4 pb-24">
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Move to Status</h3>
           <div className="flex flex-wrap gap-2">

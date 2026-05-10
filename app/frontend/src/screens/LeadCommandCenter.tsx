@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AgeIndicator } from '../components/AgeIndicator'
 import FollowUpModal from '../components/FollowUpModal'
@@ -14,6 +14,108 @@ import { QuotePanel } from './panels/QuotePanel'
 
 type Tab = 'brief' | 'quote' | 'log'
 
+// ── Inline SVG icons ───────────────────────────────────────────────────────
+
+function IconCalendar() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+    </svg>
+  )
+}
+
+function IconClock() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+  )
+}
+
+function IconMapPin() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+      <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+    </svg>
+  )
+}
+
+function IconCheck() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  )
+}
+
+function IconBriefcase() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+    </svg>
+  )
+}
+
+function IconXMark() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 18 18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+// ── Action sheet ───────────────────────────────────────────────────────────
+
+interface ActionItem {
+  label: string
+  icon: React.ReactNode
+  onClick: () => void
+  variant?: 'default' | 'primary' | 'destructive'
+}
+
+function ActionSheet({ items, onClose }: { items: ActionItem[]; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl pb-8"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mt-3 mb-3" />
+        <div className="px-4 space-y-0.5">
+          {items.map((item, i) => {
+            const colorClass =
+              item.variant === 'primary'
+                ? 'text-teal-700 dark:text-teal-400'
+                : item.variant === 'destructive'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-800 dark:text-gray-100'
+            const bgClass =
+              item.variant === 'destructive'
+                ? 'hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100'
+                : 'hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600'
+            return (
+              <button
+                key={i}
+                onClick={() => { item.onClick(); onClose() }}
+                className={`flex items-center gap-3 w-full px-3 py-3.5 rounded-xl text-sm font-medium transition-colors ${colorClass} ${bgClass}`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
 export function LeadCommandCenter() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -21,6 +123,7 @@ export function LeadCommandCenter() {
   const [triggerBookingModal, setTriggerBookingModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
+  const [showActionSheet, setShowActionSheet] = useState(false)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
@@ -47,101 +150,95 @@ export function LeadCommandCenter() {
     )
   }
 
+  const isActive = lead.status !== 'released' && lead.status !== 'lost'
+  const canReply = lead.status === 'new' || lead.status === 'in_review'
+
+  // Context-aware primary action shown in the header
+  const primaryAction = canReply
+    ? { label: 'Mark Replied', color: 'bg-teal-600 hover:bg-teal-700 text-white', action: () => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username }) }
+    : lead.status === 'booked'
+    ? { label: 'View Jobs', color: 'bg-green-600 hover:bg-green-700 text-white', action: () => navigate('/jobs') }
+    : null
+
+  const actionSheetItems: ActionItem[] = [
+    ...(isActive ? [{ label: 'Schedule Date', icon: <IconCalendar />, onClick: () => setShowScheduleModal(true) }] : []),
+    { label: followup ? 'Edit Follow-Up' : 'Set Follow-Up', icon: <IconClock />, onClick: () => setShowFollowUpModal(true) },
+    { label: 'View in Calendar', icon: <IconMapPin />, onClick: () => navigate(lead.job_date_requested ? `/calendar?date=${lead.job_date_requested}` : '/calendar') },
+    ...(canReply ? [{ label: 'Mark Replied', icon: <IconCheck />, onClick: () => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username }), variant: 'primary' as const }] : []),
+    ...(lead.status === 'booked' ? [{ label: 'View in Jobs', icon: <IconBriefcase />, onClick: () => navigate('/jobs') }] : []),
+    ...(isActive ? [{ label: 'Mark Released', icon: <IconXMark />, onClick: () => updateStatus.mutate({ id: id!, status: 'lost', actor: user?.username }), variant: 'destructive' as const }] : []),
+  ]
+
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
 
       {/* ── Fixed header ─────────────────────────────────── */}
-      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-start gap-3 flex-wrap shrink-0 z-20">
-        <button
-          onClick={() => navigate('/')}
-          className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xl leading-none shrink-0"
-          aria-label="Back to queue"
-        >
-          ←
-        </button>
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 pt-3 pb-2.5 shrink-0 z-20">
+        <div className="flex items-start gap-3">
 
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold text-gray-900 dark:text-white text-base leading-tight whitespace-normal break-words">
-            {lead.customer_name ?? <span className="italic text-gray-400 font-normal">No name yet</span>}
-          </h1>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <StatusBadge status={lead.status} />
-            {lead.urgency_flag && (
-              <span className="text-xs font-bold text-orange-500 uppercase">Urgent</span>
-            )}
-            {lead.ingested_by && (
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                Ingested by {lead.ingested_by}
-              </span>
-            )}
-            <AgeIndicator createdAt={lead.created_at} />
-            {followup && (
+          {/* Back */}
+          <button
+            onClick={() => navigate('/')}
+            className="mt-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 shrink-0"
+            aria-label="Back to queue"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+
+          {/* Name + badges */}
+          <div className="flex-1 min-w-0">
+            <h1 className="font-semibold text-gray-900 dark:text-white text-base leading-snug">
+              {lead.customer_name ?? <span className="italic text-gray-400 font-normal">No name yet</span>}
+            </h1>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <StatusBadge status={lead.status} />
+              {lead.urgency_flag && (
+                <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">Urgent</span>
+              )}
+              <AgeIndicator createdAt={lead.created_at} />
+              {followup && (
+                <button
+                  onClick={() => setShowFollowUpModal(true)}
+                  className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200"
+                >
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                  {new Date(followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Primary action + overflow menu */}
+          <div className="flex items-center gap-2 shrink-0 mt-0.5">
+            {primaryAction && (
               <button
-                onClick={() => setShowFollowUpModal(true)}
-                className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200"
+                onClick={primaryAction.action}
+                disabled={updateStatus.isPending}
+                className={`text-xs rounded-lg px-3 py-2 font-semibold disabled:opacity-50 transition-colors ${primaryAction.color}`}
               >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {new Date(followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                {primaryAction.label}
               </button>
             )}
-          </div>
-          <div className="mt-1">
-            <GateIndicator status={lead.status} />
+            <button
+              onClick={() => setShowActionSheet(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="More actions"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        {lead.status === 'booked' && (
-          <button
-            onClick={() => navigate('/jobs')}
-            className="text-xs bg-green-600 text-white rounded-lg px-3 py-2 hover:bg-green-700 shrink-0 font-medium"
-          >
-            View in Jobs
-          </button>
-        )}
-        {lead.status !== 'released' && lead.status !== 'lost' && (
-          <button
-            onClick={() => setShowScheduleModal(true)}
-            className="text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 hover:text-indigo-600 shrink-0 font-medium transition-colors"
-          >
-            Schedule
-          </button>
-        )}
-        <button
-          onClick={() => setShowFollowUpModal(true)}
-          className={`text-xs rounded-lg px-3 py-2 shrink-0 font-medium transition-colors border ${
-            followup
-              ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
-              : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700'
-          }`}
-        >
-          Follow Up
-        </button>
-        <button
-          onClick={() => navigate(lead.job_date_requested ? `/calendar?date=${lead.job_date_requested}` : '/calendar')}
-          className="text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-300 hover:text-indigo-600 shrink-0 font-medium transition-colors"
-        >
-          Calendar
-        </button>
-        {(lead.status === 'new' || lead.status === 'in_review') && (
-          <button
-            onClick={() => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username })}
-            disabled={updateStatus.isPending}
-            className="text-xs bg-teal-600 text-white rounded-lg px-3 py-2 hover:bg-teal-700 disabled:opacity-50 shrink-0 font-medium"
-          >
-            Mark Replied
-          </button>
-        )}
-        {lead.status !== 'released' && lead.status !== 'lost' && (
-          <button
-            onClick={() => updateStatus.mutate({ id: id!, status: 'lost', actor: user?.username })}
-            disabled={updateStatus.isPending}
-            className="text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-lg px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 hover:text-red-600 disabled:opacity-50 shrink-0 font-medium transition-colors"
-          >
-            Mark Released
-          </button>
-        )}
+        {/* Gate progress — separate row so it never wraps into the button area */}
+        <div className="mt-2 pl-8">
+          <GateIndicator status={lead.status} />
+        </div>
       </header>
 
       {/* ── Scrollable panel ─────────────────────────────── */}
@@ -189,7 +286,7 @@ export function LeadCommandCenter() {
             className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 pb-3 transition-colors ${
               tab === id
                 ? 'text-indigo-600 dark:text-indigo-400'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200'
             }`}
           >
             {icon(tab === id)}
@@ -198,6 +295,7 @@ export function LeadCommandCenter() {
         ))}
       </nav>
 
+      {/* ── Modals & overlays ─────────────────────────────── */}
       {showScheduleModal && (
         <ScheduleDateModal lead={lead} onClose={() => setShowScheduleModal(false)} />
       )}
@@ -211,6 +309,10 @@ export function LeadCommandCenter() {
           onClose={() => setShowFollowUpModal(false)}
           saving={followupSaving}
         />
+      )}
+
+      {showActionSheet && (
+        <ActionSheet items={actionSheetItems} onClose={() => setShowActionSheet(false)} />
       )}
 
     </div>

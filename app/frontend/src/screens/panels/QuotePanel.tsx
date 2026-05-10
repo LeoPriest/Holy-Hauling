@@ -56,7 +56,7 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
   }
 
   return (
-    <div className="p-4 space-y-5 pb-10">
+    <div className="p-4 space-y-5 pb-24">
 
       {/* ── Scope ──────────────────────────────────────────────────── */}
       <section>

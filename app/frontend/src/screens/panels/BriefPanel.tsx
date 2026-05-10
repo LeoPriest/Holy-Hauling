@@ -431,7 +431,7 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
   }
 
   return (
-    <div className="p-4 space-y-4 pb-10">
+    <div className="p-4 space-y-4 pb-24">
 
       {/* Screenshot thumbnail */}
       {intakeShot && (
