@@ -1,4 +1,5 @@
 import type { AiReview, ChatMessage, ChatResponse, FollowupCreate, IngestResult, Lead, LeadCreate, LeadEvent, LeadFollowup, LeadStatus, LeadUpdate, OcrResult, QuoteModifier, Screenshot, Settings, SettingsPatch, TestAlertRequest, TestAlertResult } from '../types/lead'
+import type { AdminMetrics } from '../types/metrics'
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? ''
 
@@ -337,4 +338,14 @@ export async function upsertFollowup(leadId: string, payload: FollowupCreate): P
 export async function cancelFollowup(leadId: string): Promise<void> {
   const r = await apiFetch(`${BASE}/${leadId}/followup`, { method: 'DELETE' })
   if (!r.ok && r.status !== 404) throw new Error('Failed to cancel followup')
+}
+
+// ── Admin metrics ──────────────────────────────────────────────────────────
+
+export async function fetchAdminMetrics(cityId?: string | null, days = 30): Promise<AdminMetrics> {
+  const params = new URLSearchParams({ days: String(days) })
+  if (cityId) params.set('city_id', cityId)
+  const r = await apiFetch(`/admin/metrics?${params}`)
+  if (!r.ok) throw new Error('Failed to fetch metrics')
+  return r.json()
 }
