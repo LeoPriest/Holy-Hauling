@@ -1,0 +1,10 @@
+.env
+*.env
+holy_hauling.db
+*.db-journal
+__pycache__
+*.pyc
+.pytest_cache
+.pytest-temp*
+tests/
+uploads/
