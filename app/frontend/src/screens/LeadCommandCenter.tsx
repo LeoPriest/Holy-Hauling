@@ -133,6 +133,7 @@ export function LeadCommandCenter() {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
   const [showActionSheet, setShowActionSheet] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
@@ -233,18 +234,27 @@ export function LeadCommandCenter() {
                 </button>
               )}
               {payment && payment.status !== 'cancelled' && (
-                <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                  payment.status === 'paid'
-                    ? 'bg-green-100 text-green-700 border-green-200'
-                    : payment.status === 'pending'
-                    ? 'bg-blue-100 text-blue-700 border-blue-200'
-                    : 'bg-gray-100 text-gray-500 border-gray-200'
-                }`}>
+                <button
+                  onClick={() => {
+                    if (payment.payment_link_url && payment.status === 'pending') {
+                      navigator.clipboard.writeText(payment.payment_link_url)
+                      setLinkCopied(true)
+                      setTimeout(() => setLinkCopied(false), 2500)
+                    }
+                  }}
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    payment.status === 'paid'
+                      ? 'bg-green-100 text-green-700 border-green-200'
+                      : payment.status === 'pending'
+                      ? 'bg-blue-100 text-blue-700 border-blue-200 active:bg-blue-200'
+                      : 'bg-gray-100 text-gray-500 border-gray-200'
+                  }`}
+                >
                   <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
                   </svg>
-                  {payment.status === 'paid' ? 'Paid' : payment.status === 'pending' ? 'Payment Sent' : payment.status}
-                </span>
+                  {linkCopied ? 'Copied!' : payment.status === 'paid' ? 'Paid' : payment.status === 'pending' ? 'Copy Link' : payment.status}
+                </button>
               )}
             </div>
           </div>
