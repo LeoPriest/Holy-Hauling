@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import smtplib
 import uuid
@@ -102,13 +103,18 @@ def _send_email_smtp(to: str, subject: str, body: str) -> Optional[str]:
         msg["Subject"] = subject
         msg["From"] = from_addr
         msg["To"] = to
-        with smtplib.SMTP(host, 587) as server:
+        with smtplib.SMTP(host, 587, timeout=15) as server:
             server.starttls()
             server.login(user, password)
             server.send_message(msg)
         return None
     except Exception as exc:
         return str(exc)
+
+
+async def _send_email_async(to: str, subject: str, body: str) -> Optional[str]:
+    """Non-blocking wrapper — runs SMTP/Resend in a thread so the event loop stays free."""
+    return await asyncio.to_thread(_send_email, to, subject, body)
 
 
 def twilio_status() -> dict[str, object]:
@@ -169,7 +175,7 @@ async def fire_test_alert(
     if channel == "sms":
         err = _send_sms(sms_to, "Holy Hauling test alert — SMS notifications are working correctly.")
     else:
-        err = _send_email(
+        err = await _send_email_async(
             email_to,
             "[Holy Hauling] Test alert",
             "This is a test alert from Holy Hauling. Email notifications are working correctly.",
@@ -244,7 +250,7 @@ async def _alert_channel(
     if channel == "sms":
         err = _send_sms(to, msg)
     else:
-        err = _send_email(to, subject, msg)
+        err = await _send_email_async(to, subject, msg)
     if err:
         return  # transient failure — don't write a dedup record; retry next tick
 
