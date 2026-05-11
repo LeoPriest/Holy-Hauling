@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Explicit path so the .env is found regardless of working directory
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=True)
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
