@@ -37,6 +37,13 @@ def _is_quiet_now(settings: SettingsOut) -> bool:
 
 # ── send helpers ─────────────────────────────────────────────────────────────
 
+def _normalize_phone(phone: str) -> str:
+    digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) == 10:
+        digits = "1" + digits
+    return f"+{digits}" if not phone.startswith("+") else phone
+
+
 def _send_sms(to: str, body: str) -> Optional[str]:
     """Send via Twilio. Returns error string on failure, None on success."""
     sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
@@ -48,7 +55,7 @@ def _send_sms(to: str, body: str) -> Optional[str]:
         return "No recipient phone number configured"
     try:
         from twilio.rest import Client  # lazy — optional dep
-        Client(sid, token).messages.create(body=body, from_=from_num, to=to)
+        Client(sid, token).messages.create(body=body, from_=from_num, to=_normalize_phone(to))
         return None
     except ImportError:
         return "twilio package not installed (pip install twilio)"

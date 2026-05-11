@@ -264,8 +264,16 @@ async def request_payment(
     return payment
 
 
+def _normalize_phone(phone: str) -> str:
+    digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) == 10:
+        digits = "1" + digits
+    return f"+{digits}" if not phone.startswith("+") else phone
+
+
 def _send_payment_sms(phone: str, url: str, amount_cents: int, name: Optional[str]) -> None:
     from app.services.alert_service import _send_sms
+    normalized = _normalize_phone(phone)
     dollars = amount_cents / 100
     greeting = f"Hi {name}," if name else "Hi,"
     msg = (
@@ -273,6 +281,6 @@ def _send_payment_sms(phone: str, url: str, amount_cents: int, name: Optional[st
         f"Total: ${dollars:,.2f}. "
         f"Click here to pay securely: {url}"
     )
-    err = _send_sms(phone, msg)
+    err = _send_sms(normalized, msg)
     if err:
-        logger.warning("Payment SMS failed: %s", err)
+        logger.error("Payment SMS failed to %s: %s", normalized, err)
