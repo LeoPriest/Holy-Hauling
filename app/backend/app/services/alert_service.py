@@ -64,15 +64,39 @@ def _send_sms(to: str, body: str) -> Optional[str]:
 
 
 def _send_email(to: str, subject: str, body: str) -> Optional[str]:
-    """Send via SMTP. Returns error string on failure, None on success."""
+    """Send via Resend (if RESEND_API_KEY set) or SMTP fallback."""
+    if not to:
+        return "No recipient email address configured"
+    resend_key = os.environ.get("RESEND_API_KEY", "")
+    if resend_key:
+        return _send_email_resend(to, subject, body, resend_key)
+    return _send_email_smtp(to, subject, body)
+
+
+def _send_email_resend(to: str, subject: str, body: str, api_key: str) -> Optional[str]:
+    from_addr = os.environ.get("RESEND_FROM", "Holy Hauling <notifications@holyhauling.com>")
+    try:
+        import httpx
+        r = httpx.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"from": from_addr, "to": [to], "subject": subject, "text": body},
+            timeout=10,
+        )
+        if r.status_code >= 400:
+            return f"Resend error {r.status_code}: {r.text}"
+        return None
+    except Exception as exc:
+        return str(exc)
+
+
+def _send_email_smtp(to: str, subject: str, body: str) -> Optional[str]:
     host = os.environ.get("SMTP_HOST", "")
     user = os.environ.get("SMTP_USER", "")
     password = os.environ.get("SMTP_PASS", "")
     from_addr = os.environ.get("SMTP_FROM", "")
     if not all([host, user, password, from_addr]):
         return "SMTP credentials not configured"
-    if not to:
-        return "No recipient email address configured"
     try:
         msg = MIMEText(body)
         msg["Subject"] = subject
