@@ -36,6 +36,7 @@ import app.models.user_weekly_availability  # noqa: F401
 import app.models.push_subscription  # noqa: F401
 import app.models.job_assignment  # noqa: F401
 import app.models.finance  # noqa: F401
+import app.models.truck_rental  # noqa: F401
 
 from app.models.city import DEFAULT_CITIES, DEFAULT_CITY_ID
 from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, push, settings as settings_router, square_router, users
@@ -43,6 +44,7 @@ from app.routers import admin_cities, admin_google, admin_metrics, admin_users, 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "uploads")
 os.makedirs(os.path.join(_UPLOADS_DIR, "screenshots"), exist_ok=True)
+os.makedirs(os.path.join(_UPLOADS_DIR, "receipts"), exist_ok=True)
 
 
 def _existing_columns(rows) -> set[str]:
