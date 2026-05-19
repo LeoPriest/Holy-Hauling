@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { LeadCard } from '../components/LeadCard'
@@ -41,7 +41,7 @@ export function LeadQueue() {
   const { user } = useAuth()
   const { isAllCities } = useCity()
   const { data: rentals = [] } = useRentals()
-  const rentalLeadIds = new Set(rentals.map(r => r.lead_id))
+  const rentalLeadIds = useMemo(() => new Set(rentals.map(r => r.lead_id)), [rentals])
 
   const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
