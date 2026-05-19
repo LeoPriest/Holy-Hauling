@@ -118,4 +118,4 @@ class Lead(Base):
         lazy="select",
         cascade="all, delete-orphan",
     )
-    pay_records = relationship("PayRecord", back_populates="lead", cascade="all, delete-orphan")
+    pay_records = relationship("PayRecord", back_populates="lead", cascade="all, delete-orphan", lazy="select")

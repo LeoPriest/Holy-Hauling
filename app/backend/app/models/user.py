@@ -33,4 +33,4 @@ class User(Base):
     weekly_availability_entries = relationship(
         "UserWeeklyAvailability", back_populates="user", cascade="all, delete-orphan", lazy="select"
     )
-    pay_records = relationship("PayRecord", back_populates="user", cascade="all, delete-orphan")
+    pay_records = relationship("PayRecord", back_populates="user", cascade="all, delete-orphan", lazy="select")
