@@ -13,13 +13,16 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.dependencies import city_scope, require_auth, require_role
 from app.models.lead import Lead
-from app.models.truck_rental import TruckRental
+from app.models.truck_rental import TruckRental, TruckRentalStatus
 from app.models.user import User
 from app.schemas.truck_rental import TruckRentalOut, TruckRentalUpsert
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOAD_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "..", "..", "uploads")
 RECEIPTS_DIR = os.path.join(_UPLOAD_DIR, "receipts")
+
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".pdf", ".webp"}
+MAX_RECEIPT_BYTES = 10 * 1024 * 1024  # 10 MB
 
 router = APIRouter(tags=["truck-rental"])
 
@@ -33,11 +36,20 @@ async def _get_lead_or_404(db: AsyncSession, lead_id: str) -> Lead:
 
 
 async def _get_rental_or_404(db: AsyncSession, lead_id: str) -> TruckRental:
-    result = await db.execute(select(TruckRental).where(TruckRental.lead_id == lead_id))
+    result = await db.execute(
+        select(TruckRental)
+        .options(selectinload(TruckRental.lead))
+        .where(TruckRental.lead_id == lead_id)
+    )
     rental = result.scalar_one_or_none()
     if rental is None:
         raise HTTPException(status_code=404, detail="No truck rental for this lead")
     return rental
+
+
+def _receipt_disk_path(receipt_url: str) -> Path:
+    """Resolve the absolute disk path for a stored receipt_url."""
+    return Path(RECEIPTS_DIR) / Path(receipt_url).name
 
 
 def _rental_out(rental: TruckRental) -> TruckRentalOut:
@@ -111,8 +123,7 @@ async def delete_rental(
     rental = await _get_rental_or_404(db, lead_id)
     # Delete receipt file if present
     if rental.receipt_url:
-        receipt_path = Path(RECEIPTS_DIR).parent / rental.receipt_url
-        receipt_path.unlink(missing_ok=True)
+        _receipt_disk_path(rental.receipt_url).unlink(missing_ok=True)
     await db.delete(rental)
     await db.commit()
     return {"deleted": True}
@@ -135,13 +146,14 @@ async def upload_receipt(
         raise HTTPException(status_code=404, detail="No truck rental for this lead")
     # Delete old receipt if present
     if rental.receipt_url:
-        old_path = Path(RECEIPTS_DIR).parent / rental.receipt_url
-        old_path.unlink(missing_ok=True)
-    ext = Path(file.filename or "receipt").suffix or ".jpg"
+        _receipt_disk_path(rental.receipt_url).unlink(missing_ok=True)
+    raw_ext = Path(file.filename or "").suffix.lower()
+    ext = raw_ext if raw_ext in ALLOWED_EXTENSIONS else ".jpg"
     filename = f"{uuid.uuid4()}{ext}"
     dest = Path(RECEIPTS_DIR) / filename
-    os.makedirs(RECEIPTS_DIR, exist_ok=True)
-    content = await file.read()
+    content = await file.read(MAX_RECEIPT_BYTES + 1)
+    if len(content) > MAX_RECEIPT_BYTES:
+        raise HTTPException(status_code=413, detail="Receipt file too large (max 10 MB)")
     dest.write_bytes(content)
     rental.receipt_url = f"receipts/{filename}"
     rental.updated_at = datetime.now(timezone.utc)
@@ -171,8 +183,7 @@ async def delete_receipt(
     if rental is None:
         raise HTTPException(status_code=404, detail="No truck rental for this lead")
     if rental.receipt_url:
-        receipt_path = Path(RECEIPTS_DIR).parent / rental.receipt_url
-        receipt_path.unlink(missing_ok=True)
+        _receipt_disk_path(rental.receipt_url).unlink(missing_ok=True)
         rental.receipt_url = None
         rental.updated_at = datetime.now(timezone.utc)
         await db.commit()
@@ -198,7 +209,6 @@ async def list_rentals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin")),
 ):
-    from app.models.truck_rental import TruckRentalStatus
     effective_city_id = city_scope(current_user, city_id)
     stmt = (
         select(TruckRental)
