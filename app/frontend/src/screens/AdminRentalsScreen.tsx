@@ -30,9 +30,10 @@ export function AdminRentalsScreen() {
   })
 
   const upcomingCount = rentals.filter(r => r.status === 'reserved' || r.status === 'confirmed').length
-  const totalCostCents = rentals
-    .filter(r => r.rental_cost_cents !== null)
-    .reduce((sum, r) => sum + (r.rental_cost_cents ?? 0), 0)
+  const rentalsWithCost = rentals.filter(
+    (r): r is typeof r & { rental_cost_cents: number } => r.rental_cost_cents !== null
+  )
+  const totalCostCents = rentalsWithCost.reduce((sum, r) => sum + r.rental_cost_cents, 0)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
@@ -60,7 +61,7 @@ export function AdminRentalsScreen() {
         </div>
         <div className="rounded-xl border bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
           <p className="text-xs text-gray-500 dark:text-gray-400">Total cost</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{centsToDisplay(totalCostCents || null)}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{centsToDisplay(rentalsWithCost.length === 0 ? null : totalCostCents)}</p>
         </div>
       </div>
 
