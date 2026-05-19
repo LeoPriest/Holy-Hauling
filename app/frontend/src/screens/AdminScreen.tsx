@@ -35,6 +35,17 @@ const CARDS = [
     ),
   },
   {
+    path: '/admin/rentals',
+    label: 'Rentals',
+    description: 'Truck rental bookings and costs',
+    color: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+        <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M8.25 18.75H16.5M3.375 18.75H2.25m2.625-9.75H14.25" />
+      </svg>
+    ),
+  },
+  {
     path: '/admin/users',
     label: 'Team',
     description: 'Users, roles, and access control',
