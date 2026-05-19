@@ -39,7 +39,7 @@ import app.models.finance  # noqa: F401
 import app.models.truck_rental  # noqa: F401
 
 from app.models.city import DEFAULT_CITIES, DEFAULT_CITY_ID
-from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, push, settings as settings_router, square_router, users
+from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, push, settings as settings_router, square_router, truck_rental, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "uploads")
@@ -499,6 +499,7 @@ app.include_router(push.router)
 app.include_router(finance.router)
 app.include_router(admin_metrics.router)
 app.include_router(square_router.router)
+app.include_router(truck_rental.router)
 app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 
 
