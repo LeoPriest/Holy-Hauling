@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { DateOptionsEditor } from '../../components/DateOptionsEditor'
 import { DurationWheelInput } from '../../components/DurationWheelInput'
+import { TruckRentalSection } from '../../components/TruckRentalSection'
 import { buildUploadUrl } from '../../services/api'
 import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
 import { useUsers } from '../../hooks/useUsers'
@@ -723,6 +724,8 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
           </p>
         </div>
       )}
+
+      <TruckRentalSection lead={lead} />
 
     </div>
   )
