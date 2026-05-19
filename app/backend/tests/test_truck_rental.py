@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 
 
 async def _create_lead(client, customer_name: str = "Jane Doe") -> str:
@@ -68,6 +69,7 @@ async def test_upsert_updates_existing_rental(client):
     assert data["status"] == "confirmed"
     assert data["truck_size"] == "26ft"
     assert data["confirmation_number"] == "CONFIRMED-456"
+    assert data["rental_cost_cents"] is None
 
 
 async def test_get_rental_after_upsert(client):
@@ -185,7 +187,7 @@ async def test_admin_rentals_filter_by_status(client):
 # Receipt endpoints
 # ---------------------------------------------------------------------------
 
-async def test_delete_receipt_when_no_receipt_is_noop(client):
+async def test_delete_receipt_when_receipt_not_set_returns_rental_unchanged(client):
     lead_id = await _create_lead(client)
     await client.post(f"/leads/{lead_id}/rental", json={"status": "reserved"})
 
@@ -210,6 +212,7 @@ async def test_receipt_upload_and_delete(client, tmp_path, monkeypatch):
     data = r.json()
     assert data["receipt_url"] is not None
     assert data["receipt_url"].startswith("receipts/")
+    assert (tmp_path / Path(data["receipt_url"]).name).exists()
 
     r = await client.delete(f"/leads/{lead_id}/rental/receipt")
     assert r.status_code == 200
