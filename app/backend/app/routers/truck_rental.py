@@ -207,7 +207,7 @@ async def list_rentals(
     status: str | None = None,
     city_id: str | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_role("admin", "facilitator")),
 ):
     effective_city_id = city_scope(current_user, city_id)
     stmt = (
