@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { buildUploadUrl } from '../services/api'
 import {
   useDeleteReceipt,
@@ -79,6 +79,14 @@ export function TruckRentalSection({ lead }: Props) {
   const [costInput, setCostInput] = useState('')
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setEditing(false)
+    setConfirmDelete(false)
+    setForm(EMPTY_FORM)
+    setCostInput('')
+    setError('')
+  }, [lead.id])
 
   const canBook = !!(lead.job_origin || lead.job_destination || lead.job_date_requested)
 
@@ -174,6 +182,7 @@ export function TruckRentalSection({ lead }: Props) {
     <div className="border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700">
       {/* Header */}
       <button
+        aria-expanded={expanded}
         className="w-full flex items-center justify-between px-4 py-3 text-left"
         onClick={() => setExpanded(v => !v)}
       >
@@ -271,9 +280,10 @@ export function TruckRentalSection({ lead }: Props) {
                   </a>
                   <button
                     onClick={handleDeleteReceipt}
-                    className="text-xs text-red-500 hover:underline"
+                    disabled={deleteReceipt.isPending}
+                    className="text-xs text-red-500 hover:underline disabled:opacity-50"
                   >
-                    Remove
+                    {deleteReceipt.isPending ? 'Removing...' : 'Remove'}
                   </button>
                 </div>
               ) : (
@@ -281,9 +291,10 @@ export function TruckRentalSection({ lead }: Props) {
                   <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleReceiptUpload} />
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="text-sm text-gray-500 hover:text-gray-700 underline dark:text-gray-400"
+                    disabled={uploadReceipt.isPending}
+                    className="text-sm text-gray-500 hover:text-gray-700 underline dark:text-gray-400 disabled:opacity-50"
                   >
-                    Upload receipt
+                    {uploadReceipt.isPending ? 'Uploading...' : 'Upload receipt'}
                   </button>
                 </div>
               )}
@@ -348,6 +359,9 @@ export function TruckRentalSection({ lead }: Props) {
                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400">One-way</label>
                 <button
                   type="button"
+                  role="switch"
+                  aria-checked={form.one_way}
+                  aria-label="One-way rental"
                   onClick={() => setForm(f => ({ ...f, one_way: !f.one_way }))}
                   className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors ${form.one_way ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-600'}`}
                 >
@@ -447,7 +461,7 @@ export function TruckRentalSection({ lead }: Props) {
                   {upsert.isPending ? 'Saving...' : 'Save'}
                 </button>
                 <button
-                  onClick={() => { setEditing(false); setError('') }}
+                  onClick={() => { setEditing(false); setConfirmDelete(false); setError('') }}
                   className="rounded-lg border px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 >
                   Cancel
