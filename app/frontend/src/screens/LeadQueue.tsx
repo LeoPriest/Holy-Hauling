@@ -8,6 +8,7 @@ import { useLeads } from '../hooks/useLeads'
 import { useSettings } from '../hooks/useSettings'
 import { useStaleLeads } from '../hooks/useStaleLeads'
 import { useUsers } from '../hooks/useUsers'
+import { useRentals } from '../hooks/useTruckRental'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
@@ -39,6 +40,8 @@ export function LeadQueue() {
   const { data: teamMembers = [] } = useUsers()
   const { user } = useAuth()
   const { isAllCities } = useCity()
+  const { data: rentals = [] } = useRentals()
+  const rentalLeadIds = new Set(rentals.map(r => r.lead_id))
 
   const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
 
@@ -181,6 +184,7 @@ export function LeadQueue() {
               onClick={id => navigate(`/leads/${id}`)}
               staleness={t2Ids.has(lead.id) ? 't2' : t1Ids.has(lead.id) ? 't1' : null}
               idleMinutes={idleMinuteMap.get(lead.id)}
+              hasTruckRental={rentalLeadIds.has(lead.id)}
             />
           </div>
         ))}
