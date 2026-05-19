@@ -10,7 +10,7 @@ export function useTruckRental(leadId: string) {
     queryKey: ['truck-rental', leadId],
     queryFn: async () => {
       const r = await apiFetch(`/leads/${leadId}/rental`)
-      if (r.status === 404) return null
+      if (r.status === 404) { await r.text().catch(() => {}); return null }
       if (!r.ok) throw new Error('Failed to fetch truck rental')
       return r.json()
     },

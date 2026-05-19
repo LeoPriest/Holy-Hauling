@@ -6,7 +6,7 @@ export interface TruckRental {
   lead_id: string
   status: TruckRentalStatus
   confirmation_number: string | null
-  truck_size: string | null
+  truck_size: TruckSize | null
   pickup_location: string | null
   pickup_datetime: string | null
   dropoff_datetime: string | null
@@ -25,7 +25,7 @@ export interface TruckRental {
 export interface TruckRentalInput {
   status: TruckRentalStatus
   confirmation_number: string | null
-  truck_size: string | null
+  truck_size: TruckSize | null
   pickup_location: string | null
   pickup_datetime: string | null
   dropoff_datetime: string | null
