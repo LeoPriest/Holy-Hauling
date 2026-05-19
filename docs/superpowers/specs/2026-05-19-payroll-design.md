@@ -158,6 +158,30 @@ A `$/hr` input added to the user create/edit form. Nullable — left blank means
 
 ---
 
+## UX Requirements (from experience audit)
+
+These gaps were identified by walking through every user-facing step before planning. All must be implemented.
+
+1. **Quote save error** — inline error if save fails; field reverts to prior value.
+2. **Clear quote warning** — warn user that clearing `quote_cents` will invalidate any existing facilitator pay records for this job.
+3. **Hourly rate label** — contextual note in the user form explaining the field applies to crew hourly pay.
+4. **Clear rate warning** — warn admin that clearing `hourly_rate_cents` will prevent future hourly pay entries for this user.
+5. **PayrollSection loading state** — skeleton or spinner while pay records fetch.
+6. **Empty crew dropdown** — if no users are assigned to the job, show "Assign crew to this job first" instead of a blank select.
+7. **Disable facilitator_pct when quote is null** — client-side: grey out or hide `facilitator_pct` option if `lead.quote_cents` is not set; show tooltip explaining why.
+8. **Hourly rate not set error** — inline error on form when user selects hourly but their `hourly_rate_cents` is null; direct them to set it in user settings.
+9. **In-progress states** — all save and delete buttons disable and show "Saving…" / "Deleting…" while mutation is in flight.
+10. **Form error display** — show inline error message on save failure.
+11. **Delete error display** — show inline error if delete fails; record remains.
+12. **Edit vs Add label** — if a pay record already exists for the selected user, form title and button read "Edit Pay Record" not "Add Pay Record".
+13. **Switch pay type clears sibling field** — switching from `hourly` to `flat` clears `hours_worked`; switching from `flat` to `hourly` clears `override_amount_cents`.
+14. **AdminPayrollScreen loading state** — skeleton or spinner while aggregation fetches.
+15. **AdminPayrollScreen empty state** — "No pay records found for this period" when result is empty.
+16. **Date range validation** — client-side: `date_from` must be ≤ `date_to`; show inline error if not.
+17. **Null job date handling (server)** — leads with null `job_date_requested` are excluded from date-filtered results; included when no date filter is applied.
+
+---
+
 ## Testing
 
 **Backend (`tests/test_payroll.py`):**
