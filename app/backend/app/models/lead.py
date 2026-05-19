@@ -78,6 +78,7 @@ class Lead(Base):
     # Facilitator-entered supplemental notes fed into AI review for quoting accuracy
     quote_context = Column(Text, nullable=True)
     quoted_price_total = Column(Float, nullable=True)
+    quote_cents = Column(Integer, nullable=True)
     quote_modifiers = Column(Text, nullable=True)
 
     # Confirmed physical address — entered when job is booked; triggers status → booked
@@ -117,3 +118,4 @@ class Lead(Base):
         lazy="select",
         cascade="all, delete-orphan",
     )
+    pay_records = relationship("PayRecord", back_populates="lead", cascade="all, delete-orphan")

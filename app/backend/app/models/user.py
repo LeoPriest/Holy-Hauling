@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -22,6 +22,7 @@ class User(Base):
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     created_by = Column(String, nullable=True)  # user_id of admin who created this user
     email = Column(String, nullable=True)
+    hourly_rate_cents = Column(Integer, nullable=True)
 
     push_subscriptions = relationship(
         "PushSubscription", back_populates="user", cascade="all, delete-orphan", lazy="select"
@@ -32,3 +33,4 @@ class User(Base):
     weekly_availability_entries = relationship(
         "UserWeeklyAvailability", back_populates="user", cascade="all, delete-orphan", lazy="select"
     )
+    pay_records = relationship("PayRecord", back_populates="user", cascade="all, delete-orphan")
