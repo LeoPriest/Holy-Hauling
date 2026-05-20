@@ -8,6 +8,9 @@ import { useCity } from '../context/CityContext'
 import { useJobs, useSyncJobCalendar, type Job } from '../hooks/useJobs'
 import { apiFetch } from '../services/api'
 import { fmtDurationMinutes, fmtTimeSlot } from '../utils/time'
+import { useRecurringExpenses } from '../hooks/useRecurringExpenses'
+import { centsToDisplay } from '../types/recurringExpense'
+import type { RecurringExpense } from '../types/recurringExpense'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -106,6 +109,18 @@ export function CalendarScreen() {
     },
     enabled: user?.role === 'admin' && Boolean(requiredCityId),
   })
+
+  const { data: recurringExpenses = [] } = useRecurringExpenses()
+
+  const recurringByDay = user?.role === 'admin'
+    ? recurringExpenses.reduce<Record<string, RecurringExpense[]>>((acc, exp) => {
+        if (!exp.next_due_date) return acc
+        acc[exp.next_due_date] = [...(acc[exp.next_due_date] ?? []), exp]
+        return acc
+      }, {})
+    : {}
+
+  const selectedRecurring = recurringByDay[selectedDay] ?? []
 
   const jobsByDay = jobs.reduce<Record<string, Job[]>>((acc, job) => {
     if (!job.job_date_requested) return acc
@@ -305,6 +320,9 @@ export function CalendarScreen() {
                         +{dayJobs.length - 3} more
                       </p>
                     )}
+                    {(recurringByDay[key] ?? []).length > 0 && (
+                      <span className="h-1 w-1 rounded-full bg-purple-400" aria-hidden="true" />
+                    )}
                   </div>
                 </button>
               )
@@ -329,10 +347,21 @@ export function CalendarScreen() {
               )}
             </div>
 
-            {selectedJobs.length === 0 ? (
+            {selectedJobs.length === 0 && selectedRecurring.length === 0 ? (
               <p className="text-sm text-gray-400 dark:text-gray-500">No confirmed jobs on this date.</p>
             ) : (
               <div className="space-y-3">
+                {selectedRecurring.map(exp => (
+                  <div key={exp.id} className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-purple-600 dark:text-purple-300 text-sm" aria-hidden="true">$</span>
+                      <div>
+                        <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{exp.name}</p>
+                        <p className="text-xs text-purple-600 dark:text-purple-300">{exp.category} · {centsToDisplay(exp.amount_cents)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
                 {selectedJobs.map(job => (
                   <div key={job.id} className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
                     <div className="flex items-start justify-between gap-3">

@@ -137,6 +137,12 @@ export function AdminFinancesScreen() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => navigate('/admin/recurring-expenses')}
+            className="rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Recurring
+          </button>
+          <button
             onClick={() => openCreate('income')}
             className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
           >

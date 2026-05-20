@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useAuth } from '../context/AuthContext'
+import { useDueRecurringExpenses } from '../hooks/useRecurringExpenses'
 
 function ChevronRight() {
   return (
@@ -57,6 +58,17 @@ const CARDS = [
     ),
   },
   {
+    path: '/admin/recurring-expenses/due',
+    label: 'Recurring',
+    description: 'Track scheduled expenses and log due payments',
+    color: 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" className="w-6 h-6">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+      </svg>
+    ),
+  },
+  {
     path: '/admin/users',
     label: 'Team',
     description: 'Users, roles, and access control',
@@ -83,6 +95,8 @@ const CARDS = [
 export function AdminScreen() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { data: dueExpenses = [] } = useDueRecurringExpenses()
+  const dueCount = dueExpenses.length
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
@@ -99,7 +113,7 @@ export function AdminScreen() {
           <button
             key={path}
             onClick={() => navigate(path)}
-            className="w-full flex items-center gap-4 rounded-xl border bg-white p-4 text-left shadow-sm hover:shadow-md active:scale-[0.99] transition-all dark:border-gray-700 dark:bg-gray-800"
+            className="relative w-full flex items-center gap-4 rounded-xl border bg-white p-4 text-left shadow-sm hover:shadow-md active:scale-[0.99] transition-all dark:border-gray-700 dark:bg-gray-800"
           >
             <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${color}`}>
               {icon}
@@ -109,6 +123,11 @@ export function AdminScreen() {
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
             </div>
             <ChevronRight />
+            {path === '/admin/recurring-expenses/due' && dueCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
+                {dueCount > 9 ? '9+' : dueCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
