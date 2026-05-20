@@ -10,11 +10,17 @@ export function AdminDueExpensesScreen() {
   const { data: expenses = [], isLoading, isError } = useDueRecurringExpenses()
   const logMutation = useLogRecurringExpense()
   const [gcalWarning, setGcalWarning] = useState<string | null>(null)
+  const [logError, setLogError] = useState<string | null>(null)
 
   async function handleLog(id: string) {
     setGcalWarning(null)
-    const result = await logMutation.mutateAsync(id)
-    if (result.gcal_warning) setGcalWarning(result.gcal_warning)
+    setLogError(null)
+    try {
+      const result = await logMutation.mutateAsync(id)
+      if (result.gcal_warning) setGcalWarning(result.gcal_warning)
+    } catch (e: unknown) {
+      setLogError(e instanceof Error ? e.message : 'Failed to log expense')
+    }
   }
 
   return (
@@ -34,6 +40,12 @@ export function AdminDueExpensesScreen() {
       {gcalWarning && (
         <div className="mx-4 mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
           {gcalWarning} — transaction was still logged.
+        </div>
+      )}
+
+      {logError && (
+        <div className="mx-4 mt-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20 px-4 py-2 text-xs text-red-700 dark:text-red-300">
+          {logError}
         </div>
       )}
 
