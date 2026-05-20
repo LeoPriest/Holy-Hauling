@@ -45,7 +45,7 @@ class RecurringExpenseOut(BaseModel):
     vendor_customer: str | None
     description: str | None
     interval_value: int
-    interval_unit: str
+    interval_unit: IntervalUnit
     next_due_date: date
     google_calendar_event_id: str | None
     is_active: bool
