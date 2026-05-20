@@ -202,6 +202,7 @@ export interface LeadUpdate {
   move_date_options?: string[] | null
   quote_context?: string | null
   job_address?: string | null
+  quote_cents?: number | null
 }
 
 export interface ChatMessage {

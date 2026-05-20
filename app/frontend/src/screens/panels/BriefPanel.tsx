@@ -2,6 +2,7 @@
 import { DateOptionsEditor } from '../../components/DateOptionsEditor'
 import { DurationWheelInput } from '../../components/DurationWheelInput'
 import { TruckRentalSection } from '../../components/TruckRentalSection'
+import { PayrollSection } from '../../components/PayrollSection'
 import { buildUploadUrl } from '../../services/api'
 import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
 import { useUsers } from '../../hooks/useUsers'
@@ -394,6 +395,23 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
   const patch = usePatchLead()
   const { data: teamMembers = [] } = useUsers()
   const [copied, setCopied] = useState(false)
+  const [quoteInput, setQuoteInput] = useState<string>(() =>
+    lead.quote_cents !== null && lead.quote_cents !== undefined
+      ? (lead.quote_cents / 100).toFixed(2)
+      : ''
+  )
+  const [quoteError, setQuoteError] = useState('')
+  const [showClearQuoteWarning, setShowClearQuoteWarning] = useState(false)
+
+  useEffect(() => {
+    setQuoteInput(
+      lead.quote_cents !== null && lead.quote_cents !== undefined
+        ? (lead.quote_cents / 100).toFixed(2)
+        : ''
+    )
+    setQuoteError('')
+    setShowClearQuoteWarning(false)
+  }, [lead.id, lead.quote_cents])
 
   const intakeShot = lead.screenshots?.find(s => s.screenshot_type === 'intake')
 
@@ -422,6 +440,60 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
       return
     }
     patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: value } })
+  }
+
+  const handleQuoteBlur = () => {
+    setQuoteError('')
+    const trimmed = quoteInput.trim()
+    if (trimmed === '') {
+      // Clearing the quote — warn if the lead already has a quote set
+      if (lead.quote_cents !== null && lead.quote_cents !== undefined) {
+        setShowClearQuoteWarning(true)
+      }
+      return
+    }
+    const dollars = parseFloat(trimmed)
+    if (!isFinite(dollars) || dollars < 0) {
+      setQuoteError('Enter a valid dollar amount')
+      setQuoteInput(
+        lead.quote_cents !== null && lead.quote_cents !== undefined
+          ? (lead.quote_cents / 100).toFixed(2)
+          : ''
+      )
+      return
+    }
+    const cents = Math.round(dollars * 100)
+    if (cents === lead.quote_cents) return
+    patch.mutate(
+      { id: lead.id, data: { quote_cents: cents } },
+      {
+        onError: () => {
+          setQuoteError('Failed to save quote — please try again')
+          setQuoteInput(
+            lead.quote_cents !== null && lead.quote_cents !== undefined
+              ? (lead.quote_cents / 100).toFixed(2)
+              : ''
+          )
+        },
+      }
+    )
+  }
+
+  const confirmClearQuote = () => {
+    setShowClearQuoteWarning(false)
+    patch.mutate(
+      { id: lead.id, data: { quote_cents: null } },
+      {
+        onError: () => {
+          setQuoteError('Failed to clear quote — please try again')
+          setQuoteInput(
+            lead.quote_cents !== null && lead.quote_cents !== undefined
+              ? (lead.quote_cents / 100).toFixed(2)
+              : ''
+          )
+        },
+      }
+    )
   }
 
   const handleCopy = (text: string) => {
@@ -647,6 +719,62 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
             </div>
           </FieldRow>
 
+          {lead.status === 'booked' && (
+            <FieldRow label="$/quote">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={quoteInput}
+                    onChange={e => setQuoteInput(e.target.value)}
+                    onBlur={handleQuoteBlur}
+                    placeholder="0.00"
+                    className="flex-1 text-sm text-gray-900 dark:text-white dark:bg-transparent focus:outline-none"
+                  />
+                  {lead.quote_cents !== null && lead.quote_cents !== undefined && (
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(lead.quote_cents / 100)}
+                    </span>
+                  )}
+                </div>
+                {quoteError && (
+                  <p className="text-xs text-red-500">{quoteError}</p>
+                )}
+                {showClearQuoteWarning && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 dark:bg-amber-900/20 dark:border-amber-700">
+                    <p className="text-xs text-amber-800 dark:text-amber-300 mb-2">
+                      Clearing the quote will remove facilitator pay calculations for this job. Continue?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={confirmClearQuote}
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                      >
+                        Yes, clear
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowClearQuoteWarning(false)
+                          setQuoteInput(
+                            lead.quote_cents !== null && lead.quote_cents !== undefined
+                              ? (lead.quote_cents / 100).toFixed(2)
+                              : ''
+                          )
+                        }}
+                        className="text-xs text-gray-500 hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </FieldRow>
+          )}
+
         </div>
         {patch.isPending && (
           <p className="text-xs text-gray-400 mt-1 px-1">Savingâ€¦</p>
@@ -726,6 +854,7 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
       )}
 
       <TruckRentalSection lead={lead} />
+      <PayrollSection lead={lead} />
 
     </div>
   )
