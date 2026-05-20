@@ -150,6 +150,7 @@ export interface Lead {
   move_date_options: string[] | null
   accept_and_pay: boolean
   quote_context: string | null
+  quote_cents: number | null
   quoted_price_total: number | null
   quote_modifiers: QuoteModifier[] | null
   job_address: string | null

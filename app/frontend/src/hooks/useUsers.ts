@@ -11,6 +11,7 @@ export interface TeamMember {
   city_slug: string | null
   is_active: boolean
   email: string | null
+  hourly_rate_cents: number | null
   unavailable_dates: string[]
   unavailable_weekdays: Array<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>
 }
