@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from pydantic import BaseModel
 
 from app.models.pay_record import PayType
@@ -33,7 +35,7 @@ class PayRecordOut(BaseModel):
 class PayrollJobEntry(BaseModel):
     lead_id: str
     customer_name: str | None
-    job_date_requested: str | None
+    job_date_requested: date | None
     amount_cents: int
     pay_type: PayType
 
