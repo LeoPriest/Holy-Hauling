@@ -17,7 +17,7 @@ function currentWeekBounds(): { date_from: string; date_to: string } {
   monday.setDate(now.getDate() + diffToMonday)
   const sunday = new Date(monday)
   sunday.setDate(monday.getDate() + 6)
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
+  const fmt = (d: Date) => d.toLocaleDateString('en-CA')
   return { date_from: fmt(monday), date_to: fmt(sunday) }
 }
 
@@ -135,22 +135,17 @@ export function AdminPayrollScreen() {
               </div>
               <div className="flex items-center gap-3">
                 <p className="font-bold text-green-600 dark:text-green-400">{centsToDisplay(summary.total_amount_cents)}</p>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  className={`w-4 h-4 text-gray-400 transition-transform ${expandedUser === summary.user_id ? 'rotate-180' : ''}`}
-                >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"
+                  className={`w-4 h-4 text-gray-400 transition-transform ${expandedUser === summary.user_id ? 'rotate-180' : ''}`}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                 </svg>
               </div>
             </button>
             {expandedUser === summary.user_id && (
               <div className="border-t dark:border-gray-700 divide-y dark:divide-gray-700">
-                {summary.jobs.map((job, i) => (
+                {summary.jobs.map(job => (
                   <button
-                    key={i}
+                    key={job.lead_id}
                     onClick={() => navigate(`/leads/${job.lead_id}`)}
                     className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
