@@ -107,8 +107,9 @@ export function AdminRecurringExpensesScreen() {
     try {
       await deleteMutation.mutateAsync(id)
       setConfirmDeleteId(null)
-    } catch {
+    } catch (e: unknown) {
       setConfirmDeleteId(null)
+      setFormError(e instanceof Error ? e.message : 'Failed to delete')
     }
   }
 
@@ -159,19 +160,19 @@ export function AdminRecurringExpensesScreen() {
               <div className="flex items-center gap-2 ml-2 shrink-0">
                 <button
                   onClick={() => patchMutation.mutate({ id: exp.id, body: { is_active: !exp.is_active } })}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                  className="text-xs px-2 py-1.5 rounded text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   {exp.is_active ? 'Pause' : 'Activate'}
                 </button>
                 <button
                   onClick={() => openEdit(exp)}
-                  className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
+                  className="text-xs px-2 py-1.5 rounded text-gray-500 dark:text-gray-400 hover:underline"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => setConfirmDeleteId(exp.id)}
-                  className="text-xs text-red-500 hover:underline"
+                  className="text-xs px-2 py-1.5 rounded text-red-500 hover:underline"
                 >
                   Delete
                 </button>
