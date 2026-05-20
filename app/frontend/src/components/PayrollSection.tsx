@@ -197,8 +197,8 @@ export function PayrollSection({ lead }: Props) {
     )
 
   const existingRecordForUser = records.find(r => r.user_id === selectedUserId) ?? null
-  const formTitle = isEditing || existingRecordForUser !== null ? 'Edit Pay Record' : 'Add Pay Record'
-  const saveLabel = isEditing || existingRecordForUser !== null ? 'Save Changes' : 'Add'
+  const formTitle = isEditing ? 'Edit Pay Record' : 'Add Pay Record'
+  const saveLabel = isEditing ? 'Save Changes' : 'Add'
 
   return (
     <div className="border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700">
