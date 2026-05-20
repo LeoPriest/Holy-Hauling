@@ -126,7 +126,7 @@ async def patch_recurring_expense(
     going_inactive = data.is_active is False and was_active
     going_active = data.is_active is True and not was_active
 
-    for field, value in data.model_fields_set.items():
+    for field in data.model_fields_set:
         setattr(rec, field, getattr(data, field))
     rec.updated_at = datetime.now(timezone.utc)
     await db.commit()
