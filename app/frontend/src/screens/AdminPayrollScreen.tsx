@@ -9,29 +9,31 @@ function centsToDisplay(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 }
 
-function currentWeekRange(): { from: string; to: string } {
-  const today = new Date()
-  const day = today.getDay() // 0=Sun, 1=Mon, ...
-  const mon = new Date(today)
-  mon.setDate(today.getDate() - ((day + 6) % 7)) // Monday
-  const sun = new Date(mon)
-  sun.setDate(mon.getDate() + 6) // Sunday
+function currentWeekBounds(): { date_from: string; date_to: string } {
+  const now = new Date()
+  const day = now.getDay()
+  const diffToMonday = (day === 0 ? -6 : 1 - day)
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + diffToMonday)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
-  return { from: fmt(mon), to: fmt(sun) }
+  return { date_from: fmt(monday), date_to: fmt(sunday) }
 }
 
 export function AdminPayrollScreen() {
   const navigate = useNavigate()
-  const { from, to } = currentWeekRange()
-  const [dateFrom, setDateFrom] = useState(from)
-  const [dateTo, setDateTo] = useState(to)
-  const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
+  const defaults = currentWeekBounds()
+  const [dateFrom, setDateFrom] = useState(defaults.date_from)
+  const [dateTo, setDateTo] = useState(defaults.date_to)
+  const [expandedUser, setExpandedUser] = useState<string | null>(null)
   const [dateError, setDateError] = useState('')
 
-  const { data: summaries = [], isLoading, isError } = usePayrollSummary({
-    date_from: dateFrom,
-    date_to: dateTo,
-  })
+  const filters = dateFrom && dateTo && !dateError
+    ? { date_from: dateFrom, date_to: dateTo }
+    : {}
+
+  const { data: summaries = [], isLoading, isError } = usePayrollSummary(filters)
 
   const handleDateFromChange = (v: string) => {
     setDateFrom(v)
@@ -92,14 +94,16 @@ export function AdminPayrollScreen() {
       </div>
 
       {/* Summary bar */}
-      <div className="grid grid-cols-2 gap-3 px-4 py-3">
-        <div className="rounded-xl border bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-          <p className="text-xs text-gray-500 dark:text-gray-400">Total owed</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">{centsToDisplay(totalOwed)}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-3 px-4 pb-4">
         <div className="rounded-xl border bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
           <p className="text-xs text-gray-500 dark:text-gray-400">People</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{summaries.length}</p>
+        </div>
+        <div className="rounded-xl border bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          <p className="text-xs text-gray-500 dark:text-gray-400">Total owed</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+            {summaries.length === 0 ? '—' : centsToDisplay(totalOwed)}
+          </p>
         </div>
       </div>
 
@@ -114,13 +118,14 @@ export function AdminPayrollScreen() {
         {!isLoading && !isError && summaries.length === 0 && (
           <div className="text-center py-12">
             <p className="text-gray-400 text-sm">No pay records found for this period</p>
+            <p className="text-gray-400 text-xs mt-1">Add records from job detail panels</p>
           </div>
         )}
         {summaries.map(summary => (
           <div key={summary.user_id} className="rounded-xl border bg-white dark:bg-gray-800 dark:border-gray-700 overflow-hidden">
             <button
               className="w-full flex items-center justify-between p-4 text-left"
-              onClick={() => setExpandedUserId(id => id === summary.user_id ? null : summary.user_id)}
+              onClick={() => setExpandedUser(id => id === summary.user_id ? null : summary.user_id)}
             >
               <div>
                 <p className="font-semibold text-gray-900 dark:text-white">{summary.username}</p>
@@ -135,25 +140,28 @@ export function AdminPayrollScreen() {
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  className={`w-4 h-4 text-gray-400 transition-transform ${expandedUserId === summary.user_id ? 'rotate-180' : ''}`}
+                  className={`w-4 h-4 text-gray-400 transition-transform ${expandedUser === summary.user_id ? 'rotate-180' : ''}`}
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                 </svg>
               </div>
             </button>
-            {expandedUserId === summary.user_id && (
+            {expandedUser === summary.user_id && (
               <div className="border-t dark:border-gray-700 divide-y dark:divide-gray-700">
                 {summary.jobs.map((job, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-3">
+                  <button
+                    key={i}
+                    onClick={() => navigate(`/leads/${job.lead_id}`)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
                     <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{job.customer_name ?? 'Unknown'}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{job.job_date_requested ?? 'No date'}</p>
+                      <p className="text-sm text-gray-800 dark:text-gray-200">{job.customer_name ?? 'Unknown customer'}</p>
+                      <p className="text-xs text-gray-400">
+                        {job.job_date_requested ?? 'No date'} · {PAY_TYPE_LABELS[job.pay_type]}
+                      </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{centsToDisplay(job.amount_cents)}</p>
-                      <p className="text-xs text-gray-400">{PAY_TYPE_LABELS[job.pay_type]}</p>
-                    </div>
-                  </div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{centsToDisplay(job.amount_cents)}</p>
+                  </button>
                 ))}
               </div>
             )}
