@@ -16,6 +16,7 @@ import { AdminFinancesScreen } from './screens/AdminFinancesScreen'
 import { AdminCitiesScreen } from './screens/AdminCitiesScreen'
 import { AdminMetricsScreen } from './screens/AdminMetricsScreen'
 import { AdminRentalsScreen } from './screens/AdminRentalsScreen'
+import { AdminPayrollScreen } from './screens/AdminPayrollScreen'
 
 const queryClient = new QueryClient()
 
@@ -53,6 +54,7 @@ function AppRoutes() {
       <Route path="/admin/cities" element={<AuthGuard><RoleGuard roles={['admin']}><AdminCitiesScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/metrics" element={<AuthGuard><RoleGuard roles={['admin']}><AdminMetricsScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/rentals" element={<AuthGuard><RoleGuard roles={['admin']}><AdminRentalsScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/admin/payroll" element={<AuthGuard><RoleGuard roles={['admin']}><AdminPayrollScreen /></RoleGuard></AuthGuard>} />
       <Route path="*" element={<Navigate to={user ? defaultPath : '/login'} replace />} />
     </Routes>
   )

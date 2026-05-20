@@ -37,7 +37,7 @@ export function AdminUsersScreen() {
   })
 
   const createMutation = useMutation({
-    mutationFn: async (body: { username: string; pin: string; role: string; email: string | null; city_id: string | null }) => {
+    mutationFn: async (body: { username: string; pin: string; role: string; email: string | null; city_id: string | null; hourly_rate_cents: number | null }) => {
       const r = await apiFetch('/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,6 +77,7 @@ export function AdminUsersScreen() {
   const [newRole, setNewRole] = useState<Role>('crew')
   const [newEmail, setNewEmail] = useState('')
   const [newCityId, setNewCityId] = useState('')
+  const [newHourlyRate, setNewHourlyRate] = useState('')
   const [createError, setCreateError] = useState('')
 
   const [editUser, setEditUser] = useState<TeamMember | null>(null)
@@ -85,6 +86,7 @@ export function AdminUsersScreen() {
   const [editEmail, setEditEmail] = useState('')
   const [editCityId, setEditCityId] = useState('')
   const [editActive, setEditActive] = useState(true)
+  const [editHourlyRate, setEditHourlyRate] = useState('')
   const [editError, setEditError] = useState('')
 
   async function handleCreate() {
@@ -96,6 +98,7 @@ export function AdminUsersScreen() {
         role: newRole,
         email: newEmail.trim() || null,
         city_id: newRole === 'admin' && !newCityId ? null : (newCityId || requiredCityId),
+        hourly_rate_cents: newHourlyRate ? Math.round(parseFloat(newHourlyRate) * 100) : null,
       })
       setShowAdd(false)
       setNewUsername('')
@@ -103,6 +106,7 @@ export function AdminUsersScreen() {
       setNewRole('crew')
       setNewEmail('')
       setNewCityId(requiredCityId)
+      setNewHourlyRate('')
     } catch (e: unknown) {
       setCreateError(e instanceof Error ? e.message : 'Error')
     }
@@ -116,9 +120,11 @@ export function AdminUsersScreen() {
       body.city_id = editRole === 'admin' && !editCityId ? null : (editCityId || requiredCityId)
       if (editPin) body.pin = editPin
       if (editEmail !== (editUser.email ?? '')) body.email = editEmail || null
+      body.hourly_rate_cents = editHourlyRate ? Math.round(parseFloat(editHourlyRate) * 100) : null
       await patchMutation.mutateAsync({ id: editUser.id, body })
       setEditUser(null)
       setEditEmail('')
+      setEditHourlyRate('')
     } catch (e: unknown) {
       setEditError(e instanceof Error ? e.message : 'Error')
     }
@@ -164,9 +170,14 @@ export function AdminUsersScreen() {
                 )}
               </div>
               {u.email && <span className="text-xs text-gray-400 dark:text-gray-500">{u.email}</span>}
+              {u.hourly_rate_cents != null && (
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  ${(u.hourly_rate_cents / 100).toFixed(2)}/hr
+                </span>
+              )}
             </div>
             <button
-              onClick={() => { setEditUser(u); setEditRole(u.role as Role); setEditActive(u.is_active); setEditPin(''); setEditEmail(u.email ?? ''); setEditCityId(u.city_id ?? '') }}
+              onClick={() => { setEditUser(u); setEditRole(u.role as Role); setEditActive(u.is_active); setEditPin(''); setEditEmail(u.email ?? ''); setEditCityId(u.city_id ?? ''); setEditHourlyRate(u.hourly_rate_cents != null ? (u.hourly_rate_cents / 100).toFixed(2) : '') }}
               className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
             >
               Edit
@@ -214,13 +225,28 @@ export function AdminUsersScreen() {
               {cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
             </select>
             <input
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-4 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="Google email (optional, for calendar invites)"
               value={newEmail}
               onChange={e => setNewEmail(e.target.value)}
               type="email"
               inputMode="email"
             />
+            <div className="mb-4">
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                Hourly rate ($/hr)
+                <span className="ml-1 font-normal text-gray-400">— for crew hourly pay</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newHourlyRate}
+                onChange={e => setNewHourlyRate(e.target.value)}
+                placeholder="e.g. 18.00"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
             {createError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{createError}</p>}
             <div className="flex gap-3">
               <button
@@ -287,13 +313,33 @@ export function AdminUsersScreen() {
             </label>
             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Google email (for calendar invites)</label>
             <input
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-4 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               placeholder="name@gmail.com"
               value={editEmail}
               onChange={e => setEditEmail(e.target.value)}
               type="email"
               inputMode="email"
             />
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                Hourly rate ($/hr)
+                <span className="ml-1 font-normal text-gray-400">— for crew hourly pay</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editHourlyRate}
+                onChange={e => setEditHourlyRate(e.target.value)}
+                placeholder="e.g. 18.00"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+              {!editHourlyRate && editUser?.hourly_rate_cents != null && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  Clearing this rate will prevent future hourly pay entries for this user.
+                </p>
+              )}
+            </div>
             {editError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{editError}</p>}
             <div className="flex gap-3">
               <button
@@ -304,7 +350,7 @@ export function AdminUsersScreen() {
                 Save
               </button>
               <button
-                onClick={() => { setEditUser(null); setEditError('') }}
+                onClick={() => { setEditUser(null); setEditError(''); setEditHourlyRate('') }}
                 className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-semibold"
               >
                 Cancel
