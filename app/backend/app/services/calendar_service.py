@@ -286,6 +286,65 @@ async def sync_job_calendar(db: AsyncSession, lead_id: str) -> None:
         _log.error("sync_job_calendar failed for lead %s: %s", lead_id, exc)
 
 
+async def create_recurring_expense_event(
+    db: AsyncSession,
+    city_id: str,
+    name: str,
+    amount_cents: int,
+    category: str,
+    due_date: date,
+) -> str | None:
+    """Create an all-day GCal event for a recurring expense. Returns event ID or None on failure."""
+    try:
+        service = await _build_calendar_service(db, city_id)
+        if service is None:
+            return None
+        body = {
+            "summary": name,
+            "description": f"{category} — ${amount_cents / 100:.2f} (Recurring expense)",
+            "start": {"date": due_date.isoformat()},
+            "end": {"date": due_date.isoformat()},
+        }
+        event = await asyncio.to_thread(
+            service.events().insert(calendarId="primary", body=body, sendUpdates="none").execute
+        )
+        return event.get("id")
+    except Exception as exc:
+        _log.error("calendar create_recurring_expense_event failed: %s", exc)
+        return None
+
+
+async def update_recurring_expense_event(
+    db: AsyncSession,
+    event_id: str,
+    city_id: str,
+    name: str,
+    amount_cents: int,
+    category: str,
+    due_date: date,
+) -> bool:
+    """Update an existing all-day GCal event for a recurring expense. Returns True on success."""
+    try:
+        service = await _build_calendar_service(db, city_id)
+        if service is None:
+            return False
+        body = {
+            "summary": name,
+            "description": f"{category} — ${amount_cents / 100:.2f} (Recurring expense)",
+            "start": {"date": due_date.isoformat()},
+            "end": {"date": due_date.isoformat()},
+        }
+        await asyncio.to_thread(
+            service.events().update(
+                calendarId="primary", eventId=event_id, body=body, sendUpdates="none"
+            ).execute
+        )
+        return True
+    except Exception as exc:
+        _log.error("calendar update_recurring_expense_event failed: %s", exc)
+        return False
+
+
 async def sync_job_calendar_now(db: AsyncSession, lead: Lead) -> CalendarSyncResult:
     """Synchronize one booked lead to Google Calendar and return a user-facing result."""
     credentials = await _get_credentials(db, lead.city_id)
