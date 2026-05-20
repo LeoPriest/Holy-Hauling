@@ -37,9 +37,10 @@ import app.models.push_subscription  # noqa: F401
 import app.models.job_assignment  # noqa: F401
 import app.models.finance  # noqa: F401
 import app.models.truck_rental  # noqa: F401
+import app.models.pay_record  # noqa: F401
 
 from app.models.city import DEFAULT_CITIES, DEFAULT_CITY_ID
-from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, push, settings as settings_router, square_router, truck_rental, users
+from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, payroll, push, settings as settings_router, square_router, truck_rental, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "uploads")
@@ -435,6 +436,30 @@ async def _migrate_leads_add_job_date_end(conn) -> None:
     await conn.execute(text("ALTER TABLE leads ADD COLUMN job_date_end VARCHAR"))
     print("[startup] leads: added job_date_end column")
 
+
+async def _migrate_leads_add_quote_cents(conn) -> None:
+    """Add quote_cents column for payroll facilitator calculations."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "quote_cents" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN quote_cents INTEGER"))
+    print("[startup] leads: added quote_cents column")
+
+
+async def _migrate_users_add_hourly_rate_cents(conn) -> None:
+    """Add hourly_rate_cents column for crew payroll calculations."""
+    result = await conn.execute(text("PRAGMA table_info(users)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "hourly_rate_cents" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE users ADD COLUMN hourly_rate_cents INTEGER"))
+    print("[startup] users: added hourly_rate_cents column")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _validate_grounding_file()
@@ -460,6 +485,8 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_calendar_event_id(conn)
         await _migrate_leads_add_ingested_by(conn)
         await _migrate_leads_add_job_date_end(conn)
+        await _migrate_leads_add_quote_cents(conn)
+        await _migrate_users_add_hourly_rate_cents(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _seed_default_admin(conn)
 
@@ -500,6 +527,7 @@ app.include_router(finance.router)
 app.include_router(admin_metrics.router)
 app.include_router(square_router.router)
 app.include_router(truck_rental.router)
+app.include_router(payroll.router)
 app.mount("/uploads", StaticFiles(directory=_UPLOADS_DIR), name="uploads")
 
 

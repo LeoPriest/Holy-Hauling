@@ -33,6 +33,7 @@ def _user_item(user: User, cities: dict[str, City]) -> UserListItem:
         city_slug=city.slug if city else None,
         is_active=user.is_active,
         email=user.email,
+        hourly_rate_cents=user.hourly_rate_cents,
     )
 
 
@@ -109,6 +110,8 @@ async def patch_user(
         user.is_active = data.is_active
     if "email" in data.model_fields_set:
         user.email = data.email
+    if "hourly_rate_cents" in data.model_fields_set:
+        user.hourly_rate_cents = data.hourly_rate_cents
     await db.commit()
     await db.refresh(user)
     return UserOut.model_validate(user)

@@ -23,6 +23,7 @@ class UserPatch(BaseModel):
     pin: Optional[str] = Field(default=None, min_length=4, max_length=4)
     is_active: Optional[bool] = None
     email: Optional[EmailStr] = None
+    hourly_rate_cents: Optional[int] = Field(default=None, ge=0)
 
 
 class UserListItem(BaseModel):
@@ -34,6 +35,7 @@ class UserListItem(BaseModel):
     city_slug: Optional[str] = None
     is_active: bool
     email: Optional[str] = None
+    hourly_rate_cents: Optional[int] = None
     unavailable_dates: list[str] = Field(default_factory=list)
     unavailable_weekdays: list[Weekday] = Field(default_factory=list)
 
