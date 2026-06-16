@@ -2,58 +2,45 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Lead, Settings } from '../types/lead'
 import { parseUtc } from '../utils/time'
 
-const SNOOZE_KEY = 'hh_banner_snooze_until'
-const SNOOZE_MS = 10 * 60 * 1000  // 10 minutes
-
 const ACTIVE_STATUSES = new Set([
   'new', 'in_review', 'waiting_on_customer', 'ready_for_quote', 'ready_for_booking',
 ])
 
-function getSnoozed(): boolean {
-  const val = localStorage.getItem(SNOOZE_KEY)
-  return val ? Date.now() < Number(val) : false
-}
-
+/**
+ * Time-based lead aging. Leads idle past `t1_minutes` are "aging"; past
+ * `t2_minutes` they are "overdue". Presentation is ambient (stage-header
+ * badges + a quiet per-card chip) — no banner, no snooze.
+ */
 export function useStaleLeads(leads: Lead[], settings: Settings | undefined) {
   const [now, setNow] = useState(() => Date.now())
-  const [isSnoozed, setIsSnoozed] = useState(getSnoozed)
 
-  // Refresh every 60s so stale indicators update without page reload
+  // Refresh every 60s so aging indicators update without a page reload
   useEffect(() => {
-    const id = setInterval(() => {
-      setNow(Date.now())
-      setIsSnoozed(getSnoozed())
-    }, 60_000)
+    const id = setInterval(() => setNow(Date.now()), 60_000)
     return () => clearInterval(id)
   }, [])
 
-  const snooze = () => {
-    const until = Date.now() + SNOOZE_MS
-    localStorage.setItem(SNOOZE_KEY, String(until))
-    setIsSnoozed(true)
-  }
-
-  const { t1Ids, t2Ids, idleMinuteMap } = useMemo(() => {
-    if (!settings) return { t1Ids: new Set<string>(), t2Ids: new Set<string>(), idleMinuteMap: new Map<string, number>() }
-    const t1Ms = settings.t1_minutes * 60_000
-    const t2Ms = settings.t2_minutes * 60_000
-    const t1Ids = new Set<string>()
-    const t2Ids = new Set<string>()
+  return useMemo(() => {
+    if (!settings) {
+      return { agingIds: new Set<string>(), overdueIds: new Set<string>(), idleMinuteMap: new Map<string, number>() }
+    }
+    const agingMs = settings.t1_minutes * 60_000
+    const overdueMs = settings.t2_minutes * 60_000
+    const agingIds = new Set<string>()
+    const overdueIds = new Set<string>()
     const idleMinuteMap = new Map<string, number>()
     for (const lead of leads) {
       if (!ACTIVE_STATUSES.has(lead.status)) continue
       const idleMs = now - parseUtc(lead.updated_at).getTime()
       const idleMin = Math.floor(idleMs / 60_000)
-      if (idleMs >= t2Ms) {
-        t2Ids.add(lead.id)
+      if (idleMs >= overdueMs) {
+        overdueIds.add(lead.id)
         idleMinuteMap.set(lead.id, idleMin)
-      } else if (idleMs >= t1Ms) {
-        t1Ids.add(lead.id)
+      } else if (idleMs >= agingMs) {
+        agingIds.add(lead.id)
         idleMinuteMap.set(lead.id, idleMin)
       }
     }
-    return { t1Ids, t2Ids, idleMinuteMap }
+    return { agingIds, overdueIds, idleMinuteMap }
   }, [leads, settings, now])
-
-  return { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze }
 }

@@ -7,35 +7,43 @@ import { StatusBadge } from './StatusBadge'
 interface Props {
   lead: Lead
   onClick: (id: string) => void
-  staleness?: 't1' | 't2' | null
+  staleness?: 'aging' | 'overdue' | null
   idleMinutes?: number
   hasTruckRental?: boolean
 }
 
+function fmtIdle(minutes?: number) {
+  if (minutes == null) return ''
+  if (minutes < 60) return `${minutes}m`
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h`
+  return `${Math.floor(minutes / 1440)}d`
+}
+
 export function LeadCard({ lead, onClick, staleness, idleMinutes, hasTruckRental }: Props) {
-  const staleLeftBorder =
-    staleness === 't2' ? 'border-l-4 border-l-red-500' :
-      staleness === 't1' ? 'border-l-4 border-l-amber-400' :
-        lead.urgency_flag ? 'border-l-4 border-l-orange-500' : 'border-gray-200'
+  const leftBorder = lead.urgency_flag ? 'border-l-4 border-l-orange-500' : 'border-gray-200'
 
   return (
     <div
       onClick={() => onClick(lead.id)}
       className={[
         'bg-white rounded-xl border p-4 cursor-pointer transition-colors active:bg-gray-50',
-        staleLeftBorder,
+        leftBorder,
         !lead.acknowledged_at ? 'ring-1 ring-red-200' : '',
       ].join(' ')}
     >
       {/* Top row: badges + age + followup chip */}
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          {staleness === 't2' && (
-            <span className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Escalated</span>
-          )}
-          {staleness === 't1' && (
-            <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">
-              {idleMinutes != null ? `${idleMinutes}m idle` : 'No activity'}
+          {staleness && (
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
+                staleness === 'overdue'
+                  ? 'bg-red-100 text-red-700 border-red-200'
+                  : 'bg-amber-100 text-amber-700 border-amber-200'
+              }`}
+            >
+              {staleness === 'overdue' ? 'Overdue' : 'Aging'}
+              {idleMinutes != null ? ` · ${fmtIdle(idleMinutes)}` : ''}
             </span>
           )}
           {lead.urgency_flag && (

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { LeadCard } from '../components/LeadCard'
 import { IngestProgressFlow } from '../components/IngestProgressFlow'
-import { StaleLeadBanner } from '../components/StaleLeadBanner'
 import { useLeads } from '../hooks/useLeads'
 import { useSettings } from '../hooks/useSettings'
 import { useStaleLeads } from '../hooks/useStaleLeads'
@@ -15,35 +14,93 @@ import { useAuth } from '../context/AuthContext'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 
+const ACTIVE_STAGES: { status: LeadStatus; label: string }[] = [
+  { status: 'new', label: 'New' },
+  { status: 'in_review', label: 'In Review' },
+  { status: 'replied', label: 'Replied' },
+  { status: 'waiting_on_customer', label: 'Waiting' },
+  { status: 'ready_for_quote', label: 'Ready to Quote' },
+  { status: 'ready_for_booking', label: 'Ready to Book' },
+  { status: 'escalated', label: 'Escalated' },
+  { status: 'booked', label: 'Booked' },
+]
+
+const CLOSED_STAGES: { status: LeadStatus; label: string }[] = [
+  { status: 'released', label: 'Released' },
+  { status: 'lost', label: 'Lost' },
+]
+
+const CLOSED_STATUSES = new Set<LeadStatus>(['released', 'lost'])
+
+function fmtMoney(amount: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
 export function LeadQueue() {
   const navigate = useNavigate()
   const [view, setView] = useState<'active' | 'released'>('active')
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | ''>('')
   const [sourceFilter, setSourceFilter] = useState<LeadSourceType | ''>('')
   const [assignedFilter, setAssignedFilter] = useState('')
   const [showIngest, setShowIngest] = useState(false)
   const [showManual, setShowManual] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<LeadStatus>>(new Set())
 
   const { data: leads = [], isLoading, error } = useLeads({
-    status: statusFilter || undefined,
     source_type: sourceFilter || undefined,
     assigned_to: assignedFilter.trim() || undefined,
   })
 
-  const closedStatuses = new Set(['released', 'lost'])
-  const displayLeads = view === 'active'
-    ? leads.filter(l => !closedStatuses.has(l.status))
-    : leads.filter(l => closedStatuses.has(l.status))
-
   const { data: settings } = useSettings()
-  const { t1Ids, t2Ids, idleMinuteMap, isSnoozed, snooze } = useStaleLeads(leads, settings)
+  const { agingIds, overdueIds, idleMinuteMap } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
   const { user } = useAuth()
   const { isAllCities } = useCity()
   const { data: rentals = [] } = useRentals()
   const rentalLeadIds = useMemo(() => new Set(rentals.map(r => r.lead_id)), [rentals])
 
-  const unackedCount = leads.filter(l => !l.acknowledged_at && !closedStatuses.has(l.status)).length
+  const showQuote = user?.role === 'admin' || user?.role === 'facilitator'
+
+  const displayLeads = view === 'active'
+    ? leads.filter(l => !CLOSED_STATUSES.has(l.status))
+    : leads.filter(l => CLOSED_STATUSES.has(l.status))
+
+  const unackedCount = leads.filter(l => !l.acknowledged_at && !CLOSED_STATUSES.has(l.status)).length
+
+  const groups = useMemo(() => {
+    const stages = view === 'active' ? ACTIVE_STAGES : CLOSED_STAGES
+    const rank = (id: string) => (overdueIds.has(id) ? 0 : agingIds.has(id) ? 1 : 2)
+    return stages
+      .map(stage => {
+        const groupLeads = displayLeads
+          .filter(l => l.status === stage.status)
+          .sort((a, b) => {
+            const r = rank(a.id) - rank(b.id)
+            if (r !== 0) return r
+            return b.created_at.localeCompare(a.created_at)
+          })
+        return {
+          ...stage,
+          leads: groupLeads,
+          aging: groupLeads.filter(l => agingIds.has(l.id)).length,
+          overdue: groupLeads.filter(l => overdueIds.has(l.id)).length,
+          value: groupLeads.reduce((sum, l) => sum + (l.quoted_price_total ?? 0), 0),
+        }
+      })
+      .filter(g => g.leads.length > 0)
+  }, [view, displayLeads, agingIds, overdueIds])
+
+  function toggle(status: LeadStatus) {
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
@@ -75,7 +132,7 @@ export function LeadQueue() {
 
       <div className="flex border-b bg-white dark:bg-gray-800 dark:border-gray-700 px-4">
         <button
-          onClick={() => { setView('active'); setStatusFilter('') }}
+          onClick={() => setView('active')}
           className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
             view === 'active'
               ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
@@ -85,7 +142,7 @@ export function LeadQueue() {
           Active
         </button>
         <button
-          onClick={() => { setView('released'); setStatusFilter('') }}
+          onClick={() => setView('released')}
           className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
             view === 'released'
               ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
@@ -96,34 +153,7 @@ export function LeadQueue() {
         </button>
       </div>
 
-      {view === 'active' && (
-        <StaleLeadBanner
-          t1Count={t1Ids.size}
-          t2Count={t2Ids.size}
-          isSnoozed={isSnoozed}
-          onSnooze={snooze}
-        />
-      )}
-
       <div className="px-4 py-3 flex gap-2 flex-wrap border-b bg-white dark:bg-gray-800 dark:border-gray-700">
-        {view === 'active' && (
-          <select
-            className="border rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value as LeadStatus | '')}
-          >
-            <option value="">All Statuses</option>
-            <option value="new">New</option>
-            <option value="in_review">In Review</option>
-            <option value="replied">Replied</option>
-            <option value="waiting_on_customer">Waiting</option>
-            <option value="ready_for_quote">Ready to Quote</option>
-            <option value="ready_for_booking">Ready to Book</option>
-            <option value="escalated">Escalated</option>
-            <option value="booked">Booked</option>
-          </select>
-        )}
-
         <select
           className="border rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           value={sourceFilter}
@@ -162,7 +192,7 @@ export function LeadQueue() {
         <p className="text-xs text-gray-400">{displayLeads.length} lead{displayLeads.length !== 1 ? 's' : ''}</p>
       </div>
 
-      <main className="px-4 pb-10 space-y-3">
+      <main className="px-4 pb-10 space-y-4">
         {isLoading && (
           <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
         )}
@@ -174,20 +204,59 @@ export function LeadQueue() {
             {view === 'active' ? 'No active leads. Tap 📷 New from Screenshot to add one.' : 'No closed leads yet.'}
           </p>
         )}
-        {displayLeads.map(lead => (
-          <div key={lead.id} className="space-y-1">
-            {isAllCities && lead.city_name && (
-              <p className="px-1 text-xs font-semibold text-indigo-500 dark:text-indigo-300">{lead.city_name}</p>
-            )}
-            <LeadCard
-              lead={lead}
-              onClick={id => navigate(`/leads/${id}`)}
-              staleness={t2Ids.has(lead.id) ? 't2' : t1Ids.has(lead.id) ? 't1' : null}
-              idleMinutes={idleMinuteMap.get(lead.id)}
-              hasTruckRental={rentalLeadIds.has(lead.id)}
-            />
-          </div>
-        ))}
+
+        {groups.map(group => {
+          const isCollapsed = collapsed.has(group.status)
+          return (
+            <section key={group.status}>
+              <button
+                onClick={() => toggle(group.status)}
+                className="w-full min-h-12 flex items-center justify-between gap-3 px-1 py-2 text-left"
+                aria-expanded={!isCollapsed}
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <span className="font-semibold text-gray-900 dark:text-white">{group.label}</span>
+                  <span className="text-sm text-gray-400">{group.leads.length}</span>
+                  {group.overdue > 0 && (
+                    <span className="rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[11px] font-semibold px-1.5 py-0.5">
+                      {group.overdue} overdue
+                    </span>
+                  )}
+                  {group.aging > 0 && (
+                    <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[11px] font-semibold px-1.5 py-0.5">
+                      {group.aging} aging
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {showQuote && group.value > 0 && (
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{fmtMoney(group.value)}</span>
+                  )}
+                  <span className={`text-gray-400 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} aria-hidden="true">›</span>
+                </div>
+              </button>
+
+              {!isCollapsed && (
+                <div className="space-y-3 mt-1">
+                  {group.leads.map(lead => (
+                    <div key={lead.id} className="space-y-1">
+                      {isAllCities && lead.city_name && (
+                        <p className="px-1 text-xs font-semibold text-indigo-500 dark:text-indigo-300">{lead.city_name}</p>
+                      )}
+                      <LeadCard
+                        lead={lead}
+                        onClick={id => navigate(`/leads/${id}`)}
+                        staleness={overdueIds.has(lead.id) ? 'overdue' : agingIds.has(lead.id) ? 'aging' : null}
+                        idleMinutes={idleMinuteMap.get(lead.id)}
+                        hasTruckRental={rentalLeadIds.has(lead.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )
+        })}
       </main>
 
       {showIngest && <IngestProgressFlow onClose={() => setShowIngest(false)} />}
