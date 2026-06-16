@@ -447,28 +447,6 @@ export function CalendarScreen() {
 
         {viewMode === 'month' && (
           <>
-            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">This Month</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{monthJobs.length}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Booked jobs on the {monthLabel(monthCursor)} board.</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Google Sync</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{syncedJobs}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {user?.role === 'admin'
-                    ? (calendarStatus?.connected ? 'Google Calendar is connected.' : 'Google Calendar is not connected yet.')
-                    : 'Jobs with an active Google Calendar event.'}
-                </p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Needs Date</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{unscheduledJobs.length}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Booked jobs missing a confirmed calendar date.</p>
-              </div>
-            </section>
-
             <section className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm overflow-hidden">
               <div className="grid grid-cols-7 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
                 {WEEKDAYS.map(label => (
@@ -537,6 +515,28 @@ export function CalendarScreen() {
                     </button>
                   )
                 })}
+              </div>
+            </section>
+
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">This Month</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{monthJobs.length}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Booked jobs on the {monthLabel(monthCursor)} board.</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Google Sync</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{syncedJobs}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {user?.role === 'admin'
+                    ? (calendarStatus?.connected ? 'Google Calendar is connected.' : 'Google Calendar is not connected yet.')
+                    : 'Jobs with an active Google Calendar event.'}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Needs Date</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{unscheduledJobs.length}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Booked jobs missing a confirmed calendar date.</p>
               </div>
             </section>
 
