@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../services/api'
 import { useCity } from '../context/CityContext'
-import type { RentalFilters, TruckRental, TruckRentalInput } from '../types/truck_rental'
+import type { RentalConfirmationExtract, RentalFilters, TruckRental, TruckRentalInput } from '../types/truck_rental'
 
 // ── Per-lead hooks ─────────────────────────────────────────────────────────
 
@@ -79,6 +79,49 @@ export function useDeleteReceipt(leadId: string) {
     mutationFn: async () => {
       const r = await apiFetch(`/leads/${leadId}/rental/receipt`, { method: 'DELETE' })
       if (!r.ok) throw new Error('Failed to delete receipt')
+      return r.json() as Promise<TruckRental>
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['truck-rental', leadId] })
+    },
+  })
+}
+
+export function useUploadConfirmation(leadId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      const r = await apiFetch(`/leads/${leadId}/rental/confirmation`, { method: 'POST', body: form })
+      if (!r.ok) throw new Error('Failed to upload confirmation')
+      return r.json() as Promise<TruckRental>
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['truck-rental', leadId] })
+    },
+  })
+}
+
+export function useExtractConfirmation(leadId: string) {
+  return useMutation({
+    mutationFn: async () => {
+      const r = await apiFetch(`/leads/${leadId}/rental/confirmation/extract`, { method: 'POST' })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        throw new Error((err as { detail?: string }).detail ?? 'Extraction failed')
+      }
+      return r.json() as Promise<RentalConfirmationExtract>
+    },
+  })
+}
+
+export function useDeleteConfirmation(leadId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      const r = await apiFetch(`/leads/${leadId}/rental/confirmation`, { method: 'DELETE' })
+      if (!r.ok) throw new Error('Failed to delete confirmation')
       return r.json() as Promise<TruckRental>
     },
     onSuccess: () => {

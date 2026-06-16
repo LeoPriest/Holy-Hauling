@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { usePatchLead, useSuggestQuote, useTriggerAiReview } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
 import { AiChatThread } from '../../components/AiChatThread'
-import { QuoteBuilderFields, createLineItem, type QuoteDraft } from '../../components/QuoteBuilder'
+import { QuoteBuilderFields, createLineItem, parseMoney, type QuoteDraft } from '../../components/QuoteBuilder'
+import { useTruckRental } from '../../hooks/useTruckRental'
 
 const PRICING_SECTIONS: { key: keyof AiReviewSections; label: string }[] = [
   { key: 'f_pricing_band',       label: 'F. Pricing Band' },
@@ -78,6 +79,16 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
         },
       },
     )
+  }
+
+  const { data: rental } = useTruckRental(leadId)
+
+  function addRentalLine() {
+    if (!rental?.rental_cost_cents) return
+    const dollars = rental.rental_cost_cents / 100
+    const currentTotal = parseMoney(quoteDraft.quotedPriceTotal) ?? 0
+    quoteDraft.setLineItems(prev => [...prev, createLineItem('Truck rental', dollars.toFixed(2))])
+    quoteDraft.setQuotedPriceTotal((currentTotal + dollars).toFixed(2))
   }
 
   const isBooked = lead.status === 'booked'
@@ -220,6 +231,15 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
           </div>
         )}
         {suggestError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{suggestError}</p>}
+
+        {rental?.rental_cost_cents != null && rental.rental_cost_cents > 0 && (
+          <button
+            onClick={addRentalLine}
+            className="mb-3 w-full rounded-lg border border-orange-300 dark:border-orange-700 px-3 py-2 text-sm font-medium text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+          >
+            + Add truck rental (${(rental.rental_cost_cents / 100).toFixed(2)}) as line item
+          </button>
+        )}
 
         <QuoteBuilderFields draft={quoteDraft} />
 

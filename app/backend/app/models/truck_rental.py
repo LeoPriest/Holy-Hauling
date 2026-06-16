@@ -26,6 +26,7 @@ class TruckRental(Base):
     confirmation_number = Column(String, nullable=True)
     truck_size = Column(String, nullable=True)  # "10ft" / "15ft" / "20ft" / "26ft"
     pickup_location = Column(String, nullable=True)
+    dropoff_location = Column(String, nullable=True)  # return branch (matters for one-way rentals)
     pickup_datetime = Column(DateTime, nullable=True)
     dropoff_datetime = Column(DateTime, nullable=True)
     rental_cost_cents = Column(Integer, nullable=True)  # dollars * 100
@@ -33,6 +34,8 @@ class TruckRental(Base):
     estimated_miles = Column(Float, nullable=True)
     actual_miles = Column(Float, nullable=True)
     receipt_url = Column(String, nullable=True)  # relative path under UPLOADS_DIR, e.g. "receipts/{uuid}.jpg"
+    confirmation_url = Column(String, nullable=True)  # U-Haul confirmation screenshot, "confirmations/{uuid}.jpg"
+    finance_transaction_id = Column(String, nullable=True)  # linked "Truck Rental" finance expense
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

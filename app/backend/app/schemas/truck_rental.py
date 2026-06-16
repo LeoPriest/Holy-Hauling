@@ -15,6 +15,7 @@ class TruckRentalUpsert(BaseModel):
     confirmation_number: str | None = None
     truck_size: str | None = Field(default=None)
     pickup_location: str | None = None
+    dropoff_location: str | None = None
     pickup_datetime: datetime | None = None
     dropoff_datetime: datetime | None = None
     rental_cost_cents: int | None = Field(default=None, ge=0)
@@ -28,9 +29,24 @@ class TruckRentalOut(TruckRentalUpsert):
     id: str
     lead_id: str
     receipt_url: str | None = None
+    confirmation_url: str | None = None
     lead_customer_name: str | None = None
     lead_job_date_requested: str | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RentalConfirmationExtract(BaseModel):
+    """Structured fields read from a U-Haul confirmation screenshot. The facilitator
+    reviews these before they are saved — nothing is auto-applied."""
+    confirmation_number: str | None = None
+    truck_size: str | None = None
+    rental_cost_cents: int | None = None
+    pickup_location: str | None = None
+    dropoff_location: str | None = None
+    pickup_datetime: datetime | None = None
+    dropoff_datetime: datetime | None = None
+    one_way: bool | None = None
+    estimated_miles: float | None = None

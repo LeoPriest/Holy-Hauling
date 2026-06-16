@@ -8,6 +8,7 @@ export interface TruckRental {
   confirmation_number: string | null
   truck_size: TruckSize | null
   pickup_location: string | null
+  dropoff_location: string | null
   pickup_datetime: string | null
   dropoff_datetime: string | null
   rental_cost_cents: number | null
@@ -15,6 +16,7 @@ export interface TruckRental {
   estimated_miles: number | null
   actual_miles: number | null
   receipt_url: string | null
+  confirmation_url: string | null
   notes: string | null
   lead_customer_name: string | null
   lead_job_date_requested: string | null
@@ -27,6 +29,7 @@ export interface TruckRentalInput {
   confirmation_number: string | null
   truck_size: TruckSize | null
   pickup_location: string | null
+  dropoff_location: string | null
   pickup_datetime: string | null
   dropoff_datetime: string | null
   rental_cost_cents: number | null
@@ -34,6 +37,18 @@ export interface TruckRentalInput {
   estimated_miles: number | null
   actual_miles: number | null
   notes: string | null
+}
+
+export interface RentalConfirmationExtract {
+  confirmation_number: string | null
+  truck_size: string | null
+  rental_cost_cents: number | null
+  pickup_location: string | null
+  dropoff_location: string | null
+  pickup_datetime: string | null
+  dropoff_datetime: string | null
+  one_way: boolean | null
+  estimated_miles: number | null
 }
 
 export interface RentalFilters {

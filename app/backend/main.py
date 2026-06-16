@@ -211,6 +211,22 @@ async def _migrate_screenshots_add_screenshot_type(conn) -> None:
     print("[startup] screenshots: added screenshot_type column")
 
 
+async def _migrate_truck_rentals_add_columns(conn) -> None:
+    """Add dropoff_location, confirmation_url, finance_transaction_id if not present."""
+    result = await conn.execute(text("PRAGMA table_info(truck_rentals)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    existing = _existing_columns(rows)
+    added = []
+    for col in ("dropoff_location", "confirmation_url", "finance_transaction_id"):
+        if col not in existing:
+            await conn.execute(text(f"ALTER TABLE truck_rentals ADD COLUMN {col} VARCHAR"))
+            added.append(col)
+    if added:
+        print(f"[startup] truck_rentals: added columns: {', '.join(added)}")
+
+
 async def _migrate_leads_add_quote_context(conn) -> None:
     """Add quote_context column if not present."""
     result = await conn.execute(text("PRAGMA table_info(leads)"))
@@ -488,6 +504,7 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_job_date_end(conn)
         await _migrate_leads_add_quote_cents(conn)
         await _migrate_users_add_hourly_rate_cents(conn)
+        await _migrate_truck_rentals_add_columns(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _seed_default_admin(conn)
 
