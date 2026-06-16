@@ -62,7 +62,7 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 - [x] Square payment integration (payment links, webhook, status chips, copy-link)
 - [x] Dark mode (ThemeContext, defaults dark)
 - [x] 17 routers; 20 tables; SQLite async (aiosqlite); idempotent startup migrations
-- [x] Deploy config: Railway (backend, `railway.toml` + `Procfile`) + Vercel (frontend, `vercel.json`)
+- [x] Deploy config: **Railway for both services** — backend (`railway.toml` + `Procfile`, uvicorn) and frontend (`serve.json` SPA rewrites, served via `serve` after `npm run build`). `vercel.json` carries the same rewrite but is vestigial; the live frontend is Railway. Production host is a `*.railway.app` domain (see `.env.example`); DB is SQLite on a Railway `/data` volume.
 
 ---
 
@@ -110,7 +110,7 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 | Grounding file | `AI_GROUNDING_FILE` — absolute Windows path into the KOS vault (`...\06_Projects\holy-hauling-app\holy-hauling-context.md`); built-in stub fallback |
 | Database | SQLite async (`sqlite+aiosqlite`), file-based; `DATABASE_URL` overridable |
 | Auth | JWT (python-jose + bcrypt); roles admin/facilitator/supervisor/crew |
-| Deploy | Railway (backend) + Vercel (frontend) |
+| Deploy | Railway — backend (uvicorn) + frontend (static `serve` + `serve.json`, built with `npm run build`); SQLite on Railway `/data` volume. `vercel.json` is vestigial. |
 | Screenshot-first intake | Primary path; manual entry = fallback |
 
 ---
