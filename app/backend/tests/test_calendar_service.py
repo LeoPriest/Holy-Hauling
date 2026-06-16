@@ -10,15 +10,25 @@ from app.database import Base
 from app.models.app_setting import AppSetting
 from app.models.lead import Lead, LeadSourceType, LeadStatus, ServiceType
 
-# Import related models so SQLAlchemy can resolve Lead relationships.
+# Import every related model so SQLAlchemy can resolve Lead relationships
+# (e.g. Lead.pay_records -> "PayRecord"). This list must stay in sync with the
+# models registered in main.py — otherwise mapper configuration fails depending
+# on test import order.
 import app.models.ai_review  # noqa: F401
+import app.models.city  # noqa: F401
+import app.models.finance  # noqa: F401
 import app.models.job_assignment  # noqa: F401
 import app.models.lead_alert  # noqa: F401
 import app.models.lead_chat_message  # noqa: F401
 import app.models.lead_event  # noqa: F401
+import app.models.lead_followup  # noqa: F401
+import app.models.lead_payment  # noqa: F401
 import app.models.ocr_result  # noqa: F401
+import app.models.pay_record  # noqa: F401
 import app.models.push_subscription  # noqa: F401
+import app.models.recurring_expense  # noqa: F401
 import app.models.screenshot  # noqa: F401
+import app.models.truck_rental  # noqa: F401
 import app.models.user  # noqa: F401
 import app.models.user_availability  # noqa: F401
 import app.models.user_weekly_availability  # noqa: F401
@@ -65,7 +75,7 @@ def test_build_event_body_fields():
     from app.services.calendar_service import _build_event_body
 
     lead = _make_lead()
-    body = _build_event_body(lead, ["crew@gmail.com"])
+    body = _build_event_body(lead, ["crew@gmail.com"], "America/Chicago")
 
     assert body["summary"] == "Hauling - Jane Doe"
     assert body["start"] == {"date": "2026-05-10"}
@@ -79,7 +89,7 @@ def test_build_event_body_uses_datetime_when_time_slot_present():
     from app.services.calendar_service import _build_event_body
 
     lead = _make_lead(appointment_time_slot="14:30")
-    body = _build_event_body(lead, ["crew@gmail.com"])
+    body = _build_event_body(lead, ["crew@gmail.com"], "America/Chicago")
 
     assert body["start"] == {
         "dateTime": "2026-05-10T14:30:00",
@@ -95,7 +105,7 @@ def test_build_event_body_uses_estimated_duration_when_present():
     from app.services.calendar_service import _build_event_body
 
     lead = _make_lead(appointment_time_slot="14:30", estimated_job_duration_minutes=150)
-    body = _build_event_body(lead, ["crew@gmail.com"])
+    body = _build_event_body(lead, ["crew@gmail.com"], "America/Chicago")
 
     assert body["end"] == {
         "dateTime": "2026-05-10T17:00:00",
@@ -107,7 +117,7 @@ def test_build_event_body_null_date_uses_tomorrow():
     from app.services.calendar_service import _build_event_body
 
     lead = _make_lead(job_date_requested=None)
-    body = _build_event_body(lead, ["crew@gmail.com"])
+    body = _build_event_body(lead, ["crew@gmail.com"], "America/Chicago")
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
     assert body["start"] == {"date": tomorrow}
@@ -117,7 +127,7 @@ def test_build_event_body_omits_missing_location_and_notes():
     from app.services.calendar_service import _build_event_body
 
     lead = _make_lead(job_address=None, job_location=None, scope_notes=None)
-    body = _build_event_body(lead, ["crew@gmail.com"])
+    body = _build_event_body(lead, ["crew@gmail.com"], "America/Chicago")
 
     assert "location" not in body
     assert "description" not in body
@@ -127,7 +137,7 @@ def test_build_event_body_falls_back_to_job_location():
     from app.services.calendar_service import _build_event_body
 
     lead = _make_lead(job_address=None, job_location="Springfield, IL")
-    body = _build_event_body(lead, ["crew@gmail.com"])
+    body = _build_event_body(lead, ["crew@gmail.com"], "America/Chicago")
 
     assert body["location"] == "Springfield, IL"
 
@@ -136,7 +146,7 @@ def test_build_event_body_fallback_name_and_service():
     from app.services.calendar_service import _build_event_body
 
     lead = _make_lead(customer_name=None, service_type=None)
-    body = _build_event_body(lead, ["crew@gmail.com"])
+    body = _build_event_body(lead, ["crew@gmail.com"], "America/Chicago")
 
     assert body["summary"] == "Job - Customer"
 
@@ -175,7 +185,7 @@ async def test_create_event_with_mocked_google(db):
     mock_service = MagicMock()
     mock_service.events.return_value.insert.return_value.execute.return_value = {"id": "gcal-event-123"}
 
-    async def fake_get_credentials(_db):
+    async def fake_get_credentials(_db, _city_id):
         return mock_creds
 
     with patch("app.services.calendar_service._get_credentials", side_effect=fake_get_credentials):
@@ -205,7 +215,7 @@ async def test_update_event_with_mocked_google(db):
     mock_creds = MagicMock()
     mock_service = MagicMock()
 
-    async def fake_get_credentials(_db):
+    async def fake_get_credentials(_db, _city_id):
         return mock_creds
 
     with patch("app.services.calendar_service._get_credentials", side_effect=fake_get_credentials):
@@ -233,7 +243,7 @@ async def test_delete_event_with_mocked_google(db):
     mock_creds = MagicMock()
     mock_service = MagicMock()
 
-    async def fake_get_credentials(_db):
+    async def fake_get_credentials(_db, _city_id):
         return mock_creds
 
     with patch("app.services.calendar_service._get_credentials", side_effect=fake_get_credentials):

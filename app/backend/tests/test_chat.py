@@ -50,7 +50,7 @@ async def test_send_chat_message(client):
         )
 
     assert r.status_code == 200
-    messages = r.json()
+    messages = r.json()["messages"]
     assert len(messages) == 2
     assert messages[0]["role"] == "user"
     assert messages[0]["content"] == "Why is the band $350–$500?"

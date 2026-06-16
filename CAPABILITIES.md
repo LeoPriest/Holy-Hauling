@@ -78,9 +78,7 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 
 ## Broken / In Progress
 
-- [ ] **11 backend tests failing** (full suite: 239 passed / 11 failed, 2026-06-15) — pre-existing, not from recent calendar/AI-review work:
-  - `test_calendar_service.py` — 6 failing in full run (13 of 14 fail when run in isolation): `build_event_body`, `create/update/delete_event_with_mocked_google`, `update_event_no_credentials_is_silent`. Likely a regression in `calendar_service.py` and/or test setup; investigate before trusting GCal event bodies.
-  - `test_chat.py::test_send_chat_message` — `KeyError: 0`
+- [x] ~~11 backend tests failing~~ — **fixed 2026-06-15**. All were stale tests that hadn't kept up with the multi-city/payroll changes (not app bugs): `test_calendar_service.py` had an incomplete model-import list (`Lead.pay_records → "PayRecord"` unresolvable, order-dependent), `fake_get_credentials` mocks missing the `city_id` arg, and `_build_event_body` calls missing the `time_zone` arg; `test_chat.py` treated the `ChatResponse` object as a bare list. Full suite now green.
 - [ ] **Orphaned schema**: startup migration still creates `contact_status` / `acknowledgment_sent` columns (`main.py`) though the model dropped them — harmless but confusing dead schema
 - [ ] **Grounding file path is an absolute Windows path** in `.env` (points into the KOS vault) — not portable; will break on Railway. Deploy risk.
 
@@ -119,5 +117,5 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 
 - Date: 2026-06-15
 - By: Claude (source audit + targeted test runs)
-- Tests: 250 collected — **239 passed, 11 failed** (see Broken/In Progress). `test_ai_review.py` run green (19/19) this session; frontend `tsc --noEmit` + `npm run build` pass.
-- Notes: Doc reconciled against actual source after the prior version sat stale at Slice 8. Two changes shipped this session: week-first calendar and the AI-review `quote_context`/scope snapshot fix. The 11 failing tests pre-date this session and want a separate debugging pass.
+- Tests: **257 passed, 0 failed** (full backend suite, 2026-06-15). Frontend `tsc --noEmit` + `npm run build` pass.
+- Notes: Doc reconciled against actual source after the prior version sat stale at Slice 8. Shipped this session: week-first calendar, stage-grouped queue (ambient Aging/Overdue), quote-centric lead window, AI-assisted quote drafting, AI-review `quote_context`/scope snapshot fix, and the 11 stale-test fixes (suite now green).
