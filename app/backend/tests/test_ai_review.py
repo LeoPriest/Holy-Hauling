@@ -216,6 +216,37 @@ async def test_trigger_review_includes_ocr_data_in_snapshot(client, monkeypatch)
     assert "customer_name" in field_names
 
 
+async def test_trigger_review_includes_quote_context_and_scope_in_snapshot(client, monkeypatch):
+    """Facilitator-typed quote_context and scope/move fields must reach the AI snapshot."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("AI_REVIEW_MODEL", "test-model")
+
+    lead_id = await _create_lead(client)
+    # Save context + hand-typed scope detail (the "Add Context" box + manual edits)
+    patch_r = await client.patch(
+        f"/leads/{lead_id}",
+        json={
+            "quote_context": "Passenger elevator, not freight. Has a piano.",
+            "job_origin": "123 Main St",
+            "job_destination": "456 Oak Ave",
+            "move_size_label": "2 bedroom apartment",
+            "load_stairs": 2,
+        },
+    )
+    assert patch_r.status_code == 200
+
+    with patch("app.services.ai_review_service._make_client", return_value=_review_mock()):
+        r = await client.post(f"/leads/{lead_id}/ai-review")
+
+    assert r.status_code == 201
+    fields = r.json()["input_snapshot"]["lead_fields"]
+    assert fields["quote_context"] == "Passenger elevator, not freight. Has a piano."
+    assert fields["job_origin"] == "123 Main St"
+    assert fields["job_destination"] == "456 Oak Ave"
+    assert fields["move_size_label"] == "2 bedroom apartment"
+    assert fields["load_stairs"] == 2
+
+
 async def test_trigger_review_stores_prompt_version_and_grounding_source(client, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setenv("AI_REVIEW_MODEL", "test-model")

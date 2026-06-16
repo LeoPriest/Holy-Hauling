@@ -200,6 +200,11 @@ def _build_input_snapshot(
     screenshots: list[Screenshot],
     merged_ocr_fields: list[dict],
 ) -> dict:
+    # move_date_options is stored as a JSON array string; surface it as a real list
+    try:
+        move_date_options = json.loads(lead.move_date_options) if lead.move_date_options else None
+    except (json.JSONDecodeError, TypeError):
+        move_date_options = lead.move_date_options
     return {
         "lead_fields": {
             "id": lead.id,
@@ -207,7 +212,20 @@ def _build_input_snapshot(
             "customer_phone": lead.customer_phone,
             "service_type": lead.service_type.value,
             "job_location": lead.job_location,
+            # Route, scope, and move detail — pricing-relevant whether typed or OCR'd
+            "job_origin": lead.job_origin,
+            "job_destination": lead.job_destination,
             "job_date_requested": str(lead.job_date_requested) if lead.job_date_requested else None,
+            "move_date_options": move_date_options,
+            "move_size_label": lead.move_size_label,
+            "move_type": lead.move_type,
+            "move_distance_miles": lead.move_distance_miles,
+            "load_stairs": lead.load_stairs,
+            "unload_stairs": lead.unload_stairs,
+            "scope_notes": lead.scope_notes,
+            "accept_and_pay": lead.accept_and_pay,
+            # Facilitator-entered supplemental context (the "Add Context" box)
+            "quote_context": lead.quote_context,
             "source_type": lead.source_type.value,
             "status": lead.status.value,
             "urgency_flag": lead.urgency_flag,
