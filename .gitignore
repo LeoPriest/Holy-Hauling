@@ -64,3 +64,6 @@ Thumbs.db
 
 # Smoke test artifacts
 app/backend/.job-photo-smoke/
+
+# Brainstorming visual-companion mockups
+.superpowers/
