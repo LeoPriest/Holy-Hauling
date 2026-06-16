@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { usePatchLead, useTriggerAiReview } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
 import { AiChatThread } from '../../components/AiChatThread'
+import { QuoteBuilderFields, type QuoteDraft } from '../../components/QuoteBuilder'
 
 const PRICING_SECTIONS: { key: keyof AiReviewSections; label: string }[] = [
   { key: 'f_pricing_band',       label: 'F. Pricing Band' },
@@ -17,9 +18,13 @@ interface Props {
   lead: Lead
   aiReview: AiReview | undefined
   leadId: string
+  quoteDraft: QuoteDraft
+  onLockAndBook: () => void
+  bookError: string
+  isBooking: boolean
 }
 
-export function QuotePanel({ lead, aiReview, leadId }: Props) {
+export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, bookError, isBooking }: Props) {
   const patch = usePatchLead()
   const triggerReview = useTriggerAiReview()
   const [context, setContext] = useState(lead.quote_context ?? '')
@@ -54,6 +59,8 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
       },
     )
   }
+
+  const isBooked = lead.status === 'booked'
 
   return (
     <div className="p-4 space-y-5 pb-24">
@@ -166,6 +173,28 @@ export function QuotePanel({ lead, aiReview, leadId }: Props) {
             </p>
           </div>
         )}
+      </section>
+
+      {/* ── Build & Lock Quote ─────────────────────────────────────── */}
+      <section>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Build &amp; Lock Quote</h3>
+          {isBooked && (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-green-400">Booked</span>
+          )}
+        </div>
+
+        <QuoteBuilderFields draft={quoteDraft} />
+
+        {bookError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{bookError}</p>}
+
+        <button
+          onClick={onLockAndBook}
+          disabled={isBooking}
+          className="mt-4 w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          {isBooking ? 'Booking…' : isBooked ? 'Update & Re-confirm' : 'Lock & Book'}
+        </button>
       </section>
 
       {/* ── AI Pricing Chat ────────────────────────────────────────── */}

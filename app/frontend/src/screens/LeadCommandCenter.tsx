@@ -12,6 +12,8 @@ import { useAuth } from '../context/AuthContext'
 import { BriefPanel } from './panels/BriefPanel'
 import { LogPanel } from './panels/LogPanel'
 import { QuotePanel } from './panels/QuotePanel'
+import { BookingConfirmation, formatCurrency, parseMoney, useQuoteDraft, validateQuote } from '../components/QuoteBuilder'
+import { buildConfirmationText } from '../utils/confirmationText'
 
 type Tab = 'brief' | 'quote' | 'log'
 
@@ -128,12 +130,13 @@ function ActionSheet({ items, onClose }: { items: ActionItem[]; onClose: () => v
 export function LeadCommandCenter() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('brief')
-  const [triggerBookingModal, setTriggerBookingModal] = useState(false)
+  const [tab, setTab] = useState<Tab>('quote')
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [bookError, setBookError] = useState('')
+  const [confirmText, setConfirmText] = useState<string | null>(null)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
@@ -141,6 +144,7 @@ export function LeadCommandCenter() {
   const updateStatus = useUpdateStatus()
   const { followup, saving: followupSaving, save: saveFollowup, cancel: cancelFollowup } = useFollowup(id!)
   const { payment, saving: paymentSaving, error: paymentError, sendRequest: sendPaymentRequest, cancel: cancelPaymentRequest } = usePayment(id!)
+  const quoteDraft = useQuoteDraft(lead)
 
   if (isLoading) {
     return (
@@ -192,6 +196,31 @@ export function LeadCommandCenter() {
     ...(lead.status === 'booked' ? [{ label: 'View in Jobs', icon: <IconBriefcase />, onClick: () => navigate('/jobs') }] : []),
     ...(isActive ? [{ label: 'Mark Released', icon: <IconXMark />, onClick: () => updateStatus.mutate({ id: id!, status: 'lost', actor: user?.username }), variant: 'destructive' as const }] : []),
   ]
+
+  function lockAndBook() {
+    if (!lead) return
+    const v = validateQuote(quoteDraft)
+    if (!v.ok) {
+      setBookError(v.error)
+      if (tab !== 'quote') setTab('quote')
+      return
+    }
+    setBookError('')
+    updateStatus.mutate(
+      {
+        id: id!,
+        status: 'booked',
+        actor: user?.username,
+        quotedPriceTotal: v.total,
+        quoteModifiers: v.modifiers,
+        estimatedJobDurationMinutes: v.duration,
+      },
+      {
+        onSuccess: () => setConfirmText(buildConfirmationText(lead, v.total)),
+        onError: error => setBookError((error as Error)?.message ?? 'Failed to book lead.'),
+      },
+    )
+  }
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
@@ -301,19 +330,53 @@ export function LeadCommandCenter() {
           <BriefPanel
             lead={lead}
             aiReview={aiReview}
-            onBookingDateSet={() => { setTab('log'); setTriggerBookingModal(true) }}
+            onBookingDateSet={() => setTab('quote')}
           />
         )}
-        {tab === 'quote' && <QuotePanel lead={lead} aiReview={aiReview} leadId={id!} />}
+        {tab === 'quote' && (
+          <QuotePanel
+            lead={lead}
+            aiReview={aiReview}
+            leadId={id!}
+            quoteDraft={quoteDraft}
+            onLockAndBook={lockAndBook}
+            bookError={bookError}
+            isBooking={updateStatus.isPending}
+          />
+        )}
         {tab === 'log' && (
           <LogPanel
             lead={lead}
             leadId={id!}
-            triggerBookingModal={triggerBookingModal}
-            onBookingModalOpened={() => setTriggerBookingModal(false)}
+            onGoToQuote={() => setTab('quote')}
           />
         )}
       </main>
+
+      {/* ── Pinned quote bar ─────────────────────────────── */}
+      {isActive && (
+        <div className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-gray-400">Quote{lead.status === 'booked' ? ' · Booked' : ''}</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              {parseMoney(quoteDraft.quotedPriceTotal) != null ? formatCurrency(parseMoney(quoteDraft.quotedPriceTotal)!) : 'Not set'}
+            </p>
+          </div>
+          {lead.status === 'booked' ? (
+            <button onClick={() => navigate('/jobs')} className="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
+              View Jobs
+            </button>
+          ) : tab === 'quote' ? (
+            <button onClick={lockAndBook} disabled={updateStatus.isPending} className="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50">
+              {updateStatus.isPending ? 'Booking…' : 'Lock & Book'}
+            </button>
+          ) : (
+            <button onClick={() => setTab('quote')} className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+              Open Quote
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Bottom tab bar ───────────────────────────────── */}
       <nav className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex shrink-0">
@@ -367,6 +430,10 @@ export function LeadCommandCenter() {
 
       {showActionSheet && (
         <ActionSheet items={actionSheetItems} onClose={() => setShowActionSheet(false)} />
+      )}
+
+      {confirmText !== null && (
+        <BookingConfirmation text={confirmText} onClose={() => setConfirmText(null)} />
       )}
 
     </div>

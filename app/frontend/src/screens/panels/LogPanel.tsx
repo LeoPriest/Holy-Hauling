@@ -1,12 +1,10 @@
-import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type FormEvent, type SetStateAction } from 'react'
+import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { DateOptionsEditor } from '../../components/DateOptionsEditor'
-import { DurationWheelInput } from '../../components/DurationWheelInput'
 import { buildUploadUrl } from '../../services/api'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { mergeDateOptions, parseDateOptions, serializeDateOptions } from '../../utils/dateOptions'
 import { fmtDurationMinutes, fmtLocalDateTime, fmtTimeSlot } from '../../utils/time'
-import { buildConfirmationText } from '../../utils/confirmationText'
 import {
   useAddNote,
   useApplyOcrFields,
@@ -15,7 +13,7 @@ import {
   useUpdateStatus,
   useUploadScreenshot,
 } from '../../hooks/useLeads'
-import type { Lead, LeadStatus, OcrField, OcrResult, QuoteModifier } from '../../types/lead'
+import type { Lead, LeadStatus, OcrField, OcrResult } from '../../types/lead'
 
 const ALL_STATUSES: LeadStatus[] = [
   'new',
@@ -54,326 +52,15 @@ const EVENT_LABELS: Record<string, string> = {
   ocr_fields_applied: 'Extraction applied',
 }
 
-type BookingLineItemDraft = {
-  id: string
-  amount: string
-  note: string
-}
-
 interface Props {
   lead: Lead
   leadId: string
-  triggerBookingModal?: boolean
-  onBookingModalOpened?: () => void
-}
-
-function createLineItem(note = '', amount = ''): BookingLineItemDraft {
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    amount,
-    note,
-  }
-}
-
-function roundMoney(value: number) {
-  return Math.round(value * 100) / 100
-}
-
-function parseMoney(value: string): number | null {
-  const normalized = value.replace(/[$,\s]/g, '')
-  if (!normalized) return null
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? roundMoney(parsed) : null
-}
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)
-}
-
-function buildInitialQuoteDraft(lead: Lead) {
-  if (lead.quoted_price_total != null && lead.quote_modifiers?.length) {
-    return {
-      total: String(lead.quoted_price_total),
-      lineItems: lead.quote_modifiers.map(item => createLineItem(item.note, String(item.amount))),
-      estimatedDurationMinutes: lead.estimated_job_duration_minutes ?? null,
-    }
-  }
-
-  if (lead.quoted_price_total != null) {
-    return {
-      total: String(lead.quoted_price_total),
-      lineItems: [createLineItem('Base quote', String(lead.quoted_price_total))],
-      estimatedDurationMinutes: lead.estimated_job_duration_minutes ?? null,
-    }
-  }
-
-  return {
-    total: '',
-    lineItems: [createLineItem('Base quote')],
-    estimatedDurationMinutes: lead.estimated_job_duration_minutes ?? null,
-  }
+  onGoToQuote: () => void
 }
 
 
-function BookingModal({
-  quotedPriceTotal,
-  setQuotedPriceTotal,
-  estimatedDurationMinutes,
-  setEstimatedDurationMinutes,
-  lineItems,
-  setLineItems,
-  error,
-  isSubmitting,
-  onClose,
-  onConfirm,
-  step,
-  confirmationText,
-}: {
-  quotedPriceTotal: string
-  setQuotedPriceTotal: (value: string) => void
-  estimatedDurationMinutes: number | null
-  setEstimatedDurationMinutes: (value: number | null) => void
-  lineItems: BookingLineItemDraft[]
-  setLineItems: Dispatch<SetStateAction<BookingLineItemDraft[]>>
-  error: string
-  isSubmitting: boolean
-  onClose: () => void
-  onConfirm: () => void
-  step: 1 | 2
-  confirmationText: string
-}) {
-  const quotedTotalValue = parseMoney(quotedPriceTotal)
-  const summedLineItems = roundMoney(
-    lineItems.reduce((sum, item) => sum + (parseMoney(item.amount) ?? 0), 0),
-  )
-  const difference = quotedTotalValue == null ? null : roundMoney(quotedTotalValue - summedLineItems)
 
-  const [draftText, setDraftText] = useState(confirmationText)
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (confirmationText) setDraftText(confirmationText)
-  }, [confirmationText])
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isSubmitting) onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [isSubmitting, onClose])
-
-  if (step === 2) {
-    const handleCopy = () => {
-      navigator.clipboard.writeText(draftText).then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2500)
-      })
-    }
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-        <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-          <div className="border-b px-5 py-4 dark:border-gray-700">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Booking confirmed!</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Edit if needed, then copy and send to your customer.</p>
-          </div>
-          <div className="px-5 py-4">
-            <textarea
-              rows={12}
-              value={draftText}
-              onChange={e => setDraftText(e.target.value)}
-              className="w-full resize-y rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-2 border-t px-5 py-4 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              {copied ? 'Copied!' : 'Copy Message'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        aria-label="Close booking modal"
-        onClick={() => {
-          if (!isSubmitting) onClose()
-        }}
-      />
-
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-2xl border bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-        <div className="border-b px-5 py-4 dark:border-gray-700">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Book lead</h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Enter the quoted total and the line items that make up that price.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="text-sm text-gray-400 hover:text-gray-700 disabled:opacity-50 dark:hover:text-gray-200"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-
-        <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 py-4">
-          <label className="block space-y-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Quoted price</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={quotedPriceTotal}
-              onChange={event => setQuotedPriceTotal(event.target.value)}
-              placeholder="500.00"
-              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-            />
-          </label>
-
-          <label className="block space-y-1">
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Estimated duration</span>
-            <DurationWheelInput
-              value={estimatedDurationMinutes}
-              onChange={setEstimatedDurationMinutes}
-            />
-            <p className="text-xs text-gray-400 dark:text-gray-500">
-              Google Calendar will use this length when the job has a scheduled time slot.
-            </p>
-          </label>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Price breakdown</span>
-              <button
-                type="button"
-                onClick={() => setLineItems(prev => [...prev, createLineItem('', '')])}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                Add modifier
-              </button>
-            </div>
-
-            {lineItems.map((item, index) => (
-              <div
-                key={item.id}
-                className="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700 md:grid-cols-[140px_minmax(0,1fr)_auto]"
-              >
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={item.amount}
-                  onChange={event =>
-                    setLineItems(prev =>
-                      prev.map(entry =>
-                        entry.id === item.id ? { ...entry, amount: event.target.value } : entry,
-                      ),
-                    )
-                  }
-                  placeholder="0.00"
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                />
-                <input
-                  type="text"
-                  value={item.note}
-                  onChange={event =>
-                    setLineItems(prev =>
-                      prev.map(entry =>
-                        entry.id === item.id ? { ...entry, note: event.target.value } : entry,
-                      ),
-                    )
-                  }
-                  placeholder={index === 0 ? 'Base quote' : 'Modifier note'}
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setLineItems(prev => (prev.length === 1 ? [createLineItem('Base quote')] : prev.filter(entry => entry.id !== item.id)))
-                  }
-                  className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/20"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm dark:bg-gray-800">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-gray-500 dark:text-gray-400">Modifier sum</span>
-              <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(summedLineItems)}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <span className="text-gray-500 dark:text-gray-400">Difference to quoted price</span>
-              <span
-                className={`font-medium ${
-                  difference === 0
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-amber-600 dark:text-amber-400'
-                }`}
-              >
-                {difference == null ? '--' : formatCurrency(difference)}
-              </span>
-            </div>
-          </div>
-
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        </div>
-
-        <div className="flex items-center justify-end gap-2 border-t px-5 py-4 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isSubmitting}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {isSubmitting ? 'Booking...' : 'Confirm booking'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpened }: Props) {
+export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const updateStatus = useUpdateStatus()
@@ -385,113 +72,13 @@ export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpen
 
   const [noteBody, setNoteBody] = useState('')
   const [showHistory, setShowHistory] = useState(false)
-  const [showBookingModal, setShowBookingModal] = useState(false)
-  const [bookingStep, setBookingStep] = useState<1 | 2>(1)
-  const [confirmationText, setConfirmationText] = useState('')
-  const [bookingError, setBookingError] = useState('')
-  const [quotedPriceTotal, setQuotedPriceTotal] = useState('')
-  const [estimatedDurationMinutes, setEstimatedDurationMinutes] = useState<number | null>(lead.estimated_job_duration_minutes ?? null)
-  const [bookingLineItems, setBookingLineItems] = useState<BookingLineItemDraft[]>([])
   const [extractResults, setExtractResults] = useState<Record<string, OcrResult>>({})
   const [applyDraft, setApplyDraft] = useState<Record<string, Record<string, string>>>({})
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const resetBookingDraft = () => {
-    const draft = buildInitialQuoteDraft(lead)
-    setQuotedPriceTotal(draft.total)
-    setEstimatedDurationMinutes(draft.estimatedDurationMinutes)
-    setBookingLineItems(draft.lineItems)
-    setBookingError('')
-  }
-
-  const handleOpenBookingModal = () => {
-    resetBookingDraft()
-    setBookingStep(1)
-    setConfirmationText('')
-    setShowBookingModal(true)
-  }
-
-  useEffect(() => {
-    if (triggerBookingModal) {
-      handleOpenBookingModal()
-      onBookingModalOpened?.()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [triggerBookingModal])
-
-  const handleCloseBookingModal = () => {
-    if (updateStatus.isPending) return
-    setShowBookingModal(false)
-    setBookingError('')
-    setBookingStep(1)
-    setConfirmationText('')
-  }
-
-  const handleConfirmBooked = () => {
-    const total = parseMoney(quotedPriceTotal)
-    if (total == null || total <= 0) {
-      setBookingError('Enter a valid quoted price greater than 0.')
-      return
-    }
-
-    if (estimatedDurationMinutes == null) {
-      setBookingError('Choose an estimated duration.')
-      return
-    }
-
-    const activeRows = bookingLineItems.filter(item => item.amount.trim() || item.note.trim())
-    if (activeRows.length === 0) {
-      setBookingError('Add at least one quote line item.')
-      return
-    }
-
-    const modifiers: QuoteModifier[] = []
-    for (const item of activeRows) {
-      const amount = parseMoney(item.amount)
-      if (amount == null) {
-        setBookingError('Each modifier needs a valid amount.')
-        return
-      }
-      if (!item.note.trim()) {
-        setBookingError('Each modifier needs a note.')
-        return
-      }
-      modifiers.push({ amount, note: item.note.trim() })
-    }
-
-    const summed = roundMoney(modifiers.reduce((sum, item) => sum + item.amount, 0))
-    if (roundMoney(total - summed) !== 0) {
-      setBookingError('Modifier amounts must add up exactly to the quoted price.')
-      return
-    }
-
-    setBookingError('')
-    updateStatus.mutate(
-      {
-        id: leadId,
-        status: 'booked',
-        actor: user?.username,
-        quotedPriceTotal: total,
-        quoteModifiers: modifiers,
-        estimatedJobDurationMinutes: estimatedDurationMinutes,
-      },
-      {
-        onSuccess: () => {
-          const confirmedPrice = parseMoney(quotedPriceTotal) ?? 0
-          const text = buildConfirmationText(lead, confirmedPrice)
-          setConfirmationText(text)
-          setBookingStep(2)
-        },
-        onError: error => {
-          setBookingError((error as Error)?.message ?? 'Failed to book lead.')
-        },
-      },
-    )
-  }
-
   const handleStatusChange = (status: LeadStatus) => {
     if (status === 'booked') {
-      handleOpenBookingModal()
+      onGoToQuote()
       return
     }
     updateStatus.mutate({ id: leadId, status, actor: user?.username })
@@ -803,23 +390,6 @@ export function LogPanel({ lead, leadId, triggerBookingModal, onBookingModalOpen
           )}
         </section>
       </div>
-
-      {showBookingModal && (
-        <BookingModal
-          step={bookingStep}
-          confirmationText={confirmationText}
-          quotedPriceTotal={quotedPriceTotal}
-          setQuotedPriceTotal={setQuotedPriceTotal}
-          estimatedDurationMinutes={estimatedDurationMinutes}
-          setEstimatedDurationMinutes={setEstimatedDurationMinutes}
-          lineItems={bookingLineItems}
-          setLineItems={setBookingLineItems}
-          error={bookingError}
-          isSubmitting={updateStatus.isPending}
-          onClose={handleCloseBookingModal}
-          onConfirm={handleConfirmBooked}
-        />
-      )}
     </>
   )
 }
