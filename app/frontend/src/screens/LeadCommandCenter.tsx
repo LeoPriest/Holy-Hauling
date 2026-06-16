@@ -130,7 +130,7 @@ function ActionSheet({ items, onClose }: { items: ActionItem[]; onClose: () => v
 export function LeadCommandCenter() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('quote')
+  const [tab, setTab] = useState<Tab>('brief')
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showFollowUpModal, setShowFollowUpModal] = useState(false)
   const [showActionSheet, setShowActionSheet] = useState(false)
