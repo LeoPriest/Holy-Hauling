@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { usePatchLead, useTriggerAiReview } from '../../hooks/useLeads'
+import { usePatchLead, useSuggestQuote, useTriggerAiReview } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
 import { AiChatThread } from '../../components/AiChatThread'
-import { QuoteBuilderFields, type QuoteDraft } from '../../components/QuoteBuilder'
+import { QuoteBuilderFields, createLineItem, type QuoteDraft } from '../../components/QuoteBuilder'
 
 const PRICING_SECTIONS: { key: keyof AiReviewSections; label: string }[] = [
   { key: 'f_pricing_band',       label: 'F. Pricing Band' },
@@ -29,6 +29,26 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
   const triggerReview = useTriggerAiReview()
   const [context, setContext] = useState(lead.quote_context ?? '')
   const [saved, setSaved] = useState(false)
+  const suggest = useSuggestQuote()
+  const [rationale, setRationale] = useState('')
+  const [suggestError, setSuggestError] = useState('')
+
+  const handleSuggest = () => {
+    setSuggestError('')
+    suggest.mutate(leadId, {
+      onSuccess: s => {
+        quoteDraft.setQuotedPriceTotal(String(s.quoted_price_total))
+        quoteDraft.setEstimatedDurationMinutes(s.estimated_duration_minutes)
+        quoteDraft.setLineItems(
+          s.line_items.length
+            ? s.line_items.map(li => createLineItem(li.note, String(li.amount)))
+            : [createLineItem('Base quote', String(s.quoted_price_total))],
+        )
+        setRationale(s.rationale)
+      },
+      onError: e => setSuggestError((e as Error)?.message ?? 'Suggestion failed'),
+    })
+  }
 
   // Sync if lead.quote_context changes from outside (e.g. chat auto-update)
   useEffect(() => {
@@ -179,10 +199,27 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
       <section>
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Build &amp; Lock Quote</h3>
-          {isBooked && (
-            <span className="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-green-400">Booked</span>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {isBooked && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-green-400">Booked</span>
+            )}
+            <button
+              onClick={handleSuggest}
+              disabled={suggest.isPending}
+              className="text-xs bg-violet-600 text-white rounded-lg px-3 py-1.5 hover:bg-violet-700 disabled:opacity-50 font-medium"
+            >
+              {suggest.isPending ? 'Drafting…' : '✨ Suggest with AI'}
+            </button>
+          </div>
         </div>
+
+        {rationale && (
+          <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-900/20 p-3">
+            <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">AI-drafted — review before booking</p>
+            <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{rationale}</p>
+          </div>
+        )}
+        {suggestError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{suggestError}</p>}
 
         <QuoteBuilderFields draft={quoteDraft} />
 

@@ -24,7 +24,8 @@ from app.schemas.lead import (
 from app.schemas.ai_review import AiReviewOut
 from app.schemas.followup import FollowupCreate, FollowupOut
 from app.schemas.ocr import OcrApply, OcrResultOut
-from app.services import ai_review_service, followup_service, lead_service, ocr_service
+from app.schemas.quote_suggestion import QuoteSuggestionOut
+from app.services import ai_review_service, followup_service, lead_service, ocr_service, quote_service
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -268,6 +269,18 @@ async def get_latest_ai_review(
 ):
     await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))
     return await ai_review_service.get_latest_review(db, lead_id)
+
+
+# ── AI quote suggestion ────────────────────────────────────────────────────────
+
+@router.post("/{lead_id}/quote-suggestion", response_model=QuoteSuggestionOut)
+async def suggest_quote(
+    lead_id: str,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))
+    return await quote_service.suggest_quote(db, lead_id)
 
 
 # ── Follow-up scheduler ───────────────────────────────────────────────────────

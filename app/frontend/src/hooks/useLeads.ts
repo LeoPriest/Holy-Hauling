@@ -12,6 +12,7 @@ import {
   ingestScreenshot,
   patchLead,
   sendChatMessage,
+  suggestQuote,
   triggerAiReview,
   triggerExtraction,
   updateLeadStatus,
@@ -36,6 +37,10 @@ export function useLead(id: string) {
     queryFn: () => fetchLead(id),
     enabled: !!id,
   })
+}
+
+export function useSuggestQuote() {
+  return useMutation({ mutationFn: (leadId: string) => suggestQuote(leadId) })
 }
 
 export function useCreateLead() {

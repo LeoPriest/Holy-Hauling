@@ -172,6 +172,22 @@ export async function getLatestAiReview(leadId: string): Promise<AiReview> {
   return r.json()
 }
 
+export interface QuoteSuggestion {
+  quoted_price_total: number
+  line_items: { note: string; amount: number }[]
+  estimated_duration_minutes: number
+  rationale: string
+}
+
+export async function suggestQuote(leadId: string): Promise<QuoteSuggestion> {
+  const r = await apiFetch(`${BASE}/${leadId}/quote-suggestion`, { method: 'POST' })
+  if (!r.ok) {
+    const body = await r.json().catch(() => null)
+    throw new Error(body?.detail ?? `Quote suggestion failed: ${r.status}`)
+  }
+  return r.json()
+}
+
 export async function deleteLead(id: string): Promise<void> {
   const r = await apiFetch(`${BASE}/${id}`, { method: 'DELETE' })
   if (!r.ok) {
