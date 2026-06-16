@@ -2,97 +2,102 @@
 
 Tracks what the Holy Hauling app can currently do, what needs verification, what is broken, and what is planned.
 
+> Last refreshed 2026-06-15 by reconciling the doc against the actual source tree and git history — the prior version was stale at Slice 8 (2026-04-20). Treat the source + `git log` as the real source of truth; this file is a map, not the territory.
+
 ---
 
 ## Currently Working
 
-- [x] Backend starts cleanly and loads `.env` values on boot
-- [x] Startup prints grounding file status (OK or WARNING) so config errors are visible
-- [x] Lead queue loads and displays correctly (`GET /leads`)
+### Lead pipeline & intake
+- [x] Backend boots cleanly, loads `.env` (`load_dotenv` then Railway env override), prints grounding-file status on startup
+- [x] Lead queue with filters (status, source type, assigned handler) and Active / Released tabs
 - [x] Manual lead creation (`POST /leads`) with full field validation
-- [x] Screenshot-first intake (`POST /ingest/screenshot`): upload → lead stub → OCR → auto-apply → review form
-- [x] Screenshot upload reaches backend and is stored on disk
-- [x] Screenshot OCR/extraction via Claude (`POST /leads/{id}/screenshots/{id}/extract`)
-- [x] Extracted fields editable and appliable to the lead model (`POST /leads/{id}/screenshots/{id}/apply`)
-- [x] OCR status tracked on screenshot record (`pending` / `done` / `failed`)
-- [x] AI review generated via Claude with A–O locked structure (`POST /leads/{id}/ai-review`)
-- [x] AI review grounded in `holy_hauling_app_sop_from_revised_pricing.md`
-- [x] AI review stores `input_snapshot` (lead fields + screenshot IDs + OCR fields)
-- [x] AI review stores `prompt_version` and `grounding_source` for auditability
-- [x] Latest AI review retrievable (`GET /leads/{id}/ai-review`)
-- [x] AI review grouped in UI: Action-first (A–E), Pricing & Control (F–L, orange/internal), Support & Context (M–O)
-- [x] Old A–H review records readable via backward-compatible key mapping (no data loss)
-- [x] Lead fields: `job_origin`, `job_destination`, `scope_notes` stored and editable
-- [x] Field provenance tracking: `field_sources` records `"ocr"` or `"edited"` per field
-- [x] OCR extracts `job_origin`, `job_destination`, `scope_notes` from screenshots (9 fields total)
-- [x] Lead detail: Intake / Job Details / Scope sections replace flat Contact view
-- [x] `FieldSourceBadge`: subtle `[ocr]` / `[edited]` inline badges on key fields
-- [x] "Not captured" placeholder on origin, destination, scope, phone, date when null
-- [x] Origin → Destination display (`123 Main St → 456 Oak Ave`); falls back to location or "not captured"
-- [x] Lead field editing via `PATCH /leads/{id}` (inline edit form covers all 11 fields)
-- [x] Status transitions via `PATCH /leads/{id}/status`
-- [x] Lead acknowledgment (`POST /leads/{id}/acknowledge`)
-- [x] Archive (Release) button in lead detail view
-- [x] Hard delete via `DELETE /leads/{id}` with cascade (204 response)
-- [x] Operational notes append-only (`POST /leads/{id}/notes`)
-- [x] Assigned handler field editable and filterable
-- [x] Urgency flag and unacknowledged state visible in queue
-- [x] Lead event/audit trail shown in detail view
-- [x] Tap-to-call (`tel:` link) and tap-to-text (`sms:` link) on customer phone number
-- [x] Thumbtack webhook normalization (`POST /ingest/webhook/thumbtack`)
-- [x] Webhook dedup by `source_reference_id` (idempotent on repeated delivery)
-- [x] Queue filters: status, source type, assigned handler
-- [x] Screenshot image accessible via `/uploads/screenshots/...`
-- [x] Screenshot OCR returns real extracted text and structured fields from actual Thumbtack screenshots
-- [x] AI review returns valid A–O structure grounded in the configured SOP file
-- [x] Frontend shows actual backend error message on OCR/review failure (not hardcoded "check env vars")
-- [x] 93 backend tests passing (Slice 7)
-- [x] Move detail fields: `move_distance_miles`, `load_stairs`, `unload_stairs`, `move_size_label`, `move_type`, `move_date_options` stored and editable
-- [x] Thumbtack contact flow: `accept_and_pay`, `contact_status` (locked/unlocked), `acknowledgment_sent`
-- [x] Contact auto-unlock: `acknowledgment_sent=True` on non-accept_and_pay lead → `contact_status='unlocked'`
-- [x] Phone auto-acknowledge: phone set on unlocked lead (via PATCH or OCR apply) → `acknowledged_at` auto-set
-- [x] Accept & Pay leads start unlocked; phone entry triggers acknowledgment on same code path
-- [x] Phone field visually locked in UI until first reply sent; amber warning when unlocked but phone missing
-- [x] `source_category_label` computed field on every lead response
-- [x] LeadDetail layout: Intake / Job Details / Scope & Access sections with all new fields
-- [x] Distance rendered as `~N mi` in Job Details
-- [x] `move_date_options` rendered as date chips; falls back to `job_date_requested`
-- [x] OCR extraction covers 7 new v8 fields: move size, move type, distance, stairs, date options, accept_and_pay
-- [x] 108 backend tests passing
+- [x] Screenshot-first intake (`POST /ingest/screenshot`): upload → lead stub → OCR → auto-apply high-confidence fields
+- [x] **AI review auto-fires after screenshot upload** — the client (`IngestProgressFlow.tsx`) chains upload → OCR → AI review with no manual click (failures are non-fatal; facilitator can re-run)
+- [x] Claude Vision OCR extraction — 16 structured fields per screenshot with per-field confidence
+- [x] Thumbtack webhook ingest (`POST /ingest/webhook/thumbtack`) with dedup by `source_reference_id`
+- [x] Lead field editing (`PATCH /leads/{id}`), inline edit covering all fields, field provenance (`field_sources`: ocr/edited)
+- [x] **Masked-phone handling** — Thumbtack masked values (`xxx`) are detected and skipped, never stored (`lead_service._is_valid_phone`)
+- [x] Hard delete with cascade; archive (Release) as soft-delete; append-only operational notes; full event/audit trail
+- [x] Tap-to-call / tap-to-text on customer phone
+
+### Lead state machine (contact-lock fully replaced)
+- [x] States: `new → in_review → replied → waiting_on_customer → ready_for_quote → ready_for_booking → escalated → booked → released → lost`
+- [x] Auto-transitions live in `lead_service.py`: open detail → `in_review`; valid phone on in_review/replied → `waiting_on_customer`; job address entered → `booked`
+- [x] Old contact-lock columns (`contact_status`, `acknowledgment_sent`) removed from the model (orphaned migration default remains — see Broken/In Progress)
+
+### AI review engine
+- [x] A–O review (15 sections), grouped Action-first (A–E) / Pricing & Control (F–L, internal) / Support & Context (M–O)
+- [x] Grounded in the configured SOP file; stores `input_snapshot`, `prompt_version`, `grounding_source`, `model_used`
+- [x] Legacy A–H records remain readable via key mapping (`_to_out`)
+- [x] **Quote context + scope feed the review** — `quote_context` plus route/move/scope fields are included in the snapshot sent to Claude, so hand-typed context reaches the AI, not just OCR values (fixed 2026-06-15)
+- [x] Correspondence screenshot types supported: `intake`, `correspondence`, `before_job`, `after_job`
+- [x] AI pricing chat (`AiChatThread`) to refine pricing; updates `quote_context`
+
+### Booking, jobs & crew
+- [x] Booking confirmation flow: `confirmationText.ts` template, JobModal with View Lead + Copy Confirmation, editable confirmation, date ranges (`job_date_end`)
+- [x] Jobs screen (Scheduled / In Progress) with phase tracking (dispatched → en route → arrived → started → completed), live timers, before/after photos
+- [x] Crew assignment (`job_assignments` many-to-many); admin/facilitator assign crew, admin updates job status; role-gated phase locking
+
+### Calendar & Google Calendar
+- [x] **Week-first calendar** (default): tap-to-expand day list for the current week, today highlighted, day quote totals; **Week / Month toggle**; collapsible "needs a date" banner (added 2026-06-15)
+- [x] Month view: existing grid + stat cards + selected-day detail (behind the toggle)
+- [x] Google Calendar OAuth (`/admin/google` connect/callback/status), auto-sync on job date/address/notes/crew changes (`calendar_service`)
+- [x] Recurring expenses render on the calendar (admin)
+
+### Admin & finance
+- [x] Admin hub + mobile bottom nav; multi-city isolation (`CityContext`, `CitySwitcher`, per-city scoping)
+- [x] Admin Users (roles: admin/facilitator/supervisor/crew, hourly rate, Google email)
+- [x] Finance tracking (income/expense transactions, categories, payment methods, vendor/customer, lead linking, summary)
+- [x] Recurring expenses (templates, custom intervals, `/due` badge, one-tap log → FinanceTransaction + GCal event move)
+- [x] Payroll (per-lead PayRecord: flat / hourly / 10% facilitator cut; AdminPayrollScreen aggregation)
+- [x] Truck rentals (TruckRental model, receipts, U-Haul deep link, AdminRentalsScreen, queue badge)
+- [x] Admin metrics dashboard (pipeline, conversion, revenue, sources, reply time)
+- [x] Follow-up scheduler with push reminders
+
+### Notifications, auth, infra
+- [x] JWT auth (python-jose + bcrypt), role guards on routes
+- [x] Push notifications (VAPID/pywebpush) + service worker; availability models (per-date + weekly); stale-subscription cleanup
+- [x] Configurable alert channels per tier (push / SMS via Twilio / email via Resend+SMTP)
+- [x] Square payment integration (payment links, webhook, status chips, copy-link)
+- [x] Dark mode (ThemeContext, defaults dark)
+- [x] 17 routers; 20 tables; SQLite async (aiosqlite); idempotent startup migrations
+- [x] Deploy config: Railway (backend, `railway.toml` + `Procfile`) + Vercel (frontend, `vercel.json`)
 
 ---
 
 ## Partially Working / Needs Live Verification
 
-- [x] Extraction on real Thumbtack screenshots — verified live 2026-04-18
-- [x] AI review against pricing-weighted SOP — verified live 2026-04-18
-- [ ] A–O review with new 15-section structure — needs live verification (model behavior with new keys)
-- [ ] New OCR fields (origin/destination/scope_notes) — needs live verification on real Thumbtack screenshots
-- [ ] Auto-apply accuracy: only `confidence == "high"` fields apply silently — needs real-world test
-- [ ] Grounding file path portability across machines (currently absolute Windows path in `.env`)
-- [ ] Webhook HMAC signature verification (not implemented — noted as TODO before production)
+- [ ] **New week-first calendar UX** — compiles + builds clean, but not yet visually verified in the running app on tablet (spacing, expand interaction, week-range label)
+- [ ] **`quote_context` use by the AI** — confirmed to reach the review snapshot (guard test), but the model's actual *use* of it not yet checked on a real lead
+- [ ] AI review failure is swallowed silently in the ingest flow (`IngestProgressFlow.tsx:43-45`) — a failed review is invisible to the facilitator until they open the Quote panel
+- [ ] Auto-apply accuracy: only `confidence == "high"` OCR fields apply silently — needs real-world test
+- [ ] Thumbtack webhook HMAC signature verification — not implemented (TODO before production)
 
 ---
 
 ## Broken / In Progress
 
-_Nothing currently known to be broken. All issues from the recovery pass have been resolved._
+- [ ] **11 backend tests failing** (full suite: 239 passed / 11 failed, 2026-06-15) — pre-existing, not from recent calendar/AI-review work:
+  - `test_calendar_service.py` — 6 failing in full run (13 of 14 fail when run in isolation): `build_event_body`, `create/update/delete_event_with_mocked_google`, `update_event_no_credentials_is_silent`. Likely a regression in `calendar_service.py` and/or test setup; investigate before trusting GCal event bodies.
+  - `test_chat.py::test_send_chat_message` — `KeyError: 0`
+- [ ] **Orphaned schema**: startup migration still creates `contact_status` / `acknowledgment_sent` columns (`main.py`) though the model dropped them — harmless but confusing dead schema
+- [ ] **Grounding file path is an absolute Windows path** in `.env` (points into the KOS vault) — not portable; will break on Railway. Deploy risk.
 
 ---
 
 ## Planned / Not Yet Built
 
-- [ ] Alert ladder for unprocessed leads (time-based escalation)
-- [ ] Quote builder / pricing control UI
+- [ ] Alert ladder timing automation (escalation thresholds) beyond current configurable channels
+- [ ] Quote builder / structured pricing-control UI
 - [ ] Quiet hours / backup handler routing
-- [ ] Review history UI (currently only latest review shown)
+- [ ] Review history UI (compare prior reviews, not just latest)
 - [ ] Owner-review automation rules
-- [ ] Booking-to-job conversion and handoff refinement
-- [ ] Crew workflow expansion
-- [ ] Payments / closeout flow
 - [ ] Provider/model switching UI
-- [ ] Multi-doc retrieval if SOP grows too large for single prompt
-- [ ] Thumbtack HMAC signature verification
+- [ ] Multi-doc retrieval if SOP grows beyond a single prompt
+- [ ] Postgres migration path (currently SQLite only; `check_same_thread` arg is SQLite-specific)
+- [ ] E2E (Playwright) + frontend unit (Jest) suites
+- [ ] CI/CD pipeline
 
 ---
 
@@ -100,19 +105,19 @@ _Nothing currently known to be broken. All issues from the recovery pass have be
 
 | Setting | Value |
 |---------|-------|
-| OCR provider | Anthropic |
-| OCR model | `claude-haiku-4-5-20251001` |
-| AI review provider | Anthropic |
-| AI review model | `claude-haiku-4-5-20251001` |
-| Grounding file | `docs/sops/holy_hauling_app_sop_from_revised_pricing.md` (absolute path in `.env`) |
-| Screenshot-first intake | Primary path |
-| Manual entry | Fallback only |
-| Env loading | `load_dotenv(override=True)` — `.env` is authoritative |
+| OCR provider / model | Anthropic / `claude-haiku-4-5-20251001` (`OCR_MODEL`) |
+| AI review provider / model | Anthropic / `claude-sonnet-4-6` (`AI_REVIEW_MODEL`) |
+| Grounding file | `AI_GROUNDING_FILE` — absolute Windows path into the KOS vault (`...\06_Projects\holy-hauling-app\holy-hauling-context.md`); built-in stub fallback |
+| Database | SQLite async (`sqlite+aiosqlite`), file-based; `DATABASE_URL` overridable |
+| Auth | JWT (python-jose + bcrypt); roles admin/facilitator/supervisor/crew |
+| Deploy | Railway (backend) + Vercel (frontend) |
+| Screenshot-first intake | Primary path; manual entry = fallback |
 
 ---
 
 ## Last Verified
 
-- Date: 2026-04-24
-- Verified by: Claude (automated tests)
-- Notes: 108/108 tests passing. Slice 8 complete: move detail fields, Thumbtack contact flow (accept_and_pay, contact lock/unlock, phone auto-acknowledge), source_category_label, revised Intake/Job Details/Scope & Access layout. Google Calendar integration added (sync on job date/address/notes edits and crew assignment changes; connect button in Settings).
+- Date: 2026-06-15
+- By: Claude (source audit + targeted test runs)
+- Tests: 250 collected — **239 passed, 11 failed** (see Broken/In Progress). `test_ai_review.py` run green (19/19) this session; frontend `tsc --noEmit` + `npm run build` pass.
+- Notes: Doc reconciled against actual source after the prior version sat stale at Slice 8. Two changes shipped this session: week-first calendar and the AI-review `quote_context`/scope snapshot fix. The 11 failing tests pre-date this session and want a separate debugging pass.

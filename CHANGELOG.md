@@ -2,6 +2,79 @@
 
 All meaningful development changes for the Holy Hauling app are logged here.
 
+> Entries from 2026-04-23 through 2026-06-15 were reconstructed from git history on 2026-06-15 to close a documentation gap (the log had been stale since Slice 8). They consolidate by feature area rather than per-commit; see `git log` for commit-level detail.
+
+---
+
+## [2026-06-15] Calendar UX + AI Review Context Fix
+
+### Added
+- **Week-first calendar** (`CalendarScreen.tsx`): default view is a tap-to-expand list of the current week (today highlighted, day quote totals), details one tap away. New **Week / Month** toggle — Month reuses the existing grid + stat cards.
+- Collapsible "needs a date" banner for unscheduled jobs, shown only when non-empty.
+
+### Fixed
+- **AI review ignored facilitator context.** The Quote panel's "Add Context Before Re-running Review" box saved `quote_context` to the lead, but `_build_input_snapshot` never included it — so hand-typed context (and hand-typed scope/move fields) never reached Claude. Added `quote_context`, `job_origin`, `job_destination`, `scope_notes`, `move_size_label`, `move_type`, `move_distance_miles`, `load_stairs`, `unload_stairs`, `move_date_options`, `accept_and_pay` to the review snapshot. Guard test added.
+
+### Changed
+- Removed the static "Sync Notes" wall-of-text block from the calendar; per-job synced/local badges already convey state.
+- `.gitignore`: ignore `.superpowers/` (brainstorm visual-companion artifacts).
+
+### Verified
+- `test_ai_review.py` 19/19; frontend `tsc --noEmit` + `npm run build` pass. Full backend suite: 239 passed / 11 failed (pre-existing failures in `test_calendar_service.py` + `test_chat.py` — see CAPABILITIES).
+
+---
+
+## [2026-05-20] Recurring Expenses
+
+### Added
+- `RecurringExpense` model + Pydantic schemas; `recurring_expenses` table (new table, no ALTER migration).
+- `/admin/recurring-expenses` router: list, `/due` (within 7 days), create, patch, delete, and one-tap `/log` (creates a `FinanceTransaction`, advances `next_due_date`, moves the GCal event).
+- GCal helpers `create_recurring_expense_event` / `update_recurring_expense_event` in `calendar_service.py` (non-fatal).
+- Frontend: `recurringExpense` types + TanStack hooks; `AdminRecurringExpensesScreen` (manage templates), `AdminDueExpensesScreen` (log due items); due-count badge on admin home; recurring dates on the calendar.
+- 13 backend tests; `python-dateutil` dependency for month arithmetic.
+
+---
+
+## [2026-05-19] Payroll + Truck Rentals
+
+### Added
+- **Payroll**: `PayRecord` model, `quote_cents` on Lead, `hourly_rate_cents` on User; payroll router (per-lead CRUD + admin aggregation); `PayrollSection` in BriefPanel; `AdminPayrollScreen`; pay types flat / hourly / 10% facilitator cut. 12 backend tests.
+- **Truck rentals**: `TruckRental` model + receipts directory; `TruckRentalSection` in BriefPanel; `AdminRentalsScreen`; U-Haul deep link; rental badge on lead-queue cards.
+
+---
+
+## [2026-05-08 → 2026-05-13] Admin Hub, Multi-City, Finance, Metrics, Square, Comms, Deploy
+
+### Added
+- **Multi-city isolation**: `City` model, `CityContext`, `CitySwitcher`, per-city data scoping; `AdminCitiesScreen`.
+- **Admin finance tracking**: income/expense transactions, categories, payment methods, vendor/customer, lead linking, summary.
+- **Admin hub** screen + mobile-first bottom navigation; admin metrics dashboard (pipeline, conversion, revenue, sources, reply time).
+- **Follow-up scheduler**: reminders on leads with push notifications; calendar deep-link + schedule-date modal.
+- **Square payment integration** (skeleton): payment links, webhook, status chips, tap-to-copy link.
+- **Comms**: configurable alert channels (push / SMS / email per tier); Twilio SMS with E.164 normalization; Resend email with SMTP fallback (run in thread pool).
+- `replied` status added to the queue workflow.
+
+### Changed
+- Removed contact-lock vestiges (`contact_status` / `acknowledgment_sent`) — superseded by the `in_review` / `waiting_on_customer` state machine.
+- Deployment made env-driven; Railway `serve.json`/SPA routing; `load_dotenv(override=False)` so Railway env vars win; iframe-embedding CSP (`frame-ancestors`).
+
+---
+
+## [2026-04-23 → 2026-04-28] Booking Flow, Jobs/Crew, Google Calendar, Auth, Dark Mode, Push
+
+### Added
+- **Booking confirmation flow**: editable customer confirmation from lead fields, View Lead + Copy Confirmation in JobModal, date ranges, cross-tab booking flow.
+- **Jobs + crew**: `JobAssignment` model (many-to-many crew); Jobs screen (Scheduled / In Progress); phase tracking (dispatched → en route → arrived → started → completed) with live timers; crew/supervisor assignment UI; before/after job photos.
+- **Google Calendar integration**: `/admin/google` OAuth connect/callback/status; `calendar_service` create/update/delete/sync; auto-sync on job date/address/notes and crew-assignment changes; `user.email` + `leads.google_calendar_event_id`.
+- **Auth & users**: `AdminUsersScreen`, `useUsers`, role-grouped assignment dropdowns; role guards.
+- **Push notifications** + availability models + service worker; auto-delete stale subscriptions on delivery failure.
+- **Dark mode** via `ThemeContext` (defaults dark; toggle in Settings).
+- Queue: Active / Released tabs; `lost` terminal status; Completed / Released labels.
+
+### Changed
+- API `BASE` reverted to relative path to avoid double-prefixing in hosted environments.
+- Added exception logging before re-raising AI review 502s; onError logging for extract/review mutations.
+
 ---
 
 ## [2026-04-20] Slice 8 — Move Detail Fields + Thumbtack Contact Flow
