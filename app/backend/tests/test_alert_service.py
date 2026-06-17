@@ -81,14 +81,31 @@ async def test_t1_alert_not_sent_twice(client, db_session):
     assert mock_sms.call_count == 1  # dedup prevents second send
 
 
-async def test_t2_escalates_lead_status(client, db_session):
+async def test_t2_opens_escalation_overlay_without_touching_status(client, db_session):
     lead_id = await _make_stale_lead(client, db_session, minutes_ago=35)
     settings = SettingsOut(t1_minutes=15, t2_minutes=30)
     with patch("app.services.alert_service._send_sms", return_value=None), \
          patch("app.services.alert_service._send_email", return_value=None):
         await _process_stale_leads(db_session, settings)
-    r = await client.get(f"/leads/{lead_id}")
-    assert r.json()["status"] == "escalated"
+    # Pipeline status is untouched
+    lead = (await client.get(f"/leads/{lead_id}")).json()
+    assert lead["status"] != "escalated"
+    # An auto_idle escalation is now open
+    esc = (await client.get(f"/leads/{lead_id}/escalation")).json()
+    assert esc is not None
+    assert esc["source"] == "auto_idle"
+    assert esc["level"] == "monitor"
+
+
+async def test_t2_does_not_double_raise(client, db_session):
+    lead_id = await _make_stale_lead(client, db_session, minutes_ago=35)
+    settings = SettingsOut(t1_minutes=15, t2_minutes=30)
+    with patch("app.services.alert_service._send_sms", return_value=None), \
+         patch("app.services.alert_service._send_email", return_value=None):
+        await _process_stale_leads(db_session, settings)
+        await _process_stale_leads(db_session, settings)
+    rows = (await client.get(f"/escalations?status=open")).json()
+    assert len([r for r in rows if r["lead_id"] == lead_id]) == 1
 
 
 async def test_quiet_hours_suppresses_sms(client, db_session):

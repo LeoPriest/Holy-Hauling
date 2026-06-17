@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal
 from app.models.lead import Lead, LeadStatus
 from app.models.lead_alert import LeadAlert
-from app.models.lead_event import LeadEvent
 from app.models.city import City, DEFAULT_CITY_ID
 from app.schemas.settings import SettingsOut, TestAlertResult
 
@@ -345,20 +344,10 @@ async def _process_stale_leads(db: AsyncSession, settings: SettingsOut, city_id:
             for email_to in email_recipients:
                 await _alert_channel(db, lead, tier, "email", email_to, base_msg, subject, quiet, snapshot)
 
-        # T2: auto-advance to escalated and write audit event
-        if is_t2 and lead.status != LeadStatus.escalated:
-            old_status = lead.status.value
-            lead.status = LeadStatus.escalated
-            lead.updated_at = now_naive
-            db.add(LeadEvent(
-                id=str(uuid.uuid4()),
-                lead_id=lead.id,
-                event_type="status_changed",
-                from_status=old_status,
-                to_status=LeadStatus.escalated.value,
-                actor="alert_scheduler",
-            ))
-            await db.commit()
+        # T2: raise an escalation overlay (does NOT touch the pipeline status)
+        if is_t2:
+            from app.services.escalation_service import open_auto_escalation
+            await open_auto_escalation(db, lead)
 
 
 async def check_stale_leads() -> None:
