@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { DateOptionsEditor } from '../../components/DateOptionsEditor'
+import { EscalateSheet } from '../../components/EscalateSheet'
 import { buildUploadUrl } from '../../services/api'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -22,7 +23,6 @@ const ALL_STATUSES: LeadStatus[] = [
   'waiting_on_customer',
   'ready_for_quote',
   'ready_for_booking',
-  'escalated',
   'booked',
   'released',
   'lost',
@@ -72,6 +72,7 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
 
   const [noteBody, setNoteBody] = useState('')
   const [showHistory, setShowHistory] = useState(false)
+  const [showEscalate, setShowEscalate] = useState(false)
   const [extractResults, setExtractResults] = useState<Record<string, OcrResult>>({})
   const [applyDraft, setApplyDraft] = useState<Record<string, Record<string, string>>>({})
   const fileRef = useRef<HTMLInputElement>(null)
@@ -160,6 +161,12 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
               )
             })}
           </div>
+          <button
+            onClick={() => setShowEscalate(true)}
+            className="mt-3 min-h-11 rounded-lg border border-amber-500 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-900/20"
+          >
+            ⚠ Escalate to owner
+          </button>
         </section>
 
         <section>
@@ -390,6 +397,7 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
           )}
         </section>
       </div>
+        {showEscalate && <EscalateSheet leadId={leadId} onClose={() => setShowEscalate(false)} />}
     </>
   )
 }
