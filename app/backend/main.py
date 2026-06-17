@@ -39,6 +39,7 @@ import app.models.finance  # noqa: F401
 import app.models.truck_rental  # noqa: F401
 import app.models.pay_record  # noqa: F401
 import app.models.recurring_expense  # noqa: F401
+import app.models.lead_escalation  # noqa: F401
 
 from app.models.city import DEFAULT_CITIES, DEFAULT_CITY_ID
 from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, finance, ingest, jobs, leads, payroll, push, recurring_expenses, settings as settings_router, square_router, truck_rental, users
