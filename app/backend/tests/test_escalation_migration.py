@@ -42,6 +42,8 @@ async def test_migration_is_idempotent(client, db_session):
     conn = await db_session.connection()
     await _migrate_escalated_status_leads(conn)
     await db_session.commit()
+    # Re-acquire the connection after commit (the session releases the prior one)
+    conn = await db_session.connection()
     await _migrate_escalated_status_leads(conn)  # second run is a no-op
     await db_session.commit()
 

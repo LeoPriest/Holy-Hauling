@@ -484,11 +484,7 @@ async def _migrate_escalated_status_leads(conn) -> None:
 
     Idempotent: after the first run no leads remain at status='escalated'.
     """
-    from sqlalchemy.exc import ResourceClosedError
-    try:
-        result = await conn.execute(text("PRAGMA table_info(lead_escalations)"))
-    except ResourceClosedError:
-        return  # connection closed (e.g. after a session commit in tests); nothing to do
+    result = await conn.execute(text("PRAGMA table_info(lead_escalations)"))
     if not result.fetchall():
         return  # table not created yet; create_all runs after migrations on first boot
 
