@@ -478,6 +478,54 @@ async def _migrate_users_add_hourly_rate_cents(conn) -> None:
     await conn.execute(text("ALTER TABLE users ADD COLUMN hourly_rate_cents INTEGER"))
     print("[startup] users: added hourly_rate_cents column")
 
+
+async def _migrate_escalated_status_leads(conn) -> None:
+    """Move legacy status=escalated leads back to a real stage and open an overlay.
+
+    Idempotent: after the first run no leads remain at status='escalated'.
+    """
+    from sqlalchemy.exc import ResourceClosedError
+    try:
+        result = await conn.execute(text("PRAGMA table_info(lead_escalations)"))
+    except ResourceClosedError:
+        return  # connection closed (e.g. after a session commit in tests); nothing to do
+    if not result.fetchall():
+        return  # table not created yet; create_all runs after migrations on first boot
+
+    rows = (await conn.execute(text(
+        "SELECT id, city_id FROM leads WHERE status = 'escalated'"
+    ))).fetchall()
+    if not rows:
+        return
+
+    import uuid as _uuid
+    now = datetime.now(timezone.utc)
+    for lead_id, _city_id in rows:
+        prior = (await conn.execute(text(
+            "SELECT from_status FROM lead_events "
+            "WHERE lead_id = :lid AND event_type = 'status_changed' AND to_status = 'escalated' "
+            "ORDER BY created_at DESC LIMIT 1"
+        ), {"lid": lead_id})).fetchone()
+        restored = (prior[0] if prior and prior[0] else "in_review")
+        await conn.execute(text("UPDATE leads SET status = :s WHERE id = :lid"),
+                           {"s": restored, "lid": lead_id})
+
+        has_open = (await conn.execute(text(
+            "SELECT 1 FROM lead_escalations WHERE lead_id = :lid AND status = 'open' LIMIT 1"
+        ), {"lid": lead_id})).fetchone()
+        if not has_open:
+            await conn.execute(text(
+                "INSERT INTO lead_escalations "
+                "(id, lead_id, level, source, decision_needed, summary, raised_by, raised_at, status) "
+                "VALUES (:id, :lid, 'monitor', 'auto_idle', 'review', "
+                ":summary, 'migration', :now, 'open')"
+            ), {
+                "id": str(_uuid.uuid4()), "lid": lead_id,
+                "summary": "Migrated from legacy escalated status.", "now": now,
+            })
+    print(f"[startup] escalation migration: moved {len(rows)} legacy escalated lead(s) to overlay")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _validate_grounding_file()
@@ -507,6 +555,7 @@ async def lifespan(app: FastAPI):
         await _migrate_users_add_hourly_rate_cents(conn)
         await _migrate_truck_rentals_add_columns(conn)
         await conn.run_sync(Base.metadata.create_all)
+        await _migrate_escalated_status_leads(conn)
         await _seed_default_admin(conn)
 
     from app.services.alert_service import check_stale_leads
