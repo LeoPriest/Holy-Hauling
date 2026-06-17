@@ -14,6 +14,7 @@ import { LogPanel } from './panels/LogPanel'
 import { QuotePanel } from './panels/QuotePanel'
 import { BookingConfirmation, formatCurrency, parseMoney, useQuoteDraft, validateQuote } from '../components/QuoteBuilder'
 import { buildConfirmationText } from '../utils/confirmationText'
+import { EscalationCard } from '../components/EscalationCard'
 
 type Tab = 'brief' | 'quote' | 'log'
 
@@ -323,6 +324,9 @@ export function LeadCommandCenter() {
           <p className="text-xs text-red-700">{paymentError}</p>
         </div>
       )}
+
+      {/* ── Escalation card (visible on all tabs) ────────── */}
+      <EscalationCard leadId={lead.id} />
 
       {/* ── Scrollable panel ─────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
