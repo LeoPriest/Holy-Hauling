@@ -416,13 +416,8 @@ async def update_lead_status(db: AsyncSession, lead_id: str, data: LeadStatusUpd
                 f"New job assigned: {customer} — {svc}",
                 city_id=lead.city_id,
             )
-        elif data.status == LeadStatus.escalated:
-            await send_push_to_roles(
-                db,
-                ["supervisor"],
-                f"Job escalated: {customer} — action needed",
-                city_id=lead.city_id,
-            )
+        # Escalation is an overlay now (see escalation_service); status is never set to
+        # `escalated`, so no escalated-status push branch here.
     except Exception as exc:
         _logging.getLogger(__name__).error("Push trigger failed: %s", exc)
 
