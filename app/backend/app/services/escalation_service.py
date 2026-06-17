@@ -9,6 +9,7 @@ quote_service.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -74,7 +75,6 @@ async def _latest_ai_posture(db: AsyncSession, lead_id: str) -> str:
     review = result.scalar_one_or_none()
     if not review:
         return ""
-    import json
     try:
         sections = json.loads(review.sections_json)
     except (json.JSONDecodeError, TypeError):
