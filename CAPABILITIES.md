@@ -22,9 +22,18 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 - [x] Tap-to-call / tap-to-text on customer phone
 
 ### Lead state machine (contact-lock fully replaced)
-- [x] States: `new → in_review → replied → waiting_on_customer → ready_for_quote → ready_for_booking → escalated → booked → released → lost`
+- [x] States: `new → in_review → replied → waiting_on_customer → ready_for_quote → ready_for_booking → booked → released → lost`
 - [x] Auto-transitions live in `lead_service.py`: open detail → `in_review`; valid phone on in_review/replied → `waiting_on_customer`; job address entered → `booked`
+- [x] **`escalated` is no longer a pipeline stage** — escalation is a resolvable overlay (see below). The `escalated` enum value stays defined for legacy rows but is unreachable; a startup migration (`_migrate_escalated_status_leads`) moves any legacy `escalated` lead back to its prior stage and opens an overlay.
 - [x] Old contact-lock columns (`contact_status`, `acknowledgment_sent`) removed from the model (orphaned migration default remains — see Broken/In Progress)
+
+### Escalation overlay (risk-based, reconciled with the idle timer)
+- [x] Escalation modeled as a separate `LeadEscalation` row (overlay), independent of pipeline status — a lead keeps its real stage *and* carries an open escalation
+- [x] Manual raise from the lead window Log tab: level (`monitor` / `pause` / `owner_takeover`) + decision-needed + AI-prefilled Escalation Summary (`escalation_service.suggest_summary`, reuses the AI-review grounding/client helpers)
+- [x] Resolve flow (owner): outcome (`approved` / `adjusted` / `owner_takeover` / `release` / `need_more_info`) + note → closes the overlay, writes a `LeadEvent`, notifies the handler
+- [x] Notifications: raise → push to `admin`+`supervisor`; resolve → push to `facilitator` (best-effort, reuses `send_push_to_roles`)
+- [x] **Idle ladder reconciled** — at T2 the timer raises an `auto_idle` overlay (`open_auto_escalation`, idempotent) instead of flipping `status` to escalated; the Aging/Overdue staleness signal and T1/T2 alert pings are unchanged
+- [x] Surfaced on the queue as a pinned "⚠ Escalations" band + an `⚠ Escalated` badge on each lead card; endpoints in `routers/escalation.py` (`POST/GET /leads/{id}/escalation`, `/escalation/suggest`, `POST /escalations/{id}/resolve`, `GET /escalations`)
 
 ### AI review engine
 - [x] A–O review (15 sections), grouped Action-first (A–E) / Pricing & Control (F–L, internal) / Support & Context (M–O)
@@ -115,7 +124,7 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 
 ## Last Verified
 
-- Date: 2026-06-15
-- By: Claude (source audit + targeted test runs)
-- Tests: **257 passed, 0 failed** (full backend suite, 2026-06-15). Frontend `tsc --noEmit` + `npm run build` pass.
-- Notes: Doc reconciled against actual source after the prior version sat stale at Slice 8. Shipped this session: week-first calendar, stage-grouped queue (ambient Aging/Overdue), quote-centric lead window, AI-assisted quote drafting, AI-review `quote_context`/scope snapshot fix, and the 11 stale-test fixes (suite now green).
+- Date: 2026-06-16
+- By: Claude (subagent-driven implementation of the escalation overlay, spec→plan→TDD)
+- Tests: **277 passed, 0 failed** (full backend suite, 2026-06-16). Frontend `tsc --noEmit` + `npm run build` pass.
+- Notes: Shipped the escalation overlay this session (see "Escalation overlay" above) — `LeadEscalation` model/schemas/service/router, AI-prefilled summary, idle-timer reconciliation (T2 raises an overlay, no longer flips status), legacy-`escalated` startup migration, lead-window Escalate sheet + Resolve card, queue Escalations band + card badge. Prior 2026-06-15 work (week-first calendar, stage-grouped queue, quote-centric lead window, AI quote drafting, `quote_context`/scope snapshot fix, 11 stale-test fixes) remains in place.
