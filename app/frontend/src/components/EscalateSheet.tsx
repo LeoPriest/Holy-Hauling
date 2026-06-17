@@ -66,7 +66,7 @@ export function EscalateSheet({ leadId, onClose }: Props) {
           <button
             onClick={handleSuggest}
             disabled={suggest.isPending}
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 dark:text-indigo-400"
+            className="min-h-11 px-2 -mr-2 text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 dark:text-indigo-400"
           >
             {suggest.isPending ? 'Drafting…' : '✨ Suggest with AI'}
           </button>
