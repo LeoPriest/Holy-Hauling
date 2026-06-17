@@ -8,6 +8,8 @@ import { useSettings } from '../hooks/useSettings'
 import { useStaleLeads } from '../hooks/useStaleLeads'
 import { useUsers } from '../hooks/useUsers'
 import { useRentals } from '../hooks/useTruckRental'
+import { useOpenEscalations } from '../hooks/useEscalation'
+import { LEVEL_LABELS } from '../types/escalation'
 import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
@@ -21,7 +23,6 @@ const ACTIVE_STAGES: { status: LeadStatus; label: string }[] = [
   { status: 'waiting_on_customer', label: 'Waiting' },
   { status: 'ready_for_quote', label: 'Ready to Quote' },
   { status: 'ready_for_booking', label: 'Ready to Book' },
-  { status: 'escalated', label: 'Escalated' },
   { status: 'booked', label: 'Booked' },
 ]
 
@@ -61,6 +62,10 @@ export function LeadQueue() {
   const { isAllCities } = useCity()
   const { data: rentals = [] } = useRentals()
   const rentalLeadIds = useMemo(() => new Set(rentals.map(r => r.lead_id)), [rentals])
+
+  const { data: openEscalations = [] } = useOpenEscalations()
+  const escalatedLeadIds = useMemo(() => new Set(openEscalations.map(e => e.lead_id)), [openEscalations])
+  const [escBandOpen, setEscBandOpen] = useState(true)
 
   const showQuote = user?.role === 'admin' || user?.role === 'facilitator'
 
@@ -193,6 +198,38 @@ export function LeadQueue() {
       </div>
 
       <main className="px-4 pb-10 space-y-4">
+        {view === 'active' && openEscalations.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20">
+            <button
+              onClick={() => setEscBandOpen(o => !o)}
+              className="flex w-full min-h-12 items-center justify-between px-3 py-2 text-left"
+              aria-expanded={escBandOpen}
+            >
+              <span className="font-semibold text-amber-800 dark:text-amber-200">
+                ⚠ Escalations <span className="text-amber-600 dark:text-amber-400">{openEscalations.length}</span>
+              </span>
+              <span className={`text-amber-500 transition-transform ${escBandOpen ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
+            </button>
+            {escBandOpen && (
+              <div className="space-y-1 px-2 pb-2">
+                {openEscalations.map(e => (
+                  <button
+                    key={e.id}
+                    onClick={() => navigate(`/leads/${e.lead_id}`)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg bg-white/70 px-3 py-2 text-left dark:bg-gray-800/60"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-white">
+                      {e.lead_customer_name ?? 'Unknown'}
+                    </span>
+                    <span className="shrink-0 text-xs text-amber-700 dark:text-amber-300">
+                      {LEVEL_LABELS[e.level]} · {e.decision_needed}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
         {isLoading && (
           <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
         )}
@@ -249,6 +286,7 @@ export function LeadQueue() {
                         staleness={overdueIds.has(lead.id) ? 'overdue' : agingIds.has(lead.id) ? 'aging' : null}
                         idleMinutes={idleMinuteMap.get(lead.id)}
                         hasTruckRental={rentalLeadIds.has(lead.id)}
+                        isEscalated={escalatedLeadIds.has(lead.id)}
                       />
                     </div>
                   ))}

@@ -10,6 +10,7 @@ interface Props {
   staleness?: 'aging' | 'overdue' | null
   idleMinutes?: number
   hasTruckRental?: boolean
+  isEscalated?: boolean
 }
 
 function fmtIdle(minutes?: number) {
@@ -19,7 +20,7 @@ function fmtIdle(minutes?: number) {
   return `${Math.floor(minutes / 1440)}d`
 }
 
-export function LeadCard({ lead, onClick, staleness, idleMinutes, hasTruckRental }: Props) {
+export function LeadCard({ lead, onClick, staleness, idleMinutes, hasTruckRental, isEscalated }: Props) {
   const leftBorder = lead.urgency_flag ? 'border-l-4 border-l-orange-500' : 'border-gray-200'
 
   return (
@@ -44,6 +45,11 @@ export function LeadCard({ lead, onClick, staleness, idleMinutes, hasTruckRental
             >
               {staleness === 'overdue' ? 'Overdue' : 'Aging'}
               {idleMinutes != null ? ` · ${fmtIdle(idleMinutes)}` : ''}
+            </span>
+          )}
+          {isEscalated && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+              ⚠ Escalated
             </span>
           )}
           {lead.urgency_flag && (
