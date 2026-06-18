@@ -125,7 +125,10 @@ def _format_comparables(comparables: list[ComparableOut]) -> str:
         "COMPARABLE LOCAL JOBS (most similar past outcomes - anchor your price on "
         "these real local results, not only the SOP bands):"
     )
-    return "\n" + header + "\n" + "\n".join(lines)
+    # Trailing newline separates the block from the "Draft the quote" instruction
+    # when a pricing section also precedes it. Cold-start returns "" above, so this
+    # never affects the no-comparables prompt.
+    return "\n" + header + "\n" + "\n".join(lines) + "\n"
 
 
 async def _safe_find_comparables(db: AsyncSession, lead: Lead) -> list[ComparableOut]:
