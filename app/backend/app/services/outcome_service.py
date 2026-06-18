@@ -114,7 +114,9 @@ async def _latest_prompt_version(db: AsyncSession, lead_id: str) -> str | None:
     return result.scalar_one_or_none()
 
 
-async def _booked_completed_times(db: AsyncSession, lead: Lead):
+async def _booked_completed_times(
+    db: AsyncSession, lead: Lead
+) -> tuple[datetime | None, datetime | None, int | None]:
     booked_at = (await db.execute(
         select(func.min(LeadEvent.created_at)).where(
             LeadEvent.lead_id == lead.id,
@@ -133,7 +135,7 @@ async def _booked_completed_times(db: AsyncSession, lead: Lead):
     if booked_at is not None and lead.created_at is not None:
         # Normalize to naive UTC before subtracting — stored datetimes may come back
         # naive (SQLite) or tz-aware depending on how they were written; mixing raises.
-        ttb = int((_naive(booked_at) - _naive(lead.created_at)).total_seconds() / 60)
+        ttb = max(0, int((_naive(booked_at) - _naive(lead.created_at)).total_seconds() / 60))
     return booked_at, completed_at, ttb
 
 
@@ -214,6 +216,9 @@ async def reconcile_all_outcomes() -> None:
         async with AsyncSessionLocal() as db:
             cities = (await db.execute(select(City).where(City.is_active == True))).scalars().all()
             for city in cities:
-                await reconcile_outcomes(db, city.id)
+                try:
+                    await reconcile_outcomes(db, city.id)
+                except Exception as exc:  # one city's failure must not skip the rest
+                    _log.warning("[outcome_reconciler] city %s failed: %s", city.id, exc)
     except Exception as exc:
         _log.error("[outcome_reconciler] error: %s", exc)
