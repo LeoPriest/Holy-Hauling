@@ -6,8 +6,10 @@ from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, T
 
 from app.database import Base
 
-# String-valued vocabularies (validated in code; stored as plain strings)
-CONVERSIONS = ("won", "lost", "pending")
+# String-valued vocabularies (validated in code; stored as plain strings).
+# Only terminal leads get a row, so a stored conversion is always won or lost —
+# non-terminal leads have no row at all (there is no persisted "pending").
+CONVERSIONS = ("won", "lost")
 
 
 class LeadOutcome(Base):
@@ -15,7 +17,7 @@ class LeadOutcome(Base):
 
     lead_id = Column(String, ForeignKey("leads.id", ondelete="CASCADE"), primary_key=True)
     city_id = Column(String, nullable=False)
-    conversion = Column(String, nullable=False)            # won | lost | pending
+    conversion = Column(String, nullable=False)            # won | lost
     terminal_status = Column(String, nullable=False)       # booked | released | lost
     quoted_price_cents = Column(Integer, nullable=True)
     realized_revenue_cents = Column(Integer, nullable=True)

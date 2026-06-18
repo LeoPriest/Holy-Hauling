@@ -220,5 +220,6 @@ async def reconcile_all_outcomes() -> None:
                     await reconcile_outcomes(db, city.id)
                 except Exception as exc:  # one city's failure must not skip the rest
                     _log.warning("[outcome_reconciler] city %s failed: %s", city.id, exc)
+                    await db.rollback()  # clear any dirtied state before the next city
     except Exception as exc:
         _log.error("[outcome_reconciler] error: %s", exc)

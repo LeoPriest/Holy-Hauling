@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import require_auth
+from app.dependencies import require_role
 from app.models.lead_outcome import LeadOutcome
 from app.models.user import User
 from app.schemas.outcome import LeadOutcomeOut
@@ -18,7 +18,7 @@ async def list_outcomes(
     city_id: str | None = Query(None),
     conversion: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_auth),
+    _: User = Depends(require_role("admin")),  # outcome data spans pricing across all leads
 ):
     stmt = select(LeadOutcome).order_by(LeadOutcome.updated_at.desc())
     if city_id:
