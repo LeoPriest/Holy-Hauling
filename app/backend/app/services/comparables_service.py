@@ -81,6 +81,8 @@ async def find_comparables(db: AsyncSession, lead: Lead, limit: int = 5) -> list
         if not isinstance(snap, dict) or snap.get("service_type") != service_type:
             continue  # hard service_type filter
 
+        # The SQL `or_` filter above guarantees at least one price column is set,
+        # so price_cents is never None here (keeps ComparableOut.price_cents: int valid).
         if row.realized_revenue_cents is not None:
             price_cents, basis = row.realized_revenue_cents, "realized"
         else:
