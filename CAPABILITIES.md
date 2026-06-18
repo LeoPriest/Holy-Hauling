@@ -35,8 +35,16 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 - [x] **Idle ladder reconciled** — at T2 the timer raises an `auto_idle` overlay (`open_auto_escalation`, idempotent) instead of flipping `status` to escalated; the Aging/Overdue staleness signal and T1/T2 alert pings are unchanged
 - [x] Surfaced on the queue as a pinned "⚠ Escalations" band + an `⚠ Escalated` badge on each lead card; endpoints in `routers/escalation.py` (`POST/GET /leads/{id}/escalation`, `/escalation/suggest`, `POST /escalations/{id}/resolve`, `GET /escalations`)
 
-### Outcome layer (self-learning roadmap — item 1 of 4)
-- [x] `lead_outcome` — a materialized, reconciled record (one row per terminal lead) that freezes the decision-time snapshot + real-world result. The foundation for feeding outcomes back into the AI (items 2–4: retrieval grounding, eval, regeneration — not built yet).
+### Self-learning roadmap (4 items)
+**Item 1 — outcome layer (done).** **Item 2 — retrieval grounding for the quote (done).** Items 3 (eval) + 4 (regeneration) not built yet.
+
+#### Item 2 — retrieval grounding (quote)
+- [x] Before drafting a quote, `quote_service` retrieves the **top-5 most similar same-city finalized outcomes** (won + lost) via `comparables_service.find_comparables` — structured attribute scoring over each outcome's frozen `scope_snapshot` (size +3, distance +2/+1, move_type +1, stairs +1), **no embeddings**, explainable.
+- [x] Injects a `COMPARABLE LOCAL JOBS` block into the prompt so the AI anchors on what comparable local jobs actually sold for (`realized` price, or `quoted` fallback), labeled won/lost — not just SOP bands.
+- [x] **Cold-start safe:** no comparables → no block → prompt byte-identical to before (zero regression). Retrieval never breaks quoting (`_safe_find_comparables` degrades to `[]` on any error). The comparables used are returned on `QuoteSuggestionOut.comparables`. 11 tests.
+
+#### Item 1 — outcome layer
+- [x] `lead_outcome` — a materialized, reconciled record (one row per terminal lead) that freezes the decision-time snapshot + real-world result. The foundation for feeding outcomes back into the AI (items 2–4: retrieval grounding, eval, regeneration).
 - [x] Per row: `conversion` (won/lost), `terminal_status`, `quoted_price_cents` vs `realized_revenue_cents` (+ `realized_cost_cents`, `price_delta_cents`), `was_escalated`/`escalation_outcome`, a frozen `scope_snapshot` (JSON, the bridge to item-2 retrieval), `ai_prompt_version` (the grouping key for item-3 eval), and booked/completed timings.
 - [x] Realized price = sum of `income` finance txns for the lead (cost = `expense` sum); null when no finance txn logged (documented data-completeness gap).
 - [x] **Reconciliation sweep** (`outcome_service.reconcile_outcomes`) upserts rows for `booked`/`released`/`lost` leads; **finalized** rows (`lost` or `released`) are frozen to preserve the decision-time snapshot; `booked`-not-completed rows stay live so realized revenue fills in later. Idempotent.
@@ -131,7 +139,7 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 
 ## Last Verified
 
-- Date: 2026-06-17
-- By: Claude (subagent-driven implementation of the outcome layer, spec→plan→TDD)
-- Tests: **293 passed, 0 failed** (full backend suite, 2026-06-17). Frontend `tsc --noEmit` + `npm run build` pass.
-- Notes: Shipped the **outcome layer** this session (see "Outcome layer" above) — `lead_outcome` model/schema, `outcome_service` (reconcile + computation), 15-min scheduler + startup backfill, `GET /admin/outcomes`; 16 tests. This is item 1 of the 4-part self-learning roadmap (foundation for retrieval grounding + eval, not yet built). Prior 2026-06-16 escalation overlay and 2026-06-15 work remain in place.
+- Date: 2026-06-18
+- By: Claude (subagent-driven implementation of retrieval grounding, spec→plan→TDD)
+- Tests: **304 passed, 0 failed** (full backend suite, 2026-06-18). Frontend `tsc --noEmit` + `npm run build` pass.
+- Notes: Shipped **item 2 — retrieval grounding for the quote** this session (see "Self-learning roadmap" above) — `comparables_service.find_comparables` (structured similarity over `lead_outcome.scope_snapshot`, no embeddings) + `COMPARABLE LOCAL JOBS` prompt block in `quote_service`, cold-start safe, comparables surfaced on the response; 11 tests. Item 1 (outcome layer, 2026-06-17), the 2026-06-16 escalation overlay, and 2026-06-15 work all remain in place. Next: item 3 (eval harness).
