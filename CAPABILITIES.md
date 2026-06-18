@@ -35,6 +35,13 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 - [x] **Idle ladder reconciled** — at T2 the timer raises an `auto_idle` overlay (`open_auto_escalation`, idempotent) instead of flipping `status` to escalated; the Aging/Overdue staleness signal and T1/T2 alert pings are unchanged
 - [x] Surfaced on the queue as a pinned "⚠ Escalations" band + an `⚠ Escalated` badge on each lead card; endpoints in `routers/escalation.py` (`POST/GET /leads/{id}/escalation`, `/escalation/suggest`, `POST /escalations/{id}/resolve`, `GET /escalations`)
 
+### Outcome layer (self-learning roadmap — item 1 of 4)
+- [x] `lead_outcome` — a materialized, reconciled record (one row per terminal lead) that freezes the decision-time snapshot + real-world result. The foundation for feeding outcomes back into the AI (items 2–4: retrieval grounding, eval, regeneration — not built yet).
+- [x] Per row: `conversion` (won/lost), `terminal_status`, `quoted_price_cents` vs `realized_revenue_cents` (+ `realized_cost_cents`, `price_delta_cents`), `was_escalated`/`escalation_outcome`, a frozen `scope_snapshot` (JSON, the bridge to item-2 retrieval), `ai_prompt_version` (the grouping key for item-3 eval), and booked/completed timings.
+- [x] Realized price = sum of `income` finance txns for the lead (cost = `expense` sum); null when no finance txn logged (documented data-completeness gap).
+- [x] **Reconciliation sweep** (`outcome_service.reconcile_outcomes`) upserts rows for `booked`/`released`/`lost` leads; **finalized** rows (`lost` or `released`) are frozen to preserve the decision-time snapshot; `booked`-not-completed rows stay live so realized revenue fills in later. Idempotent.
+- [x] Runs every 15 min on the scheduler + once at startup as a backfill (`reconcile_all_outcomes`); multi-city aware. Read via `GET /admin/outcomes?city_id=&conversion=` (`routers/outcomes.py`). 16 tests.
+
 ### AI review engine
 - [x] A–O review (15 sections), grouped Action-first (A–E) / Pricing & Control (F–L, internal) / Support & Context (M–O)
 - [x] Grounded in the configured SOP file; stores `input_snapshot`, `prompt_version`, `grounding_source`, `model_used`
@@ -124,7 +131,7 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 
 ## Last Verified
 
-- Date: 2026-06-16
-- By: Claude (subagent-driven implementation of the escalation overlay, spec→plan→TDD)
-- Tests: **277 passed, 0 failed** (full backend suite, 2026-06-16). Frontend `tsc --noEmit` + `npm run build` pass.
-- Notes: Shipped the escalation overlay this session (see "Escalation overlay" above) — `LeadEscalation` model/schemas/service/router, AI-prefilled summary, idle-timer reconciliation (T2 raises an overlay, no longer flips status), legacy-`escalated` startup migration, lead-window Escalate sheet + Resolve card, queue Escalations band + card badge. Prior 2026-06-15 work (week-first calendar, stage-grouped queue, quote-centric lead window, AI quote drafting, `quote_context`/scope snapshot fix, 11 stale-test fixes) remains in place.
+- Date: 2026-06-17
+- By: Claude (subagent-driven implementation of the outcome layer, spec→plan→TDD)
+- Tests: **293 passed, 0 failed** (full backend suite, 2026-06-17). Frontend `tsc --noEmit` + `npm run build` pass.
+- Notes: Shipped the **outcome layer** this session (see "Outcome layer" above) — `lead_outcome` model/schema, `outcome_service` (reconcile + computation), 15-min scheduler + startup backfill, `GET /admin/outcomes`; 16 tests. This is item 1 of the 4-part self-learning roadmap (foundation for retrieval grounding + eval, not yet built). Prior 2026-06-16 escalation overlay and 2026-06-15 work remain in place.
