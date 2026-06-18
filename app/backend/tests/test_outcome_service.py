@@ -148,3 +148,32 @@ async def test_scope_snapshot_and_prompt_version(client, db_session):
     row = await _get_outcome(db_session, lead_id)
     assert "2 bedroom apartment" in (row.scope_snapshot or "")
     assert row.ai_prompt_version is None
+
+
+async def test_booked_timings_from_event(client, db_session):
+    lead_id, city = await _make_lead(client)
+    # A real booked status_changed event drives booked_at + time_to_book_minutes
+    await db_session.execute(text(
+        "INSERT INTO lead_events (id, lead_id, event_type, to_status, created_at) "
+        "VALUES (:id, :lid, 'status_changed', 'booked', :now)"
+    ), {"id": str(uuid.uuid4()), "lid": lead_id, "now": datetime.now(timezone.utc)})
+    await db_session.commit()
+    await _set_status(db_session, lead_id, "booked")
+    await reconcile_outcomes(db_session, city)
+    row = await _get_outcome(db_session, lead_id)
+    assert row.booked_at is not None
+    assert row.time_to_book_minutes is not None
+    assert row.time_to_book_minutes >= 0  # exercises the booked_at - created_at subtraction
+
+
+async def test_prompt_version_picked_up(client, db_session):
+    lead_id, city = await _make_lead(client)
+    await db_session.execute(text(
+        "INSERT INTO ai_reviews (id, lead_id, model_used, prompt_version, sections_json, input_snapshot_json, created_at) "
+        "VALUES (:id, :lid, 'test-model', 'pv-abc123', '{}', '{}', :now)"
+    ), {"id": str(uuid.uuid4()), "lid": lead_id, "now": datetime.now(timezone.utc)})
+    await db_session.commit()
+    await _set_status(db_session, lead_id, "released")
+    await reconcile_outcomes(db_session, city)
+    row = await _get_outcome(db_session, lead_id)
+    assert row.ai_prompt_version == "pv-abc123"

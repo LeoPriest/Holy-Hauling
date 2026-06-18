@@ -32,6 +32,11 @@ _log = logging.getLogger(__name__)
 _TERMINAL = (LeadStatus.booked, LeadStatus.released, LeadStatus.lost)
 
 
+def _naive(dt: datetime) -> datetime:
+    """Drop tzinfo so naive (SQLite) and tz-aware datetimes can be subtracted."""
+    return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
+
+
 def _conversion_and_terminal(lead: Lead) -> tuple[str, str] | None:
     """(conversion, terminal_status) for a terminal-ish lead, else None."""
     if lead.status in (LeadStatus.booked, LeadStatus.released):
@@ -126,7 +131,9 @@ async def _booked_completed_times(db: AsyncSession, lead: Lead):
     )).scalar_one_or_none()
     ttb = None
     if booked_at is not None and lead.created_at is not None:
-        ttb = int((booked_at - lead.created_at).total_seconds() / 60)
+        # Normalize to naive UTC before subtracting — stored datetimes may come back
+        # naive (SQLite) or tz-aware depending on how they were written; mixing raises.
+        ttb = int((_naive(booked_at) - _naive(lead.created_at)).total_seconds() / 60)
     return booked_at, completed_at, ttb
 
 
