@@ -116,6 +116,8 @@ def _format_comparables(comparables: list[ComparableOut]) -> str:
         bits = []
         if c.move_size_label:
             bits.append(c.move_size_label)
+        if c.move_type:
+            bits.append(c.move_type)
         if c.move_distance_miles is not None:
             bits.append(f"~{c.move_distance_miles:g}mi")
         scope = ", ".join(bits) if bits else "similar scope"
