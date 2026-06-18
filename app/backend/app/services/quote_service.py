@@ -21,7 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai_review import AiReview
 from app.models.lead import Lead
-from app.schemas.quote_suggestion import QuoteSuggestionOut
+from app.schemas.quote_suggestion import ComparableOut, QuoteSuggestionOut
+from app.services.comparables_service import find_comparables
 from app.services.ai_review_service import (
     _load_grounding,
     _make_client,
@@ -31,6 +32,8 @@ from app.services.ai_review_service import (
 )
 
 _log = logging.getLogger(__name__)
+
+COMPARABLE_LIMIT = 5
 
 _SYSTEM_PROMPT_TEMPLATE = """
 You are the Quote Drafting Engine for Holy Hauling, a moving and junk hauling company.
@@ -59,7 +62,7 @@ Rules:
 _USER_TEMPLATE = """
 LEAD SCOPE:
 {scope_json}
-{pricing_section}
+{pricing_section}{comparables_section}
 Draft the quote for this lead.
 """.strip()
 
@@ -104,6 +107,36 @@ async def _latest_pricing_context(db: AsyncSession, lead_id: str) -> str:
     return "\nPRIOR AI PRICING GUIDANCE:\n" + "\n".join(lines)
 
 
+def _format_comparables(comparables: list[ComparableOut]) -> str:
+    """Render the comparable-jobs block, or '' when there are none (cold-start)."""
+    if not comparables:
+        return ""
+    lines = []
+    for c in comparables:
+        bits = []
+        if c.move_size_label:
+            bits.append(c.move_size_label)
+        if c.move_distance_miles is not None:
+            bits.append(f"~{c.move_distance_miles:g}mi")
+        scope = ", ".join(bits) if bits else "similar scope"
+        dollars = c.price_cents / 100
+        lines.append(f"- {scope} -> {c.conversion.upper()}, ${dollars:.0f} ({c.price_basis})")
+    header = (
+        "COMPARABLE LOCAL JOBS (most similar past outcomes - anchor your price on "
+        "these real local results, not only the SOP bands):"
+    )
+    return "\n" + header + "\n" + "\n".join(lines)
+
+
+async def _safe_find_comparables(db: AsyncSession, lead: Lead) -> list[ComparableOut]:
+    """Retrieval must never break quoting - degrade to no comparables on any error."""
+    try:
+        return await find_comparables(db, lead, COMPARABLE_LIMIT)
+    except Exception as exc:
+        _log.warning("comparables retrieval failed for lead %s: %s", lead.id, exc)
+        return []
+
+
 async def suggest_quote(db: AsyncSession, lead_id: str) -> QuoteSuggestionOut:
     """Draft a structured quote for the lead. Returns the validated suggestion."""
     api_key = _require_api_key()
@@ -118,7 +151,13 @@ async def suggest_quote(db: AsyncSession, lead_id: str) -> QuoteSuggestionOut:
     system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(grounding=grounding_content)
     scope_json = json.dumps(_build_scope(lead), indent=2)
     pricing_section = await _latest_pricing_context(db, lead_id)
-    user_content = _USER_TEMPLATE.format(scope_json=scope_json, pricing_section=pricing_section)
+    comparables = await _safe_find_comparables(db, lead)
+    comparables_section = _format_comparables(comparables)
+    user_content = _USER_TEMPLATE.format(
+        scope_json=scope_json,
+        pricing_section=pricing_section,
+        comparables_section=comparables_section,
+    )
 
     try:
         client = _make_client(api_key)
@@ -148,4 +187,4 @@ async def suggest_quote(db: AsyncSession, lead_id: str) -> QuoteSuggestionOut:
         if round(suggestion.quoted_price_total, 2) != summed:
             suggestion = suggestion.model_copy(update={"quoted_price_total": summed})
 
-    return suggestion
+    return suggestion.model_copy(update={"comparables": comparables})

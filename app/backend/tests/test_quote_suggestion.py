@@ -121,3 +121,55 @@ async def test_suggest_quote_missing_keys_returns_502(client, monkeypatch):
         r = await client.post(f"/leads/{lead_id}/quote-suggestion")
 
     assert r.status_code == 502
+
+
+async def test_suggest_quote_injects_comparables_block(client, db_session, monkeypatch):
+    import json as _json
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+    from sqlalchemy import select
+    from app.models.lead import Lead
+    from app.models.lead_outcome import LeadOutcome
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("AI_REVIEW_MODEL", "test-model")
+    monkeypatch.delenv("AI_GROUNDING_FILE", raising=False)
+
+    lead_id = await _create_lead(client)
+    lead = (await db_session.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+    db_session.add(LeadOutcome(
+        lead_id=str(_uuid.uuid4()), city_id=lead.city_id, conversion="won",
+        terminal_status="released", realized_revenue_cents=72000,
+        scope_snapshot=_json.dumps({"service_type": "moving", "move_size_label": "2 bedroom apartment"}),
+        was_escalated=False, finalized=True,
+        created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+
+    mock = _mock_client()
+    with patch("app.services.quote_service._make_client", return_value=mock):
+        r = await client.post(f"/leads/{lead_id}/quote-suggestion")
+
+    assert r.status_code == 200, r.text
+    sent = mock.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "COMPARABLE LOCAL JOBS" in sent
+    assert len(r.json()["comparables"]) == 1
+    assert r.json()["comparables"][0]["conversion"] == "won"
+
+
+async def test_suggest_quote_cold_start_no_block(client, monkeypatch):
+    from unittest.mock import patch
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("AI_REVIEW_MODEL", "test-model")
+    monkeypatch.delenv("AI_GROUNDING_FILE", raising=False)
+
+    lead_id = await _create_lead(client)
+    mock = _mock_client()
+    with patch("app.services.quote_service._make_client", return_value=mock):
+        r = await client.post(f"/leads/{lead_id}/quote-suggestion")
+
+    assert r.status_code == 200, r.text
+    sent = mock.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "COMPARABLE LOCAL JOBS" not in sent
+    assert r.json()["comparables"] == []
