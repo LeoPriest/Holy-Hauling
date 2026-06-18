@@ -150,3 +150,21 @@ async def test_limit_is_honored(client, db_session):
         await _add_outcome(db_session, city, realized=50000)
     out = await find_comparables(db_session, lead, 3)
     assert len(out) == 3
+
+
+async def test_self_is_excluded(client, db_session):
+    lead_id = await _make_lead(client)
+    lead = await _lead_obj(db_session, lead_id)
+    city = lead.city_id
+    # An outcome row keyed to the current lead must never be its own comparable
+    db_session.add(LeadOutcome(
+        lead_id=lead_id, city_id=city, conversion="won", terminal_status="released",
+        realized_revenue_cents=50000, scope_snapshot=json.dumps({"service_type": "moving"}),
+        was_escalated=False, finalized=True, created_at=_NOW, updated_at=_NOW,
+    ))
+    await db_session.commit()
+    other = await _add_outcome(db_session, city, realized=60000)
+    out = await find_comparables(db_session, lead, 5)
+    ids = {c.lead_id for c in out}
+    assert lead_id not in ids
+    assert other in ids
