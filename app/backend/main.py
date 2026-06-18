@@ -557,8 +557,11 @@ async def lifespan(app: FastAPI):
 
     from app.services.alert_service import check_stale_leads
     from app.services.followup_service import check_due_followups
+    from app.services.outcome_service import reconcile_all_outcomes
+    await reconcile_all_outcomes()  # backfill existing terminal leads at startup
     _scheduler.add_job(check_stale_leads, "interval", minutes=5, id="check_stale_leads", replace_existing=True)
     _scheduler.add_job(check_due_followups, "interval", minutes=1, id="check_due_followups", replace_existing=True)
+    _scheduler.add_job(reconcile_all_outcomes, "interval", minutes=15, id="reconcile_outcomes", replace_existing=True)
     _scheduler.start()
 
     yield
