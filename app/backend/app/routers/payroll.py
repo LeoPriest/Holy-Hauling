@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -13,6 +13,8 @@ from app.models.lead import Lead
 from app.models.pay_record import PayRecord, PayType
 from app.models.user import User
 from app.schemas.pay_record import (
+    MyPayEntry,
+    MyPayOut,
     PayRecordOut,
     PayRecordUpsert,
     PayrollJobEntry,
@@ -69,6 +71,35 @@ def _record_out(record: PayRecord) -> PayRecordOut:
         "created_at": record.created_at.isoformat(),
         "updated_at": record.updated_at.isoformat(),
     })
+
+
+def _my_pay_out(records: list[PayRecord]) -> MyPayOut:
+    def sort_key(rec: PayRecord):
+        jd = rec.lead.job_date_requested if rec.lead else None
+        # newest job first; undated (None) jobs last; tie-break by created_at
+        return (jd is not None, jd or date.min, rec.created_at)
+
+    ordered = sorted(records, key=sort_key, reverse=True)
+
+    entries = [
+        MyPayEntry(
+            lead_id=rec.lead_id,
+            customer_name=rec.lead.customer_name if rec.lead else None,
+            job_date=rec.lead.job_date_requested if rec.lead else None,
+            pay_type=rec.pay_type,
+            hours_worked=rec.hours_worked,
+            amount_cents=rec.amount_cents,
+        )
+        for rec in ordered
+    ]
+    total_earnings = sum(rec.amount_cents for rec in records)
+    total_hours = sum(rec.hours_worked for rec in records if rec.hours_worked is not None)
+    return MyPayOut(
+        total_earnings_cents=total_earnings,
+        total_hours=float(total_hours),
+        job_count=len(records),
+        entries=entries,
+    )
 
 
 # -- Per-lead endpoints -------------------------------------------------------
@@ -222,7 +253,27 @@ async def admin_payroll_summary(
     return [PayrollUserSummary(**v) for v in user_map.values()]
 
 
+# -- Current-user pay view ----------------------------------------------------
+
+me_router = APIRouter(prefix="/users/me", tags=["payroll"])
+
+
+@me_router.get("/pay", response_model=MyPayOut)
+async def get_my_pay(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_auth),
+):
+    result = await db.execute(
+        select(PayRecord)
+        .options(selectinload(PayRecord.lead))
+        .where(PayRecord.user_id == current_user.id)
+    )
+    records = list(result.scalars().all())
+    return _my_pay_out(records)
+
+
 # -- Wire sub-routers ---------------------------------------------------------
 
 router.include_router(lead_router)
 router.include_router(admin_router)
+router.include_router(me_router)
