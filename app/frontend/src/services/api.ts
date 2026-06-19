@@ -396,3 +396,27 @@ export async function fetchAdminMetrics(cityId?: string | null, days = 30): Prom
   if (!r.ok) throw new Error('Failed to fetch metrics')
   return r.json()
 }
+
+// ── My pay ─────────────────────────────────────────────────────────────────
+
+export interface MyPayEntry {
+  lead_id: string
+  customer_name: string | null
+  job_date: string | null
+  pay_type: 'hourly' | 'flat' | 'facilitator_pct'
+  hours_worked: number | null
+  amount_cents: number
+}
+
+export interface MyPay {
+  total_earnings_cents: number
+  total_hours: number
+  job_count: number
+  entries: MyPayEntry[]
+}
+
+export async function getMyPay(): Promise<MyPay> {
+  const r = await apiFetch('/users/me/pay')
+  if (!r.ok) throw new Error('Failed to load pay')
+  return r.json()
+}
