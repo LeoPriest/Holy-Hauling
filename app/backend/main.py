@@ -504,7 +504,6 @@ async def _migrate_weekly_availability_add_period(conn) -> None:
             FOREIGN KEY(user_id) REFERENCES users (id)
         )
     """))
-    await conn.execute(text("CREATE INDEX ix_user_weekly_availability_user_id ON user_weekly_availability (user_id)"))
     await conn.execute(text("""
         INSERT INTO user_weekly_availability (id, user_id, weekday, period, created_at)
         SELECT old.id || '-' || p.period, old.user_id, old.weekday, p.period, old.created_at
@@ -512,6 +511,12 @@ async def _migrate_weekly_availability_add_period(conn) -> None:
         CROSS JOIN (SELECT 'morning' AS period UNION ALL SELECT 'afternoon' UNION ALL SELECT 'evening') p
     """))
     await conn.execute(text("DROP TABLE _uwa_old"))
+    # Create the index AFTER dropping the old table: the old table's index keeps the same
+    # name through the RENAME, so creating it before the DROP collides ("index already exists").
+    await conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_user_weekly_availability_user_id "
+        "ON user_weekly_availability (user_id)"
+    ))
     print("[startup] user_weekly_availability: added period column (expanded existing blocks to all periods)")
 
 

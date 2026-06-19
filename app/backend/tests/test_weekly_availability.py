@@ -27,6 +27,12 @@ async def _old_table_with_row(conn):
             CONSTRAINT uq_user_weekly_availability_user_weekday UNIQUE (user_id, weekday)
         )
     """))
+    # The OLD model declared user_id with index=True, so production's table carries this
+    # named index. It must be reproduced here or the migration's index handling goes untested
+    # (this exact index-name collision crashed startup in prod).
+    await conn.execute(text(
+        "CREATE INDEX ix_user_weekly_availability_user_id ON user_weekly_availability (user_id)"
+    ))
     await conn.execute(text(
         "INSERT INTO user_weekly_availability (id, user_id, weekday, created_at) "
         "VALUES ('row1', 'user-1', 'sunday', '2026-01-01 00:00:00')"
