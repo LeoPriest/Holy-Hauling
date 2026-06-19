@@ -42,6 +42,7 @@ import app.models.recurring_expense  # noqa: F401
 import app.models.lead_escalation  # noqa: F401
 import app.models.lead_outcome  # noqa: F401
 import app.models.quote_suggestion_log  # noqa: F401
+import app.models.lead_checklist_item  # noqa: F401
 
 from app.models.city import DEFAULT_CITIES, DEFAULT_CITY_ID
 from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, eval as eval_router, escalation, finance, ingest, jobs, leads, outcomes, payroll, push, recurring_expenses, settings as settings_router, square_router, truck_rental, users
@@ -481,6 +482,18 @@ async def _migrate_users_add_hourly_rate_cents(conn) -> None:
     print("[startup] users: added hourly_rate_cents column")
 
 
+async def _migrate_leads_add_checklist_seeded_at(conn) -> None:
+    """Add the checklist_seeded_at marker column to leads. Idempotent."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    if "checklist_seeded_at" in _existing_columns(rows):
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN checklist_seeded_at DATETIME"))
+    print("[startup] leads: added checklist_seeded_at column")
+
+
 async def _migrate_weekly_availability_add_period(conn) -> None:
     """Add a `period` column to user_weekly_availability, expanding each existing
     all-day block into three period rows (morning/afternoon/evening). Idempotent.
@@ -592,6 +605,7 @@ async def lifespan(app: FastAPI):
         await _migrate_users_add_hourly_rate_cents(conn)
         await _migrate_truck_rentals_add_columns(conn)
         await _migrate_weekly_availability_add_period(conn)
+        await _migrate_leads_add_checklist_seeded_at(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_escalated_status_leads(conn)
         await _seed_default_admin(conn)

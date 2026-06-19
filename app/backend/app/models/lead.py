@@ -96,6 +96,7 @@ class Lead(Base):
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     acknowledged_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    checklist_seeded_at = Column(DateTime, nullable=True)
 
     events = relationship(
         "LeadEvent",
@@ -119,3 +120,10 @@ class Lead(Base):
         cascade="all, delete-orphan",
     )
     pay_records = relationship("PayRecord", back_populates="lead", cascade="all, delete-orphan", lazy="select")
+    checklist_items = relationship(
+        "LeadChecklistItem",
+        back_populates="lead",
+        order_by="LeadChecklistItem.sort_order",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
