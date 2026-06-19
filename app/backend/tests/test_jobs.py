@@ -563,6 +563,20 @@ async def test_jobs_booked_has_null_completed_fields(supervisor_client):
     assert job["completed_at"] is None
 
 
+async def test_jobs_completed_crew_sees_only_assigned(crew_client):
+    from datetime import date
+    client, factory = crew_client
+    mine = await _seed_lead(factory, status="released", job_date_requested=date(2026, 5, 2))
+    other = await _seed_lead(factory, status="released", job_date_requested=date(2026, 5, 3))
+    await _seed_assignment(factory, lead_id=mine.id, user_id="mock-crew")  # crew_client's user id
+
+    r = await client.get("/jobs?status=completed")
+    assert r.status_code == 200, r.text
+    ids = {j["id"] for j in r.json()}
+    assert mine.id in ids
+    assert other.id not in ids  # crew sees only their assigned completed jobs
+
+
 @pytest.mark.asyncio
 async def test_remove_assignment_keeps_calendar_event_when_crew_empty(supervisor_client):
     """Removing the last crew member updates the event's attendees but does NOT delete it —
