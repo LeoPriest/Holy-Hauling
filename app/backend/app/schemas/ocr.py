@@ -41,6 +41,12 @@ class OcrApply(BaseModel):
     unload_stairs: Optional[int] = None
     move_date_options: Optional[str] = None   # raw string from OCR; converted to JSON array on apply
     accept_and_pay: Optional[bool] = None
+    # Lead cost + competition (raw OCR strings; coerced to cents/int columns on apply)
+    lead_cost_total: Optional[str] = None
+    lead_cost_gross: Optional[str] = None
+    lead_cost_bonus: Optional[str] = None
+    pros_contacted: Optional[int] = None
+    pros_responded: Optional[int] = None
     actor: Optional[str] = None
 
     @field_validator("job_date_requested", mode="before")
@@ -69,7 +75,7 @@ class OcrApply(BaseModel):
         except ValueError:
             return None
 
-    @field_validator("load_stairs", "unload_stairs", mode="before")
+    @field_validator("load_stairs", "unload_stairs", "pros_contacted", "pros_responded", mode="before")
     @classmethod
     def _coerce_int(cls, v: Any) -> Any:
         if v is None or isinstance(v, int):

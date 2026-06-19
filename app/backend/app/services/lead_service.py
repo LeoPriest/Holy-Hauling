@@ -54,6 +54,8 @@ _PROVENANCE_FIELDS = {
     # Slice 8
     "move_size_label", "move_type", "move_distance_miles",
     "load_stairs", "unload_stairs", "move_date_options",
+    # Lead cost
+    "lead_cost_cents",
 }
 
 

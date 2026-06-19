@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -26,6 +27,8 @@ _PROVENANCE_FIELDS = {
     # Slice 8
     "move_size_label", "move_type", "move_distance_miles",
     "load_stairs", "unload_stairs", "move_date_options",
+    # Lead cost
+    "lead_cost_cents",
 }
 
 import anthropic
@@ -66,6 +69,11 @@ Return ONLY a JSON object with this exact structure — no markdown, no extra te
     {"field": "load_stairs", "value": "<integer number of stair flights at origin, e.g. 2>", "confidence": "high"},
     {"field": "unload_stairs", "value": "<integer number of stair flights at destination, e.g. 0>", "confidence": "high"},
     {"field": "move_date_options", "value": "<comma-separated date options, e.g. 2025-06-01, 2025-06-08>", "confidence": "medium"},
+    {"field": "lead_cost_total", "value": "<the lead-fee TOTAL we paid, e.g. 7.05>", "confidence": "high"},
+    {"field": "lead_cost_gross", "value": "<the 'Direct lead' gross fee, e.g. 14.44>", "confidence": "high"},
+    {"field": "lead_cost_bonus", "value": "<the 'Bonus' credit as a positive number, e.g. 7.39>", "confidence": "high"},
+    {"field": "pros_contacted", "value": "<integer pros contacted, e.g. 2>", "confidence": "medium"},
+    {"field": "pros_responded", "value": "<integer pros who responded, e.g. 0>", "confidence": "medium"},
     {"field": "accept_and_pay", "value": "true|false", "confidence": "high"}
   ]
 }
@@ -73,6 +81,8 @@ Return ONLY a JSON object with this exact structure — no markdown, no extra te
 Only include fields where you found evidence. Confidence: "high" = clearly stated, "medium" = inferred, "low" = uncertain.
 For scope_notes: synthesize stairs/elevator info, bulky or heavy item clues, building/parking access friction, and assembly/disassembly needs into one concise operational sentence. Omit if nothing relevant is visible.
 For accept_and_pay: return true only if you see "Accept and Pay" or similar payment-on-booking language clearly visible. Default false if absent.
+For lead cost: capture ONLY the platform's lead-fee breakdown shown to the pro — the "Direct lead" gross, the "Bonus" credit (as a positive number), and the "Total". Do NOT use "Estimated cost", "$/Hour", "X hour minimum", or the customer's budget — those are the customer-facing quote, NOT the lead fee. Omit these fields if no lead-fee breakdown is visible.
+For pros_contacted / pros_responded: read a line like "Contacted N pros responded M". Omit if absent.
 """.strip()
 
 _EXT_TO_MEDIA_TYPE: dict[str, str] = {
@@ -91,7 +101,53 @@ _APPLICABLE_FIELDS = {
     "move_size_label", "move_type", "move_distance_miles",
     "load_stairs", "unload_stairs", "move_date_options",
     "accept_and_pay",
+    # Lead cost + competition
+    "lead_cost_total", "lead_cost_gross", "lead_cost_bonus",
+    "pros_contacted", "pros_responded",
 }
+
+_OCR_COST_COLUMN = {
+    "lead_cost_total": "lead_cost_cents",
+    "lead_cost_gross": "lead_cost_gross_cents",
+    "lead_cost_bonus": "lead_cost_bonus_cents",
+}
+_OCR_COUNT_FIELDS = {"pros_contacted", "pros_responded"}
+
+
+def parse_cents(value) -> Optional[int]:
+    """'$7.05' -> 705, '−$7.39' -> 739 (magnitude), junk -> None."""
+    if value is None:
+        return None
+    s = re.sub(r"[^\d.]", "", str(value))
+    if not s or s == ".":
+        return None
+    try:
+        return round(float(s) * 100)
+    except ValueError:
+        return None
+
+
+def parse_count(value) -> Optional[int]:
+    if value is None:
+        return None
+    s = re.sub(r"[^\d]", "", str(value))
+    if s == "":
+        return None
+    try:
+        return int(s)
+    except ValueError:
+        return None
+
+
+def coerce_extracted_field(field: str, value) -> Optional[tuple[str, int]]:
+    """Map an OCR cost/competition field to (lead_column, value). None if not a cost/competition field."""
+    if field in _OCR_COST_COLUMN:
+        cents = parse_cents(value)
+        return (_OCR_COST_COLUMN[field], cents) if cents is not None else None
+    if field in _OCR_COUNT_FIELDS:
+        n = parse_count(value)
+        return (field, n) if n is not None else None
+    return None
 
 
 def _require_api_key() -> str:
@@ -239,6 +295,13 @@ async def apply_ocr_fields(
         if field == "actor" or field not in _APPLICABLE_FIELDS:
             continue
         if value is None:
+            continue
+
+        coerced = coerce_extracted_field(field, value)
+        if coerced is not None:
+            col, coerced_val = coerced
+            setattr(lead, col, coerced_val)
+            applied.append(col)
             continue
 
         # Skip masked/invalid phone values — same rule as manual PATCH

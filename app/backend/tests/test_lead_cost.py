@@ -115,3 +115,38 @@ async def test_synced_expense_feeds_outcome_realized_cost(client):
     async with factory() as s:
         _rev, cost = await outcome_service._realized_amounts(s, lead_id)
     assert cost == 705
+
+
+from app.services import ocr_service
+
+
+def test_parse_cents():
+    assert ocr_service.parse_cents("$7.05") == 705
+    assert ocr_service.parse_cents("−$7.39") == 739       # unicode minus stripped → positive magnitude
+    assert ocr_service.parse_cents("-7.39") == 739        # ascii minus too
+    assert ocr_service.parse_cents("1,234.50") == 123450
+    assert ocr_service.parse_cents("14.44") == 1444
+    assert ocr_service.parse_cents("") is None
+    assert ocr_service.parse_cents(None) is None
+    assert ocr_service.parse_cents("n/a") is None
+
+
+def test_parse_count_zero_is_zero():
+    assert ocr_service.parse_count("0") == 0   # must be 0, not None
+    assert ocr_service.parse_count("2") == 2
+    assert ocr_service.parse_count("") is None
+    assert ocr_service.parse_count(None) is None
+
+
+def test_coerce_extracted_field_maps_cost_to_columns():
+    assert ocr_service.coerce_extracted_field("lead_cost_total", "$7.05") == ("lead_cost_cents", 705)
+    assert ocr_service.coerce_extracted_field("lead_cost_gross", "14.44") == ("lead_cost_gross_cents", 1444)
+    assert ocr_service.coerce_extracted_field("lead_cost_bonus", "-7.39") == ("lead_cost_bonus_cents", 739)
+    assert ocr_service.coerce_extracted_field("pros_contacted", "2") == ("pros_contacted", 2)
+    assert ocr_service.coerce_extracted_field("pros_responded", "0") == ("pros_responded", 0)
+    assert ocr_service.coerce_extracted_field("customer_name", "Bob") is None
+
+
+def test_prompt_disambiguates_estimated_cost():
+    assert "Estimated cost" in ocr_service._EXTRACTION_PROMPT
+    assert "Direct lead" in ocr_service._EXTRACTION_PROMPT

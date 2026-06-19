@@ -35,6 +35,9 @@ from app.services import lead_service, ocr_service
 _AUTO_APPLY_FIELDS = {
     "customer_name", "customer_phone", "job_location",
     "service_type",
+    # Lead cost + competition
+    "lead_cost_total", "lead_cost_gross", "lead_cost_bonus",
+    "pros_contacted", "pros_responded",
 }
 
 _SCREENSHOT_SOURCE_TYPES = {
@@ -122,6 +125,12 @@ async def ingest_screenshot(
                 for entry in json.loads(extraction.extracted_fields):
                     field = entry.get("field")
                     if entry.get("confidence") != "high" or field not in _AUTO_APPLY_FIELDS:
+                        continue
+                    coerced = ocr_service.coerce_extracted_field(field, entry.get("value", ""))
+                    if coerced is not None:
+                        col, coerced_val = coerced
+                        setattr(stub, col, coerced_val)
+                        auto_applied.append(col)
                         continue
                     value = _coerce_field(field, entry.get("value", ""))
                     if value is not None:
