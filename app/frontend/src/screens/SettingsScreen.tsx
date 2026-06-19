@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { MyPay } from '../components/MyPay'
+import { StandardKitEditor } from '../components/StandardKitEditor'
 import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
 import { apiFetch, fetchNotificationStatus } from '../services/api'
@@ -346,6 +347,13 @@ export function SettingsScreen() {
             Selected days are blocked every week and shown as unavailable in confirmed-job assignment lists.
           </p>
         </section>
+
+        {(user?.role === 'admin' || user?.role === 'facilitator') && (
+          <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Standard kit · items to bring</h2>
+            <StandardKitEditor />
+          </section>
+        )}
 
         <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Browser Push</h2>
