@@ -46,3 +46,19 @@ class PayrollUserSummary(BaseModel):
     total_amount_cents: int
     record_count: int
     jobs: list[PayrollJobEntry]
+
+
+class MyPayEntry(BaseModel):
+    lead_id: str
+    customer_name: str | None
+    job_date: date | None
+    pay_type: PayType
+    hours_worked: float | None
+    amount_cents: int
+
+
+class MyPayOut(BaseModel):
+    total_earnings_cents: int
+    total_hours: float
+    job_count: int
+    entries: list[MyPayEntry]
