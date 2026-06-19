@@ -173,3 +173,76 @@ async def test_suggest_quote_cold_start_no_block(client, monkeypatch):
     sent = mock.messages.create.call_args.kwargs["messages"][0]["content"]
     assert "COMPARABLE LOCAL JOBS" not in sent
     assert r.json()["comparables"] == []
+
+
+async def test_suggest_quote_logs_grounded_provenance(client, db_session, monkeypatch):
+    import json as _json
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+    from sqlalchemy import select
+    from app.models.lead import Lead
+    from app.models.lead_outcome import LeadOutcome
+    from app.models.quote_suggestion_log import QuoteSuggestionLog
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("AI_REVIEW_MODEL", "test-model")
+    monkeypatch.delenv("AI_GROUNDING_FILE", raising=False)
+
+    lead_id = await _create_lead(client)
+    lead = (await db_session.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+    db_session.add(LeadOutcome(
+        lead_id=str(_uuid.uuid4()), city_id=lead.city_id, conversion="won",
+        terminal_status="released", realized_revenue_cents=72000,
+        scope_snapshot=_json.dumps({"service_type": "moving", "move_size_label": "2 bedroom apartment"}),
+        was_escalated=False, finalized=True,
+        created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+
+    with patch("app.services.quote_service._make_client", return_value=_mock_client()):
+        r = await client.post(f"/leads/{lead_id}/quote-suggestion")
+    assert r.status_code == 200, r.text
+
+    logs = (await db_session.execute(
+        select(QuoteSuggestionLog).where(QuoteSuggestionLog.lead_id == lead_id)
+    )).scalars().all()
+    assert len(logs) == 1
+    assert logs[0].was_grounded is True
+    assert logs[0].comparables_count == 1
+    assert logs[0].suggested_price_cents == 72500  # _VALID total 725 * 100
+
+
+async def test_suggest_quote_logs_ungrounded_on_cold_start(client, db_session, monkeypatch):
+    from unittest.mock import patch
+    from sqlalchemy import select
+    from app.models.quote_suggestion_log import QuoteSuggestionLog
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("AI_REVIEW_MODEL", "test-model")
+    monkeypatch.delenv("AI_GROUNDING_FILE", raising=False)
+
+    lead_id = await _create_lead(client)
+    with patch("app.services.quote_service._make_client", return_value=_mock_client()):
+        r = await client.post(f"/leads/{lead_id}/quote-suggestion")
+    assert r.status_code == 200, r.text
+
+    logs = (await db_session.execute(
+        select(QuoteSuggestionLog).where(QuoteSuggestionLog.lead_id == lead_id)
+    )).scalars().all()
+    assert len(logs) == 1
+    assert logs[0].was_grounded is False
+    assert logs[0].comparables_count == 0
+
+
+async def test_suggest_quote_capture_failure_does_not_break_quote(client, monkeypatch):
+    from unittest.mock import patch
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("AI_REVIEW_MODEL", "test-model")
+    monkeypatch.delenv("AI_GROUNDING_FILE", raising=False)
+
+    lead_id = await _create_lead(client)
+    with patch("app.services.quote_service.QuoteSuggestionLog", side_effect=RuntimeError("boom")), \
+         patch("app.services.quote_service._make_client", return_value=_mock_client()):
+        r = await client.post(f"/leads/{lead_id}/quote-suggestion")
+    assert r.status_code == 200, r.text  # capture failure must not break quoting

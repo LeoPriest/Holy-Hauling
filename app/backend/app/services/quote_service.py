@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -21,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai_review import AiReview
 from app.models.lead import Lead
+from app.models.quote_suggestion_log import QuoteSuggestionLog
 from app.schemas.quote_suggestion import ComparableOut, QuoteSuggestionOut
 from app.services.comparables_service import find_comparables
 from app.services.ai_review_service import (
@@ -142,6 +144,28 @@ async def _safe_find_comparables(db: AsyncSession, lead: Lead) -> list[Comparabl
         return []
 
 
+async def _log_suggestion(db, lead, comparables, suggestion, model) -> None:
+    """Append a quote-suggestion provenance row. Best-effort - never breaks quoting."""
+    try:
+        price = suggestion.quoted_price_total
+        db.add(QuoteSuggestionLog(
+            id=str(uuid.uuid4()),
+            lead_id=lead.id,
+            city_id=lead.city_id,
+            was_grounded=len(comparables) > 0,
+            comparables_count=len(comparables),
+            suggested_price_cents=round(price * 100) if price is not None else None,
+            model_used=model,
+        ))
+        await db.commit()
+    except Exception as exc:
+        _log.warning("quote suggestion log failed for lead %s: %s", lead.id, exc)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+
+
 async def suggest_quote(db: AsyncSession, lead_id: str) -> QuoteSuggestionOut:
     """Draft a structured quote for the lead. Returns the validated suggestion."""
     api_key = _require_api_key()
@@ -192,4 +216,6 @@ async def suggest_quote(db: AsyncSession, lead_id: str) -> QuoteSuggestionOut:
         if round(suggestion.quoted_price_total, 2) != summed:
             suggestion = suggestion.model_copy(update={"quoted_price_total": summed})
 
-    return suggestion.model_copy(update={"comparables": comparables})
+    final = suggestion.model_copy(update={"comparables": comparables})
+    await _log_suggestion(db, lead, comparables, final, model)
+    return final
