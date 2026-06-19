@@ -16,6 +16,7 @@ import json
 import os
 import re
 from datetime import date
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
 from typing import Optional
 
@@ -115,15 +116,20 @@ _OCR_COUNT_FIELDS = {"pros_contacted", "pros_responded"}
 
 
 def parse_cents(value) -> Optional[int]:
-    """'$7.05' -> 705, '−$7.39' -> 739 (magnitude), junk -> None."""
+    """'$7.05' -> 705, '−$7.39' -> 739 (magnitude), junk -> None.
+
+    Uses Decimal (half-up) so 2-decimal currency converts exactly — no float
+    rounding drift (e.g. round(1.005*100) would wrongly yield 100). Multi-dot
+    OCR junk like '1.2.3' raises and falls through to None.
+    """
     if value is None:
         return None
     s = re.sub(r"[^\d.]", "", str(value))
     if not s or s == ".":
         return None
     try:
-        return round(float(s) * 100)
-    except ValueError:
+        return int((Decimal(s) * 100).to_integral_value(rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError):
         return None
 
 

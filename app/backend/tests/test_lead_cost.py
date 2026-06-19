@@ -129,6 +129,8 @@ def test_parse_cents():
     assert ocr_service.parse_cents("") is None
     assert ocr_service.parse_cents(None) is None
     assert ocr_service.parse_cents("n/a") is None
+    assert ocr_service.parse_cents("1.2.3") is None       # multi-dot OCR junk → None
+    assert ocr_service.parse_cents("1.005") == 101         # half-up, no float drift
 
 
 def test_parse_count_zero_is_zero():
