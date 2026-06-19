@@ -14,7 +14,7 @@ from app.models.lead import Lead
 from app.models.lead_payment import LeadPayment
 from app.models.user import User
 from app.schemas.payment import PaymentOut, PaymentRequestCreate
-from app.services import square_service
+from app.services import lead_service, square_service
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ async def request_payment(
             detail="No quote amount set on this lead. Set a quoted price first.",
         )
 
-    phone = payload.phone_override or lead.customer_phone
+    phone = payload.phone_override or lead_service.contact_phone(lead)
     if not phone:
         raise HTTPException(
             status_code=422,

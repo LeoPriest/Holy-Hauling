@@ -337,6 +337,9 @@ async def apply_ocr_fields(
                 sources[f] = "ocr"
         lead.field_sources = json.dumps(sources)
 
+        if "customer_phone" in applied:
+            lead_service._tag_proxy_on_phone_set(lead)
+
         db.add(LeadEvent(
             id=lead_service._id(),
             lead_id=lead_id,

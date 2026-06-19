@@ -46,6 +46,24 @@ def _is_valid_phone(value: str | None) -> bool:
     return len(_DIGIT_RE.findall(value)) >= 10
 
 
+_THUMBTACK_SOURCES = {LeadSourceType.thumbtack_api, LeadSourceType.thumbtack_screenshot}
+
+
+def contact_phone(lead) -> str | None:
+    """The number to actually use: the customer's real number if valid, else the (proxy) customer_phone."""
+    if _is_valid_phone(getattr(lead, "customer_real_phone", None)):
+        return lead.customer_real_phone
+    if _is_valid_phone(getattr(lead, "customer_phone", None)):
+        return lead.customer_phone
+    return None
+
+
+def _tag_proxy_on_phone_set(lead) -> None:
+    """A valid customer_phone on a Thumbtack-source lead is a Thumbtack proxy line."""
+    if lead.source_type in _THUMBTACK_SOURCES and _is_valid_phone(lead.customer_phone):
+        lead.customer_phone_is_proxy = True
+
+
 # Fields that carry provenance badges — tracked in field_sources as "ocr" or "edited"
 _PROVENANCE_FIELDS = {
     "customer_name", "customer_phone", "service_type",
@@ -237,7 +255,7 @@ async def update_lead(
     changed = []
     for field, value in updates.items():
         # Reject masked or short phone values — treat as no-op, not an error
-        if field == "customer_phone" and value is not None and not _is_valid_phone(str(value)):
+        if field in ("customer_phone", "customer_real_phone") and value is not None and not _is_valid_phone(str(value)):
             continue
         if getattr(lead, field) != value:
             setattr(lead, field, value)
@@ -251,6 +269,10 @@ async def update_lead(
             if f in _PROVENANCE_FIELDS:
                 sources[f] = "edited"
         lead.field_sources = json.dumps(sources) if sources else lead.field_sources
+
+        # Auto-tag a Thumbtack proxy when the phone itself changed (unless the caller set the flag explicitly)
+        if "customer_phone" in changed and "customer_phone_is_proxy" not in updates:
+            _tag_proxy_on_phone_set(lead)
 
         # Valid phone entered on in_review or replied lead → advance to waiting_on_customer
         phone_newly_set = "customer_phone" in changed and _is_valid_phone(lead.customer_phone)
