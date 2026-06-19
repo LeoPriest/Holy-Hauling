@@ -144,7 +144,7 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 
 ## Last Verified
 
-- Date: 2026-06-18
-- By: Claude (subagent-driven implementation of the quote-grounding eval, spec→plan→TDD)
-- Tests: **317 passed, 0 failed** (full backend suite, 2026-06-18). Frontend `tsc --noEmit` + `npm run build` pass.
-- Notes: Shipped **item 3 — quote-grounding eval** this session (see "Self-learning roadmap" above) — append-only `quote_suggestion_log` provenance written at quote time (best-effort), `eval_service` grounded-vs-ungrounded cohort metrics (win rate / pricing accuracy / pricing bias), `GET /admin/eval/quote-grounding`; 13 tests. Item 2 (retrieval grounding, 2026-06-18), item 1 (outcome layer, 2026-06-17), the 2026-06-16 escalation overlay, and 2026-06-15 work all remain in place. Next: item 4 (regeneration/fine-tune from the eval signal).
+- Date: 2026-06-19
+- By: Claude (calendar-sync fix + the self-learning roadmap items 1-3)
+- Tests: **322 passed, 0 failed** (full backend suite, 2026-06-19). Frontend `tsc --noEmit` + `npm run build` pass.
+- Notes: **Google Calendar sync no longer requires crew** — a booked, dated job syncs to the connected (Holy Hauling) calendar automatically on booking; crew are optional attendees (removing crew updates the event, no longer deletes it); manual "Sync to Google" works solo (no 409). `calendar_service.sync_job_calendar` gates on booked+dated; `lead_service.update_lead` triggers it on booked-field changes. Earlier this session: self-learning roadmap **item 3 — quote-grounding eval** (append-only `quote_suggestion_log` + `GET /admin/eval/quote-grounding`), item 2 (retrieval grounding), item 1 (outcome layer); plus the escalation overlay. Next roadmap piece: item 4 (regeneration/fine-tune).
