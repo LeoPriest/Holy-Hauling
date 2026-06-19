@@ -34,6 +34,8 @@ class JobOut(BaseModel):
     en_route_at: Optional[str] = None
     arrived_at: Optional[str] = None
     started_at: Optional[str] = None
+    realized_revenue_cents: Optional[int] = None
+    completed_at: Optional[str] = None  # ISO datetime; set for completed jobs
 
     model_config = {"from_attributes": True}
 
