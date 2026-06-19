@@ -420,3 +420,36 @@ export async function getMyPay(): Promise<MyPay> {
   if (!r.ok) throw new Error('Failed to load pay')
   return r.json()
 }
+
+// ── Checklist ──────────────────────────────────────────────────────────────
+
+export interface ChecklistItem {
+  id: string
+  lead_id: string
+  label: string
+  is_checked: boolean
+  source: 'standard' | 'scope' | 'custom'
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface StandardKit {
+  items: string[]
+}
+
+export async function getStandardKit(): Promise<StandardKit> {
+  const r = await apiFetch('/settings/checklist-kit')
+  if (!r.ok) throw new Error('Failed to load standard kit')
+  return r.json()
+}
+
+export async function putStandardKit(items: string[]): Promise<StandardKit> {
+  const r = await apiFetch('/settings/checklist-kit', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  })
+  if (!r.ok) throw new Error('Failed to save standard kit')
+  return r.json()
+}
