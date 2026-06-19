@@ -132,6 +132,11 @@ class LeadUpdate(BaseModel):
     # Confirmed physical address — setting this triggers auto-booking
     job_address: Optional[str] = None
     quote_cents: Optional[int] = Field(default=None, ge=0)
+    lead_cost_cents: Optional[int] = None
+    lead_cost_gross_cents: Optional[int] = None
+    lead_cost_bonus_cents: Optional[int] = None
+    pros_contacted: Optional[int] = None
+    pros_responded: Optional[int] = None
 
     _validate_appointment_time_slot = field_validator("appointment_time_slot", mode="before")(
         _normalize_time_slot
@@ -228,6 +233,11 @@ class LeadOut(BaseModel):
     quoted_price_total: Optional[float] = None
     quote_cents: Optional[int] = None
     quote_modifiers: Optional[list[QuoteModifierOut]] = None
+    lead_cost_cents: Optional[int] = None
+    lead_cost_gross_cents: Optional[int] = None
+    lead_cost_bonus_cents: Optional[int] = None
+    pros_contacted: Optional[int] = None
+    pros_responded: Optional[int] = None
     job_address: Optional[str] = None
     job_date_end: Optional[str] = None
     dispatched_at: Optional[datetime] = None

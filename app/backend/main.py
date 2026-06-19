@@ -494,6 +494,27 @@ async def _migrate_leads_add_checklist_seeded_at(conn) -> None:
     print("[startup] leads: added checklist_seeded_at column")
 
 
+async def _migrate_leads_add_cost_columns(conn) -> None:
+    """Add lead-cost + competition columns to leads. Idempotent."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    existing = _existing_columns(rows)
+    cols = {
+        "lead_cost_cents": "INTEGER",
+        "lead_cost_gross_cents": "INTEGER",
+        "lead_cost_bonus_cents": "INTEGER",
+        "lead_cost_finance_transaction_id": "VARCHAR",
+        "pros_contacted": "INTEGER",
+        "pros_responded": "INTEGER",
+    }
+    for name, sqltype in cols.items():
+        if name not in existing:
+            await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {name} {sqltype}"))
+            print(f"[startup] leads: added {name} column")
+
+
 async def _migrate_weekly_availability_add_period(conn) -> None:
     """Add a `period` column to user_weekly_availability, expanding each existing
     all-day block into three period rows (morning/afternoon/evening). Idempotent.
@@ -606,6 +627,7 @@ async def lifespan(app: FastAPI):
         await _migrate_truck_rentals_add_columns(conn)
         await _migrate_weekly_availability_add_period(conn)
         await _migrate_leads_add_checklist_seeded_at(conn)
+        await _migrate_leads_add_cost_columns(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_escalated_status_leads(conn)
         await _seed_default_admin(conn)

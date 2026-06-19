@@ -80,6 +80,14 @@ class Lead(Base):
     quoted_price_total = Column(Float, nullable=True)
     quote_cents = Column(Integer, nullable=True)
     quote_modifiers = Column(Text, nullable=True)
+    # Lead acquisition cost (Thumbtack fee). Net total drives ROI; gross/bonus kept for history.
+    lead_cost_cents = Column(Integer, nullable=True)         # net "Total paid"
+    lead_cost_gross_cents = Column(Integer, nullable=True)   # "Direct lead" gross
+    lead_cost_bonus_cents = Column(Integer, nullable=True)   # "Bonus" discount, positive magnitude
+    lead_cost_finance_transaction_id = Column(String, nullable=True)  # synced FinanceTransaction id
+    # Competition (capture-only): "Contacted N pros • M responded"
+    pros_contacted = Column(Integer, nullable=True)
+    pros_responded = Column(Integer, nullable=True)
 
     # Confirmed physical address — entered when job is booked; triggers status → booked
     job_address = Column(String, nullable=True)
