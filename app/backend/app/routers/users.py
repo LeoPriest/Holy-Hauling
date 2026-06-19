@@ -10,7 +10,7 @@ from app.database import get_db
 from app.dependencies import city_scope, require_auth, require_role
 from app.models.city import City
 from app.models.user_availability import UserAvailability
-from app.models.user_weekly_availability import UserWeeklyAvailability
+from app.models.user_weekly_availability import PERIODS, UserWeeklyAvailability
 from app.models.user import User
 from app.schemas.user import (
     UserAvailabilityCreate,
@@ -23,7 +23,7 @@ from app.schemas.user import (
 
 router = APIRouter(prefix="/users", tags=["users"])
 _WEEKDAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-_PERIOD_ORDER = ["morning", "afternoon", "evening"]
+_PERIOD_ORDER = list(PERIODS)  # single source of truth (model); morning -> afternoon -> evening
 
 
 def _blocks_from_rows(rows) -> dict[str, list[str]]:
