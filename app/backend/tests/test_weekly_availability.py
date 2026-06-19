@@ -55,3 +55,61 @@ async def test_migration_is_idempotent(raw_conn):
 
 async def test_migration_noop_when_table_absent(raw_conn):
     await _migrate_weekly_availability_add_period(raw_conn)
+
+
+# ── endpoint + admin rollup (shared client/db_session fixtures) ──
+
+async def test_put_and_get_blocks_roundtrip(client):
+    r = await client.put("/users/me/weekly-availability", json={
+        "blocks": {"monday": ["morning"], "sunday": ["morning", "afternoon", "evening"]},
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()["blocks"]
+    assert body["monday"] == ["morning"]
+    assert body["sunday"] == ["morning", "afternoon", "evening"]
+
+    got = (await client.get("/users/me/weekly-availability")).json()["blocks"]
+    assert got["monday"] == ["morning"]
+    assert sorted(got["sunday"]) == ["afternoon", "evening", "morning"]
+
+
+async def test_put_replaces_previous(client):
+    await client.put("/users/me/weekly-availability", json={"blocks": {"monday": ["morning", "evening"]}})
+    await client.put("/users/me/weekly-availability", json={"blocks": {"monday": ["afternoon"]}})
+    got = (await client.get("/users/me/weekly-availability")).json()["blocks"]
+    assert got == {"monday": ["afternoon"]}
+
+
+async def test_put_empty_clears(client):
+    await client.put("/users/me/weekly-availability", json={"blocks": {"monday": ["morning"]}})
+    await client.put("/users/me/weekly-availability", json={"blocks": {}})
+    assert (await client.get("/users/me/weekly-availability")).json()["blocks"] == {}
+
+
+async def test_put_rejects_bad_weekday_or_period(client):
+    r1 = await client.put("/users/me/weekly-availability", json={"blocks": {"funday": ["morning"]}})
+    assert r1.status_code == 422
+    r2 = await client.put("/users/me/weekly-availability", json={"blocks": {"monday": ["midnight"]}})
+    assert r2.status_code == 422
+
+
+async def test_admin_rollup_full_day_only(client, db_session):
+    import uuid
+    from datetime import datetime, timezone
+    from app.models.user import User
+    from app.models.user_weekly_availability import UserWeeklyAvailability
+
+    uid = str(uuid.uuid4())
+    db_session.add(User(
+        id=uid, username="rollup-crew", credential_hash="x", role="crew",
+        city_id="st-louis", is_active=True, created_at=datetime.now(timezone.utc),
+    ))
+    for period in ("morning", "afternoon", "evening"):
+        db_session.add(UserWeeklyAvailability(user_id=uid, weekday="monday", period=period))
+    db_session.add(UserWeeklyAvailability(user_id=uid, weekday="tuesday", period="morning"))
+    await db_session.commit()
+
+    users = (await client.get("/users")).json()
+    me = next(u for u in users if u["username"] == "rollup-crew")
+    assert "monday" in me["unavailable_weekdays"]
+    assert "tuesday" not in me["unavailable_weekdays"]

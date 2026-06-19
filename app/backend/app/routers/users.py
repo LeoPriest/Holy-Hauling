@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -23,6 +23,17 @@ from app.schemas.user import (
 
 router = APIRouter(prefix="/users", tags=["users"])
 _WEEKDAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+_PERIOD_ORDER = ["morning", "afternoon", "evening"]
+
+
+def _blocks_from_rows(rows) -> dict[str, list[str]]:
+    grouped: dict[str, set[str]] = {}
+    for row in rows:
+        grouped.setdefault(row.weekday, set()).add(row.period)
+    return {
+        day: [p for p in _PERIOD_ORDER if p in grouped[day]]
+        for day in _WEEKDAY_ORDER if day in grouped
+    }
 
 
 @router.get(
@@ -89,51 +100,34 @@ async def delete_my_availability(
     return UserAvailabilityDeleteResult(removed=True)
 
 
-@router.get(
-    "/me/weekly-availability",
-    response_model=UserWeeklyAvailabilityOut,
-)
+@router.get("/me/weekly-availability", response_model=UserWeeklyAvailabilityOut)
 async def get_my_weekly_availability(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
-    result = await db.execute(
-        select(UserWeeklyAvailability)
-        .where(UserWeeklyAvailability.user_id == current_user.id)
-    )
-    weekdays = {row.weekday for row in result.scalars().all()}
-    ordered = [day for day in _WEEKDAY_ORDER if day in weekdays]
-    return UserWeeklyAvailabilityOut(weekdays=ordered)
+    rows = (await db.execute(
+        select(UserWeeklyAvailability).where(UserWeeklyAvailability.user_id == current_user.id)
+    )).scalars().all()
+    return UserWeeklyAvailabilityOut(blocks=_blocks_from_rows(rows))
 
 
-@router.put(
-    "/me/weekly-availability",
-    response_model=UserWeeklyAvailabilityOut,
-)
+@router.put("/me/weekly-availability", response_model=UserWeeklyAvailabilityOut)
 async def replace_my_weekly_availability(
     data: UserWeeklyAvailabilityUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
-    normalized = list(dict.fromkeys(data.weekdays))
-    result = await db.execute(
-        select(UserWeeklyAvailability).where(UserWeeklyAvailability.user_id == current_user.id)
+    await db.execute(
+        delete(UserWeeklyAvailability).where(UserWeeklyAvailability.user_id == current_user.id)
     )
-    existing_rows = result.scalars().all()
-    existing_map = {row.weekday: row for row in existing_rows}
-
-    target = set(normalized)
-    for weekday, row in existing_map.items():
-        if weekday not in target:
-            await db.delete(row)
-
-    for weekday in normalized:
-        if weekday not in existing_map:
-            db.add(UserWeeklyAvailability(user_id=current_user.id, weekday=weekday))
-
+    for weekday, periods in data.blocks.items():
+        for period in dict.fromkeys(periods):
+            db.add(UserWeeklyAvailability(user_id=current_user.id, weekday=weekday, period=period))
     await db.commit()
-    ordered = [day for day in _WEEKDAY_ORDER if day in target]
-    return UserWeeklyAvailabilityOut(weekdays=ordered)
+    rows = (await db.execute(
+        select(UserWeeklyAvailability).where(UserWeeklyAvailability.user_id == current_user.id)
+    )).scalars().all()
+    return UserWeeklyAvailabilityOut(blocks=_blocks_from_rows(rows))
 
 
 @router.get("", response_model=list[UserListItem])
@@ -167,9 +161,10 @@ async def list_active_users(
         select(UserWeeklyAvailability)
         .where(UserWeeklyAvailability.user_id.in_(user_ids))
     )
-    weekly_map: dict[str, set[str]] = {user_id: set() for user_id in user_ids}
+    # user_id -> weekday -> set(periods); a weekday is "unavailable" only when all 3 are blocked
+    weekly_periods: dict[str, dict[str, set[str]]] = {user_id: {} for user_id in user_ids}
     for row in weekly_result.scalars().all():
-        weekly_map.setdefault(row.user_id, set()).add(row.weekday)
+        weekly_periods.setdefault(row.user_id, {}).setdefault(row.weekday, set()).add(row.period)
 
     return [
         UserListItem(
@@ -182,7 +177,10 @@ async def list_active_users(
             is_active=user.is_active,
             email=user.email,
             unavailable_dates=availability_map.get(user.id, []),
-            unavailable_weekdays=[day for day in _WEEKDAY_ORDER if day in weekly_map.get(user.id, set())],
+            unavailable_weekdays=[
+                day for day in _WEEKDAY_ORDER
+                if len(weekly_periods.get(user.id, {}).get(day, set())) == 3
+            ],
         )
         for user in users
     ]
