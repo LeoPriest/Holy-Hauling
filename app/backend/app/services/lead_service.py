@@ -50,7 +50,12 @@ _THUMBTACK_SOURCES = {LeadSourceType.thumbtack_api, LeadSourceType.thumbtack_scr
 
 
 def contact_phone(lead) -> str | None:
-    """The number to actually use: the customer's real number if valid, else the (proxy) customer_phone."""
+    """The number to actually use: the customer's real number if valid, else the (proxy) customer_phone.
+
+    Mirrored by the LeadOut.contact_phone computed field (schemas/lead.py), which uses a plain
+    truthy preference — safe because both phone fields are validated on write in update_lead.
+    Keep the two in sync if the preference logic ever changes.
+    """
     if _is_valid_phone(getattr(lead, "customer_real_phone", None)):
         return lead.customer_real_phone
     if _is_valid_phone(getattr(lead, "customer_phone", None)):
@@ -59,7 +64,12 @@ def contact_phone(lead) -> str | None:
 
 
 def _tag_proxy_on_phone_set(lead) -> None:
-    """A valid customer_phone on a Thumbtack-source lead is a Thumbtack proxy line."""
+    """A valid customer_phone on a Thumbtack-source lead is a Thumbtack proxy line.
+
+    Sticky-true by design: only ever sets the flag, never clears it. The manual override path
+    (a PATCH of customer_phone_is_proxy alone) is what sets it back to False, and update_lead
+    skips this auto-tag when the flag is in the same patch.
+    """
     if lead.source_type in _THUMBTACK_SOURCES and _is_valid_phone(lead.customer_phone):
         lead.customer_phone_is_proxy = True
 

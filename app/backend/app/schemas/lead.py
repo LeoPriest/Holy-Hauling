@@ -255,7 +255,8 @@ class LeadOut(BaseModel):
     @computed_field
     @property
     def contact_phone(self) -> Optional[str]:
-        # Stored values are already validated on write, so truthy preference is sufficient.
+        # Mirrors lead_service.contact_phone. Truthy preference is safe because both phone
+        # fields are validated on write in update_lead (a masked value can never be stored).
         return self.customer_real_phone or self.customer_phone
 
     model_config = {"from_attributes": True}
