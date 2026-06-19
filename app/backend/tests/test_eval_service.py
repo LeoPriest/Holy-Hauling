@@ -113,3 +113,14 @@ async def test_city_filter(client, db_session):
     await _outcome(db_session, there, conversion="won", realized=50000, city="other")
     out = await compute_quote_grounding_eval(db_session, _CITY)
     assert out.grounded.n == 1  # only the st-louis lead
+
+
+async def test_no_city_filter_combines_cities(client, db_session):
+    here = str(uuid.uuid4())
+    await _log(db_session, here, grounded=True, suggested=50000)
+    await _outcome(db_session, here, conversion="won", realized=50000)
+    there = str(uuid.uuid4())
+    await _log(db_session, there, grounded=True, suggested=50000, city="other")
+    await _outcome(db_session, there, conversion="won", realized=50000, city="other")
+    out = await compute_quote_grounding_eval(db_session, None)  # default endpoint path
+    assert out.grounded.n == 2  # both cities combined when unscoped

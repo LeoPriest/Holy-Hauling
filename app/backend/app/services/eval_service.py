@@ -17,6 +17,9 @@ from app.schemas.eval import CohortMetrics, QuoteGroundingEval
 
 
 async def _latest_logs_by_lead(db: AsyncSession, city_id: str | None) -> dict:
+    # Loads the city's logs and dedups to the latest-per-lead in Python. The logs
+    # table is append-only, so if it ever grows past ~50k rows this should move to a
+    # DB-side window function (row_number over lead_id ordered by created_at desc).
     stmt = select(QuoteSuggestionLog)
     if city_id:
         stmt = stmt.where(QuoteSuggestionLog.city_id == city_id)
@@ -35,7 +38,7 @@ async def _finalized_outcomes_by_lead(db: AsyncSession, city_id: str | None) -> 
     return {row.lead_id: row for row in (await db.execute(stmt)).scalars().all()}
 
 
-def _cohort_metrics(pairs: list) -> CohortMetrics:
+def _cohort_metrics(pairs: list[tuple[QuoteSuggestionLog, LeadOutcome]]) -> CohortMetrics:
     """pairs: list of (log, outcome)."""
     n = len(pairs)
     won = sum(1 for _, o in pairs if o.conversion == "won")
