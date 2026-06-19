@@ -45,7 +45,7 @@ import app.models.quote_suggestion_log  # noqa: F401
 import app.models.lead_checklist_item  # noqa: F401
 
 from app.models.city import DEFAULT_CITIES, DEFAULT_CITY_ID
-from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, eval as eval_router, escalation, finance, ingest, jobs, leads, outcomes, payroll, push, recurring_expenses, settings as settings_router, square_router, truck_rental, users
+from app.routers import admin_cities, admin_google, admin_metrics, admin_users, auth as auth_router, chat, checklist, eval as eval_router, escalation, finance, ingest, jobs, leads, outcomes, payroll, push, recurring_expenses, settings as settings_router, square_router, truck_rental, users
 
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 _UPLOADS_DIR = os.environ.get("UPLOADS_DIR") or os.path.join(_BASE_DIR, "uploads")
@@ -651,6 +651,7 @@ app.include_router(admin_metrics.router)
 app.include_router(square_router.router)
 app.include_router(truck_rental.router)
 app.include_router(payroll.router)
+app.include_router(checklist.router)
 app.include_router(recurring_expenses.router)
 app.include_router(escalation.router)
 app.include_router(outcomes.router)
