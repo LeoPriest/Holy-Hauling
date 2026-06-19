@@ -481,6 +481,40 @@ async def _migrate_users_add_hourly_rate_cents(conn) -> None:
     print("[startup] users: added hourly_rate_cents column")
 
 
+async def _migrate_weekly_availability_add_period(conn) -> None:
+    """Add a `period` column to user_weekly_availability, expanding each existing
+    all-day block into three period rows (morning/afternoon/evening). Idempotent.
+    """
+    result = await conn.execute(text("PRAGMA table_info(user_weekly_availability)"))
+    rows = result.fetchall()
+    if not rows:
+        return  # table not created yet; create_all builds the new shape
+    if "period" in _existing_columns(rows):
+        return  # already migrated
+
+    await conn.execute(text("ALTER TABLE user_weekly_availability RENAME TO _uwa_old"))
+    await conn.execute(text("""
+        CREATE TABLE user_weekly_availability (
+            id VARCHAR NOT NULL PRIMARY KEY,
+            user_id VARCHAR NOT NULL,
+            weekday VARCHAR NOT NULL,
+            period VARCHAR NOT NULL,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT uq_user_weekly_availability_user_weekday_period UNIQUE (user_id, weekday, period),
+            FOREIGN KEY(user_id) REFERENCES users (id)
+        )
+    """))
+    await conn.execute(text("CREATE INDEX ix_user_weekly_availability_user_id ON user_weekly_availability (user_id)"))
+    await conn.execute(text("""
+        INSERT INTO user_weekly_availability (id, user_id, weekday, period, created_at)
+        SELECT old.id || '-' || p.period, old.user_id, old.weekday, p.period, old.created_at
+        FROM _uwa_old old
+        CROSS JOIN (SELECT 'morning' AS period UNION ALL SELECT 'afternoon' UNION ALL SELECT 'evening') p
+    """))
+    await conn.execute(text("DROP TABLE _uwa_old"))
+    print("[startup] user_weekly_availability: added period column (expanded existing blocks to all periods)")
+
+
 async def _migrate_escalated_status_leads(conn) -> None:
     """Move legacy status=escalated leads back to a real stage and open an overlay.
 
@@ -552,6 +586,7 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_quote_cents(conn)
         await _migrate_users_add_hourly_rate_cents(conn)
         await _migrate_truck_rentals_add_columns(conn)
+        await _migrate_weekly_availability_add_period(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_escalated_status_leads(conn)
         await _seed_default_admin(conn)
