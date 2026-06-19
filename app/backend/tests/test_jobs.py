@@ -476,6 +476,93 @@ async def test_manual_google_sync_surfaces_disabled_calendar_api(supervisor_clie
     assert "Enable the Google Calendar API" in r.json()["detail"]
 
 
+async def test_jobs_completed_returns_released_not_booked(supervisor_client):
+    from datetime import date
+    client, factory = supervisor_client
+    booked = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 1))
+    completed = await _seed_lead(factory, status="released", job_date_requested=date(2026, 5, 2))
+
+    r = await client.get("/jobs?status=completed")
+    assert r.status_code == 200, r.text
+    ids = {j["id"] for j in r.json()}
+    assert completed.id in ids
+    assert booked.id not in ids
+
+    d = await client.get("/jobs")
+    dids = {j["id"] for j in d.json()}
+    assert booked.id in dids
+    assert completed.id not in dids
+
+
+async def test_jobs_status_invalid_400(supervisor_client):
+    client, _ = supervisor_client
+    r = await client.get("/jobs?status=bogus")
+    assert r.status_code == 400
+
+
+async def test_jobs_completed_realized_revenue_is_income_sum(supervisor_client):
+    import uuid
+    from datetime import date, datetime, timezone
+    from app.models.finance import FinanceTransaction, FinanceTransactionType
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="released", job_date_requested=date(2026, 5, 2))
+    async with factory() as s:
+        s.add(FinanceTransaction(
+            id=str(uuid.uuid4()), city_id=lead.city_id, occurred_on=date(2026, 5, 2),
+            transaction_type=FinanceTransactionType.income, category="job", amount_cents=72000,
+            lead_id=lead.id, created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
+        ))
+        s.add(FinanceTransaction(
+            id=str(uuid.uuid4()), city_id=lead.city_id, occurred_on=date(2026, 5, 2),
+            transaction_type=FinanceTransactionType.expense, category="fuel", amount_cents=5000,
+            lead_id=lead.id, created_at=datetime.now(timezone.utc), updated_at=datetime.now(timezone.utc),
+        ))
+        await s.commit()
+
+    r = await client.get("/jobs?status=completed")
+    job = next(j for j in r.json() if j["id"] == lead.id)
+    assert job["realized_revenue_cents"] == 72000
+
+
+async def test_jobs_completed_null_revenue_when_no_income(supervisor_client):
+    from datetime import date
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="released", job_date_requested=date(2026, 5, 2))
+    r = await client.get("/jobs?status=completed")
+    job = next(j for j in r.json() if j["id"] == lead.id)
+    assert job["realized_revenue_cents"] is None
+
+
+async def test_jobs_completed_sorted_most_recent_first(supervisor_client):
+    import uuid
+    from datetime import date, datetime, timezone
+    from app.models.lead_event import LeadEvent
+    client, factory = supervisor_client
+    older = await _seed_lead(factory, status="released", job_date_requested=date(2026, 5, 1))
+    newer = await _seed_lead(factory, status="released", job_date_requested=date(2026, 5, 9))
+    async with factory() as s:
+        s.add(LeadEvent(id=str(uuid.uuid4()), lead_id=older.id, event_type="status_changed",
+                        to_status="released", created_at=datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc)))
+        s.add(LeadEvent(id=str(uuid.uuid4()), lead_id=newer.id, event_type="status_changed",
+                        to_status="released", created_at=datetime(2026, 5, 9, 12, 0, tzinfo=timezone.utc)))
+        await s.commit()
+
+    jobs = (await client.get("/jobs?status=completed")).json()
+    order = [j["id"] for j in jobs if j["id"] in {older.id, newer.id}]
+    assert order == [newer.id, older.id]
+    newer_job = next(j for j in jobs if j["id"] == newer.id)
+    assert newer_job["completed_at"] is not None
+
+
+async def test_jobs_booked_has_null_completed_fields(supervisor_client):
+    from datetime import date
+    client, factory = supervisor_client
+    lead = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 2))
+    job = next(j for j in (await client.get("/jobs")).json() if j["id"] == lead.id)
+    assert job["realized_revenue_cents"] is None
+    assert job["completed_at"] is None
+
+
 @pytest.mark.asyncio
 async def test_remove_assignment_keeps_calendar_event_when_crew_empty(supervisor_client):
     """Removing the last crew member updates the event's attendees but does NOT delete it —

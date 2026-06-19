@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,8 @@ from app.models.user import User
 from app.schemas.jobs import JobAssignmentCreate, JobOut, JobStatusUpdate
 import logging
 
+from app.models.finance import FinanceTransaction, FinanceTransactionType
+from app.models.lead_event import LeadEvent
 from app.services import calendar_service, lead_service
 
 _log = logging.getLogger(__name__)
@@ -31,6 +33,35 @@ async def _get_crew(db: AsyncSession, lead_id: str) -> list[str]:
         .where(JobAssignment.lead_id == lead_id)
     )
     return [row[0] for row in result.fetchall()]
+
+
+async def _income_by_lead(db: AsyncSession, lead_ids: list[str]) -> dict[str, int]:
+    if not lead_ids:
+        return {}
+    result = await db.execute(
+        select(FinanceTransaction.lead_id, func.sum(FinanceTransaction.amount_cents))
+        .where(
+            FinanceTransaction.lead_id.in_(lead_ids),
+            FinanceTransaction.transaction_type == FinanceTransactionType.income,
+        )
+        .group_by(FinanceTransaction.lead_id)
+    )
+    return {lead_id: int(total) for lead_id, total in result.all()}
+
+
+async def _completed_at_by_lead(db: AsyncSession, lead_ids: list[str]) -> dict:
+    if not lead_ids:
+        return {}
+    result = await db.execute(
+        select(LeadEvent.lead_id, func.min(LeadEvent.created_at))
+        .where(
+            LeadEvent.lead_id.in_(lead_ids),
+            LeadEvent.event_type == "status_changed",
+            LeadEvent.to_status == "released",
+        )
+        .group_by(LeadEvent.lead_id)
+    )
+    return {lead_id: ts for lead_id, ts in result.all()}
 
 
 def _job_phase(lead: Lead) -> str | None:
@@ -64,7 +95,10 @@ async def _city_map(db: AsyncSession) -> dict[str, City]:
     return {city.id: city for city in result.scalars().all()}
 
 
-async def _to_job_out(db: AsyncSession, lead: Lead, role: str, cities: dict[str, City] | None = None) -> JobOut:
+async def _to_job_out(
+    db: AsyncSession, lead: Lead, role: str, cities: dict[str, City] | None = None,
+    realized_revenue_cents: int | None = None, completed_at: str | None = None,
+) -> JobOut:
     crew = await _get_crew(db, lead.id)
     cities = cities or await _city_map(db)
     city = cities.get(lead.city_id)
@@ -94,15 +128,23 @@ async def _to_job_out(db: AsyncSession, lead: Lead, role: str, cities: dict[str,
         en_route_at=_iso(lead.en_route_at),
         arrived_at=_iso(lead.arrived_at),
         started_at=_iso(lead.started_at),
+        realized_revenue_cents=realized_revenue_cents,
+        completed_at=completed_at,
     )
 
 
 @router.get("", response_model=list[JobOut])
 async def get_jobs(
     city_id: str | None = None,
+    status: str = "booked",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_auth),
 ):
+    status_map = {"booked": LeadStatus.booked, "completed": LeadStatus.released}
+    if status not in status_map:
+        raise HTTPException(status_code=400, detail="status must be 'booked' or 'completed'")
+    target = status_map[status]
+
     effective_city_id = city_scope(current_user, city_id)
     sort_order = (
         Lead.job_date_requested.is_(None),
@@ -112,7 +154,7 @@ async def get_jobs(
         Lead.created_at,
     )
     if current_user.role in ("supervisor", "admin", "facilitator"):
-        q = select(Lead).where(Lead.status == LeadStatus.booked)
+        q = select(Lead).where(Lead.status == target)
         if effective_city_id:
             q = q.where(Lead.city_id == effective_city_id)
         result = await db.execute(q.order_by(*sort_order))
@@ -121,7 +163,7 @@ async def get_jobs(
             select(Lead)
             .join(JobAssignment, Lead.id == JobAssignment.lead_id)
             .where(
-                Lead.status == LeadStatus.booked,
+                Lead.status == target,
                 JobAssignment.user_id == current_user.id,
                 Lead.city_id == effective_city_id,
             )
@@ -129,6 +171,22 @@ async def get_jobs(
         )
     leads = result.scalars().all()
     cities = await _city_map(db)
+
+    if target == LeadStatus.released:
+        lead_ids = [lead.id for lead in leads]
+        revenue = await _income_by_lead(db, lead_ids)
+        completed = await _completed_at_by_lead(db, lead_ids)
+        jobs = [
+            await _to_job_out(
+                db, lead, current_user.role, cities,
+                realized_revenue_cents=revenue.get(lead.id),
+                completed_at=_iso(completed.get(lead.id)),
+            )
+            for lead in leads
+        ]
+        jobs.sort(key=lambda j: j.completed_at or "", reverse=True)
+        return jobs
+
     return [await _to_job_out(db, lead, current_user.role, cities) for lead in leads]
 
 
