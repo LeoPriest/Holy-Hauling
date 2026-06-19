@@ -36,7 +36,12 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 - [x] Surfaced on the queue as a pinned "⚠ Escalations" band + an `⚠ Escalated` badge on each lead card; endpoints in `routers/escalation.py` (`POST/GET /leads/{id}/escalation`, `/escalation/suggest`, `POST /escalations/{id}/resolve`, `GET /escalations`)
 
 ### Self-learning roadmap (4 items)
-**Item 1 — outcome layer (done).** **Item 2 — retrieval grounding for the quote (done).** Items 3 (eval) + 4 (regeneration) not built yet.
+**Item 1 — outcome layer (done).** **Item 2 — retrieval grounding for the quote (done).** **Item 3 — quote-grounding eval (done).** Item 4 (regeneration/fine-tune) not built yet.
+
+#### Item 3 — quote-grounding eval
+- [x] Every `suggest_quote` call writes an append-only **`quote_suggestion_log`** row (provenance): `was_grounded`, `comparables_count`, the AI's reconciled `suggested_price_cents`, `model_used`. Best-effort — a log failure never breaks quoting.
+- [x] `GET /admin/eval/quote-grounding?city_id=` (admin-gated) reports **grounded vs ungrounded** cohorts by joining the latest log per lead to finalized outcomes: per cohort `n`, `win_rate`, `priced_n`, **`pricing_accuracy`** (mean `|suggested−realized|/realized`), **`pricing_bias`** (signed — negative = underpricing). Won+realized jobs only for pricing; `$0` realized excluded (divide-by-zero guard); null metrics with `n` shown for empty cohorts. `eval_service.compute_quote_grounding_eval`. 13 tests.
+- [x] This is the loop's measurement: it tells you whether item-2 grounding actually improved pricing/conversion. Only evaluable once provenance + outcomes accumulate (documented).
 
 #### Item 2 — retrieval grounding (quote)
 - [x] Before drafting a quote, `quote_service` retrieves the **top-5 most similar same-city finalized outcomes** (won + lost) via `comparables_service.find_comparables` — structured attribute scoring over each outcome's frozen `scope_snapshot` (size +3, distance +2/+1, move_type +1, stairs +1), **no embeddings**, explainable.
@@ -140,6 +145,6 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 ## Last Verified
 
 - Date: 2026-06-18
-- By: Claude (subagent-driven implementation of retrieval grounding, spec→plan→TDD)
-- Tests: **304 passed, 0 failed** (full backend suite, 2026-06-18). Frontend `tsc --noEmit` + `npm run build` pass.
-- Notes: Shipped **item 2 — retrieval grounding for the quote** this session (see "Self-learning roadmap" above) — `comparables_service.find_comparables` (structured similarity over `lead_outcome.scope_snapshot`, no embeddings) + `COMPARABLE LOCAL JOBS` prompt block in `quote_service`, cold-start safe, comparables surfaced on the response; 11 tests. Item 1 (outcome layer, 2026-06-17), the 2026-06-16 escalation overlay, and 2026-06-15 work all remain in place. Next: item 3 (eval harness).
+- By: Claude (subagent-driven implementation of the quote-grounding eval, spec→plan→TDD)
+- Tests: **317 passed, 0 failed** (full backend suite, 2026-06-18). Frontend `tsc --noEmit` + `npm run build` pass.
+- Notes: Shipped **item 3 — quote-grounding eval** this session (see "Self-learning roadmap" above) — append-only `quote_suggestion_log` provenance written at quote time (best-effort), `eval_service` grounded-vs-ungrounded cohort metrics (win rate / pricing accuracy / pricing bias), `GET /admin/eval/quote-grounding`; 13 tests. Item 2 (retrieval grounding, 2026-06-18), item 1 (outcome layer, 2026-06-17), the 2026-06-16 escalation overlay, and 2026-06-15 work all remain in place. Next: item 4 (regeneration/fine-tune from the eval signal).
