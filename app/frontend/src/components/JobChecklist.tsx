@@ -34,13 +34,15 @@ function Row({
         aria-pressed={item.is_checked}
         aria-label={`${item.is_checked ? 'Uncheck' : 'Check'} ${item.label}`}
         onClick={() => onToggle(item)}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm transition-colors ${
+        className="-my-1 -ml-1.5 flex h-11 w-11 shrink-0 items-center justify-center"
+      >
+        <span className={`flex h-6 w-6 items-center justify-center rounded-md border-2 text-sm transition-colors ${
           item.is_checked
             ? 'border-emerald-500 bg-emerald-500 text-white'
             : 'border-gray-300 text-transparent dark:border-gray-600'
-        }`}
-      >
-        ✓
+        }`}>
+          ✓
+        </span>
       </button>
       <span className={`min-w-0 flex-1 truncate ${item.is_checked ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
         {item.label}
@@ -50,7 +52,7 @@ function Row({
         type="button"
         aria-label={`Delete ${item.label}`}
         onClick={() => onDelete(item)}
-        className="shrink-0 px-2 text-gray-400 hover:text-red-500"
+        className="-my-1 -mr-1.5 flex h-11 w-11 shrink-0 items-center justify-center text-gray-400 hover:text-red-500"
       >
         ✕
       </button>
