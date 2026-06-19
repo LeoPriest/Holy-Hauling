@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, computed_field
 
 from app.models.lead import LeadSourceType, LeadStatus, ServiceType
 from app.schemas.followup import FollowupOut
@@ -108,6 +108,8 @@ class LeadUpdate(BaseModel):
     For operational notes logged during live handling, use POST /leads/{id}/notes."""
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
+    customer_phone_is_proxy: Optional[bool] = None
+    customer_real_phone: Optional[str] = None
     service_type: Optional[ServiceType] = None
     job_location: Optional[str] = None
     job_origin: Optional[str] = None
@@ -205,6 +207,8 @@ class LeadOut(BaseModel):
     # None for ingest stubs not yet confirmed by OCR or the facilitator
     customer_name: Optional[str]
     customer_phone: Optional[str]
+    customer_phone_is_proxy: bool = False
+    customer_real_phone: Optional[str] = None
     service_type: ServiceType
     job_location: Optional[str]
     job_origin: Optional[str] = None
@@ -247,6 +251,12 @@ class LeadOut(BaseModel):
     # Injected by router — not DB columns
     active_followup: Optional[FollowupOut] = None
     active_payment: Optional[PaymentOut] = None
+
+    @computed_field
+    @property
+    def contact_phone(self) -> Optional[str]:
+        # Stored values are already validated on write, so truthy preference is sufficient.
+        return self.customer_real_phone or self.customer_phone
 
     model_config = {"from_attributes": True}
 

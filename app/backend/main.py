@@ -515,6 +515,21 @@ async def _migrate_leads_add_cost_columns(conn) -> None:
             print(f"[startup] leads: added {name} column")
 
 
+async def _migrate_leads_add_phone_proxy_columns(conn) -> None:
+    """Add Thumbtack-Numbers phone columns to leads. Idempotent."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    existing = _existing_columns(rows)
+    if "customer_phone_is_proxy" not in existing:
+        await conn.execute(text("ALTER TABLE leads ADD COLUMN customer_phone_is_proxy BOOLEAN NOT NULL DEFAULT 0"))
+        print("[startup] leads: added customer_phone_is_proxy column")
+    if "customer_real_phone" not in existing:
+        await conn.execute(text("ALTER TABLE leads ADD COLUMN customer_real_phone VARCHAR"))
+        print("[startup] leads: added customer_real_phone column")
+
+
 async def _migrate_weekly_availability_add_period(conn) -> None:
     """Add a `period` column to user_weekly_availability, expanding each existing
     all-day block into three period rows (morning/afternoon/evening). Idempotent.
@@ -628,6 +643,7 @@ async def lifespan(app: FastAPI):
         await _migrate_weekly_availability_add_period(conn)
         await _migrate_leads_add_checklist_seeded_at(conn)
         await _migrate_leads_add_cost_columns(conn)
+        await _migrate_leads_add_phone_proxy_columns(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_escalated_status_leads(conn)
         await _seed_default_admin(conn)

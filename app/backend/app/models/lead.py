@@ -53,6 +53,8 @@ class Lead(Base):
     # Null until confirmed by OCR or the facilitator (ingest stubs start without a name)
     customer_name = Column(String, nullable=True)
     customer_phone = Column(String, nullable=True)
+    customer_phone_is_proxy = Column(Boolean, nullable=False, default=False)  # customer_phone is a Thumbtack line
+    customer_real_phone = Column(String, nullable=True)                       # customer's real number once captured
     service_type = Column(SAEnum(ServiceType), nullable=False, default=ServiceType.unknown)
     job_location = Column(String, nullable=True)
     job_date_requested = Column(Date, nullable=True)
