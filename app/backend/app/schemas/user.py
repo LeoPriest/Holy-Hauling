@@ -7,6 +7,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 UserRole = Literal["admin", "facilitator", "supervisor", "crew"]
 Weekday = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+Period = Literal["morning", "afternoon", "evening"]
 
 
 class UserCreate(BaseModel):
@@ -55,8 +56,8 @@ class UserAvailabilityDeleteResult(BaseModel):
 
 
 class UserWeeklyAvailabilityUpdate(BaseModel):
-    weekdays: list[Weekday] = Field(default_factory=list)
+    blocks: dict[Weekday, list[Period]] = Field(default_factory=dict)
 
 
 class UserWeeklyAvailabilityOut(BaseModel):
-    weekdays: list[Weekday] = Field(default_factory=list)
+    blocks: dict[Weekday, list[Period]] = Field(default_factory=dict)
