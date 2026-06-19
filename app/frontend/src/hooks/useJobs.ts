@@ -29,15 +29,18 @@ export interface Job {
   en_route_at: string | null
   arrived_at: string | null
   started_at: string | null
+  realized_revenue_cents?: number | null
+  completed_at?: string | null
 }
 
-export function useJobs() {
+export function useJobs(status: 'booked' | 'completed' = 'booked') {
   const { cityQueryId } = useCity()
   return useQuery<Job[]>({
-    queryKey: ['jobs', cityQueryId],
+    queryKey: ['jobs', status, cityQueryId],
     queryFn: async () => {
-      const q = cityQueryId ? `?city_id=${encodeURIComponent(cityQueryId)}` : ''
-      const r = await apiFetch(`/jobs${q}`)
+      const params = new URLSearchParams({ status })
+      if (cityQueryId) params.set('city_id', cityQueryId)
+      const r = await apiFetch(`/jobs?${params.toString()}`)
       if (!r.ok) throw new Error('Failed to fetch jobs')
       return r.json()
     },

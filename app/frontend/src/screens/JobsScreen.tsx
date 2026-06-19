@@ -19,12 +19,12 @@ import {
 import { useLead, useUploadScreenshot } from '../hooks/useLeads'
 import { type TeamMember, useUsers } from '../hooks/useUsers'
 import type { Screenshot } from '../types/lead'
-import { fmtDurationMinutes, fmtTimeSlot, parseUtc, fmtLocalTime } from '../utils/time'
+import { fmtDurationMinutes, fmtTimeSlot, parseUtc, fmtLocalTime, fmtLocalDateTime } from '../utils/time'
 
 const MAPS_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
   import.meta.env.VITE_GOOGLE_MAPS_KEY) as string | undefined
 
-type JobView = 'scheduled' | 'in_progress'
+type JobView = 'scheduled' | 'in_progress' | 'completed'
 type PhaseValue = 'dispatched' | 'en_route' | 'arrived' | 'started' | 'completed'
 type JobPhotoType = 'before_job' | 'after_job'
 
@@ -101,6 +101,9 @@ function formatCurrency(amount: number) {
     maximumFractionDigits: 2,
   }).format(amount)
 }
+
+const fmtMoney = (n: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
 
 function fmtJobSchedule(job: Job): string | null {
   if (!job.job_date_requested) return null
@@ -896,6 +899,7 @@ export function JobsScreen() {
   const [now, setNow] = useState(Date.now())
 
   const { data: jobs = [], isLoading } = useJobs()
+  const { data: completedJobs = [] } = useJobs('completed')
   const { data: users = [] } = useUsers(user?.role !== 'crew')
   const patchStatus = usePatchJobStatus()
   const addAssignment = useAddJobAssignment()
@@ -949,6 +953,7 @@ export function JobsScreen() {
         {([
           { key: 'scheduled' as JobView, label: 'Scheduled' },
           { key: 'in_progress' as JobView, label: 'In Progress', badge: inProgressCount },
+          { key: 'completed' as JobView, label: 'Completed' },
         ]).map(tab => (
           <button
             key={tab.key}
@@ -970,27 +975,92 @@ export function JobsScreen() {
       </div>
 
       <main className="space-y-3 p-4 pb-10">
-        {isLoading && <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">Loading jobs...</p>}
-        {!isLoading && jobGroups.length === 0 && (
-          <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">
-            {jobView === 'scheduled' ? 'No scheduled jobs.' : 'No jobs currently in progress.'}
-          </p>
+        {jobView !== 'completed' && (
+          <>
+            {isLoading && <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">Loading jobs...</p>}
+            {!isLoading && jobGroups.length === 0 && (
+              <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">
+                {jobView === 'scheduled' ? 'No scheduled jobs.' : 'No jobs currently in progress.'}
+              </p>
+            )}
+            {jobGroups.map(group => (
+              <section key={group.key} className="space-y-3 pt-1 first:pt-0">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{group.label}</h2>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    {group.jobs.length} {group.jobs.length === 1 ? 'job' : 'jobs'}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {group.jobs.map(job => (
+                    <JobCard key={job.id} job={job} showQuote={showQuote} showCity={isAllCities} onClick={() => setSelectedJob(job)} />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </>
         )}
-        {jobGroups.map(group => (
-          <section key={group.key} className="space-y-3 pt-1 first:pt-0">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{group.label}</h2>
-              <span className="text-xs text-gray-400 dark:text-gray-500">
-                {group.jobs.length} {group.jobs.length === 1 ? 'job' : 'jobs'}
-              </span>
+
+        {jobView === 'completed' && (
+          <>
+            <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+              {completedJobs.length} completed · {fmtMoney(completedJobs.reduce((sum, j) => sum + (j.realized_revenue_cents ?? 0), 0) / 100)} realized
             </div>
-            <div className="space-y-3">
-              {group.jobs.map(job => (
-                <JobCard key={job.id} job={job} showQuote={showQuote} showCity={isAllCities} onClick={() => setSelectedJob(job)} />
-              ))}
-            </div>
-          </section>
-        ))}
+            {completedJobs.length === 0 ? (
+              <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">No completed jobs yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {completedJobs.map(job => (
+                  <button
+                    key={job.id}
+                    onClick={() => navigate(`/leads/${job.id}`)}
+                    className="w-full rounded-xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-colors hover:border-indigo-300 active:scale-[0.99] dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-600"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {job.customer_name ?? <span className="font-normal italic text-gray-400">Unnamed</span>}
+                          </p>
+                          {isAllCities && job.city_name && (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
+                              {job.city_name}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-sm capitalize text-gray-500 dark:text-gray-400">{job.service_type}</p>
+                        {job.crew.length > 0 && (
+                          <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">Crew: {job.crew.join(', ')}</p>
+                        )}
+                        {job.arrived_at && job.started_at && (
+                          <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">
+                            On-site: {fmtDuration(job.arrived_at, job.started_at)}
+                          </p>
+                        )}
+                        {job.completed_at && (
+                          <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">
+                            Completed: {fmtLocalDateTime(job.completed_at)}
+                          </p>
+                        )}
+                        <div className="mt-1.5 flex flex-wrap gap-3">
+                          {job.quoted_price_total != null && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Quoted: {fmtMoney(job.quoted_price_total)}
+                            </p>
+                          )}
+                          <p className={`text-sm font-medium ${job.realized_revenue_cents != null ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                            Realized: {job.realized_revenue_cents != null ? fmtMoney(job.realized_revenue_cents / 100) : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="mt-0.5 shrink-0 text-xs text-gray-300 dark:text-gray-600">&gt;</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </main>
 
       {liveSelectedJob && (
