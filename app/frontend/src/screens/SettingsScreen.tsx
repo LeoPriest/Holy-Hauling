@@ -8,6 +8,7 @@ import type { SettingsPatch, TestAlertRequest } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
 import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
+import { MyPay } from '../components/MyPay'
 import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
 import { apiFetch, fetchNotificationStatus } from '../services/api'
@@ -284,6 +285,11 @@ export function SettingsScreen() {
               />
             </button>
           </FieldRow>
+        </section>
+
+        <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">My Pay</h2>
+          <MyPay />
         </section>
 
         <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
