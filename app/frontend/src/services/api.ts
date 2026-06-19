@@ -312,8 +312,11 @@ export async function testPush(): Promise<{ sent: boolean; reason?: string | nul
   return r.json()
 }
 
+export type Weekday = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+export type Period = 'morning' | 'afternoon' | 'evening'
+
 export type WeeklyAvailability = {
-  weekdays: Array<'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>
+  blocks: Partial<Record<Weekday, Period[]>>
 }
 
 export async function fetchMyAvailability(): Promise<WeeklyAvailability> {
@@ -322,11 +325,11 @@ export async function fetchMyAvailability(): Promise<WeeklyAvailability> {
   return r.json()
 }
 
-export async function saveMyAvailability(weekdays: WeeklyAvailability['weekdays']): Promise<WeeklyAvailability> {
+export async function saveMyAvailability(blocks: WeeklyAvailability['blocks']): Promise<WeeklyAvailability> {
   const r = await apiFetch('/users/me/weekly-availability', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ weekdays }),
+    body: JSON.stringify({ blocks }),
   })
   if (!r.ok) throw new Error('Failed to save availability')
   return r.json()

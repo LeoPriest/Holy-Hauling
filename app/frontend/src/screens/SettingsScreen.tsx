@@ -47,14 +47,51 @@ const WEEKDAY_ORDER = [
 
 type WeekdayKey = typeof WEEKDAY_ORDER[number]['key']
 
+const PERIOD_ORDER = [
+  { key: 'morning', label: 'Morning' },
+  { key: 'afternoon', label: 'Afternoon' },
+  { key: 'evening', label: 'Evening' },
+] as const
+type PeriodKey = typeof PERIOD_ORDER[number]['key']
+
 function statusTone(configured: boolean) {
   return configured
     ? 'text-emerald-600 dark:text-emerald-400'
     : 'text-amber-600 dark:text-amber-400'
 }
 
-function formatWeekdayLabel(day: WeekdayKey) {
-  return day.charAt(0).toUpperCase() + day.slice(1)
+
+function AvailabilityRow({
+  day, blocked, onToggle,
+}: {
+  day: { key: WeekdayKey; label: string }
+  blocked: Set<string>
+  onToggle: (day: WeekdayKey, period: PeriodKey) => void
+}) {
+  return (
+    <>
+      <span className="flex items-center text-xs font-medium text-gray-600 dark:text-gray-300">{day.label}</span>
+      {PERIOD_ORDER.map(p => {
+        const on = blocked.has(`${day.key}:${p.key}`)
+        return (
+          <button
+            key={p.key}
+            type="button"
+            aria-pressed={on}
+            aria-label={`${day.label} ${p.label}`}
+            onClick={() => onToggle(day.key, p.key)}
+            className={`min-h-11 rounded-lg border text-xs font-medium transition-colors ${
+              on
+                ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'
+                : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+            }`}
+          >
+            {on ? 'Blocked' : '—'}
+          </button>
+        )
+      })}
+    </>
+  )
 }
 
 export function SettingsScreen() {
@@ -79,7 +116,7 @@ export function SettingsScreen() {
   const [availabilitySaved, setAvailabilitySaved] = useState(false)
   const [testResults, setTestResults] = useState<Partial<Record<TestKey, TestState>>>({})
   const [connectError, setConnectError] = useState('')
-  const [weeklyAvailability, setWeeklyAvailability] = useState<WeekdayKey[]>([])
+  const [blocked, setBlocked] = useState<Set<string>>(new Set())
 
   const { data: calendarStatus, refetch: refetchCalendarStatus } = useQuery<CalendarStatus>({
     queryKey: ['google-calendar-status', requiredCityId],
@@ -132,19 +169,34 @@ export function SettingsScreen() {
   }, [settings])
 
   useEffect(() => {
-    setWeeklyAvailability(availability?.weekdays ?? [])
+    const next = new Set<string>()
+    const blocks = availability?.blocks ?? {}
+    for (const day of WEEKDAY_ORDER) {
+      for (const period of (blocks[day.key] ?? [])) next.add(`${day.key}:${period}`)
+    }
+    setBlocked(next)
   }, [availability])
 
   const set = (key: keyof SettingsPatch, value: unknown) =>
     setForm(prev => ({ ...prev, [key]: value }))
 
-  const toggleWeekday = (day: WeekdayKey) => {
-    setWeeklyAvailability(prev => {
-      const next = prev.includes(day)
-        ? prev.filter(item => item !== day)
-        : [...prev, day]
-      return WEEKDAY_ORDER.map(item => item.key).filter(item => next.includes(item))
+  const toggleCell = (day: WeekdayKey, period: PeriodKey) => {
+    const cell = `${day}:${period}`
+    setBlocked(prev => {
+      const next = new Set(prev)
+      if (next.has(cell)) next.delete(cell)
+      else next.add(cell)
+      return next
     })
+  }
+
+  const blocksFromSet = (cells: Set<string>): Record<string, string[]> => {
+    const out: Record<string, string[]> = {}
+    for (const day of WEEKDAY_ORDER) {
+      const periods = PERIOD_ORDER.filter(p => cells.has(`${day.key}:${p.key}`)).map(p => p.key)
+      if (periods.length) out[day.key] = periods
+    }
+    return out
   }
 
   const handleSave = () => {
@@ -157,9 +209,8 @@ export function SettingsScreen() {
   }
 
   const handleSaveWeeklyAvailability = () => {
-    saveAvailability.mutate(weeklyAvailability, {
-      onSuccess: data => {
-        setWeeklyAvailability(data.weekdays)
+    saveAvailability.mutate(blocksFromSet(blocked), {
+      onSuccess: () => {
         setAvailabilitySaved(true)
         window.setTimeout(() => setAvailabilitySaved(false), 2000)
       },
@@ -237,25 +288,14 @@ export function SettingsScreen() {
 
         <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Availability</h2>
-          <div className="flex flex-wrap gap-2">
-            {WEEKDAY_ORDER.map(day => {
-              const selected = weeklyAvailability.includes(day.key)
-              return (
-                <button
-                  key={day.key}
-                  type="button"
-                  onClick={() => toggleWeekday(day.key)}
-                  aria-pressed={selected}
-                  className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
-                    selected
-                      ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'
-                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {day.label}
-                </button>
-              )
-            })}
+          <div className="grid grid-cols-[3rem_repeat(3,1fr)] gap-1.5 text-center">
+            <span />
+            {PERIOD_ORDER.map(p => (
+              <span key={p.key} className="text-[11px] font-medium text-gray-400">{p.label}</span>
+            ))}
+            {WEEKDAY_ORDER.map(day => (
+              <AvailabilityRow key={day.key} day={day} blocked={blocked} onToggle={toggleCell} />
+            ))}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -271,16 +311,24 @@ export function SettingsScreen() {
             </button>
             <button
               type="button"
-              onClick={() => setWeeklyAvailability([])}
-              disabled={saveAvailability.isPending || weeklyAvailability.length === 0}
+              onClick={() => setBlocked(new Set())}
+              disabled={saveAvailability.isPending || blocked.size === 0}
               className="rounded-lg border px-3 py-2 text-xs hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               Clear all
             </button>
           </div>
-          {weeklyAvailability.length > 0 && (
+          {blocked.size > 0 && (
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Currently blocked: {weeklyAvailability.map(formatWeekdayLabel).join(', ')}
+              Currently blocked: {WEEKDAY_ORDER
+                .map(day => {
+                  const periods = PERIOD_ORDER.filter(p => blocked.has(`${day.key}:${p.key}`))
+                  if (!periods.length) return null
+                  const label = periods.length === PERIOD_ORDER.length ? 'all day' : periods.map(p => p.label.toLowerCase()).join(', ')
+                  return `${day.label} (${label})`
+                })
+                .filter(Boolean)
+                .join('; ')}
             </p>
           )}
           {saveAvailability.isError && (
