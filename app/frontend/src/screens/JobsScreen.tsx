@@ -6,6 +6,7 @@ import { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { BottomNav } from '../components/BottomNav'
 import { CrewAgenda } from '../components/CrewAgenda'
+import { JobChecklist } from '../components/JobChecklist'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import {
@@ -711,6 +712,10 @@ function JobModal({
               isUploading={uploadScreenshot.isPending && photoUploadTarget === 'after_job'}
               onUpload={handlePhotoUpload}
             />
+          </div>
+
+          <div className="space-y-3">
+            <JobChecklist leadId={job.id} />
           </div>
 
           {job.crew.length > 0 && !canAssign && (
