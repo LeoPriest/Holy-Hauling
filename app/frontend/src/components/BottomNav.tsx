@@ -45,7 +45,7 @@ function CogIcon({ active }: { active: boolean }) {
 const NAV_ITEMS = [
   { path: '/', label: 'Queue', roles: ['admin', 'facilitator'], Icon: InboxIcon, exact: true },
   { path: '/jobs', label: 'Jobs', roles: ['admin', 'facilitator', 'supervisor', 'crew'], Icon: BriefcaseIcon, exact: false },
-  { path: '/calendar', label: 'Calendar', roles: ['admin', 'facilitator', 'supervisor', 'crew'], Icon: CalendarIcon, exact: false },
+  { path: '/calendar', label: 'Calendar', roles: ['admin', 'facilitator', 'supervisor'], Icon: CalendarIcon, exact: false },
   { path: '/settings', label: 'Settings', roles: ['admin', 'facilitator', 'supervisor', 'crew'], Icon: CogIcon, exact: false },
   { path: '/admin', label: 'Admin', roles: ['admin'], Icon: AdminIcon, exact: false },
 ]

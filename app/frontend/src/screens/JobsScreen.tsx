@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { UseMutationResult } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { BottomNav } from '../components/BottomNav'
+import { CrewAgenda } from '../components/CrewAgenda'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import {
@@ -939,6 +940,15 @@ export function JobsScreen() {
         </div>
       </header>
 
+      {user?.role === 'crew' ? (
+        <CrewAgenda
+          jobs={jobs}
+          completedJobs={completedJobs}
+          isLoading={isLoading}
+          onOpenJob={setSelectedJob}
+        />
+      ) : (
+        <>
       {lateJobs.length > 0 && (
         <div className="flex items-center gap-2 bg-red-600 px-4 py-2.5 text-white">
           <p className="text-sm font-medium">
@@ -1062,6 +1072,8 @@ export function JobsScreen() {
           </>
         )}
       </main>
+        </>
+      )}
 
       {liveSelectedJob && (
         <JobModal
