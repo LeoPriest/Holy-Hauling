@@ -154,6 +154,11 @@ export interface Lead {
   quoted_price_total: number | null
   quote_modifiers: QuoteModifier[] | null
   job_address: string | null
+  lead_cost_cents?: number | null
+  lead_cost_gross_cents?: number | null
+  lead_cost_bonus_cents?: number | null
+  pros_contacted?: number | null
+  pros_responded?: number | null
   source_category_label: string
   active_followup?: LeadFollowup | null
   active_payment?: import('./payment').LeadPayment | null
@@ -203,6 +208,11 @@ export interface LeadUpdate {
   quote_context?: string | null
   job_address?: string | null
   quote_cents?: number | null
+  lead_cost_cents?: number | null
+  lead_cost_gross_cents?: number | null
+  lead_cost_bonus_cents?: number | null
+  pros_contacted?: number | null
+  pros_responded?: number | null
 }
 
 export interface ChatMessage {

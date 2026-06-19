@@ -3,6 +3,7 @@ import { DateOptionsEditor } from '../../components/DateOptionsEditor'
 import { DurationWheelInput } from '../../components/DurationWheelInput'
 import { TruckRentalSection } from '../../components/TruckRentalSection'
 import { PayrollSection } from '../../components/PayrollSection'
+import { LeadCostCard } from '../../components/LeadCostCard'
 import { buildUploadUrl } from '../../services/api'
 import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
 import { useUsers } from '../../hooks/useUsers'
@@ -782,6 +783,19 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
         {patch.isError && (
           <p className="text-xs text-red-500 mt-1 px-1">Failed to save â€” please try again.</p>
         )}
+      </section>
+
+      {/* Lead cost */}
+      <section>
+        <LeadCostCard
+          leadCostCents={lead.lead_cost_cents}
+          leadCostGrossCents={lead.lead_cost_gross_cents}
+          leadCostBonusCents={lead.lead_cost_bonus_cents}
+          prosContacted={lead.pros_contacted}
+          prosResponded={lead.pros_responded}
+          fieldSources={lead.field_sources ? JSON.stringify(lead.field_sources) : null}
+          onSave={costPatch => patch.mutateAsync({ id: lead.id, data: costPatch })}
+        />
       </section>
 
       {/* Assigned to */}
