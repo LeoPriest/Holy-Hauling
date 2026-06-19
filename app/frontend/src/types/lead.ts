@@ -122,6 +122,9 @@ export interface Lead {
   // null for ingest stubs not yet confirmed by OCR or the facilitator
   customer_name: string | null
   customer_phone: string | null
+  customer_phone_is_proxy?: boolean
+  customer_real_phone?: string | null
+  contact_phone?: string | null
   service_type: ServiceType
   job_location: string | null
   job_origin: string | null
@@ -186,6 +189,8 @@ export interface LeadCreate {
 export interface LeadUpdate {
   customer_name?: string
   customer_phone?: string | null
+  customer_phone_is_proxy?: boolean
+  customer_real_phone?: string | null
   service_type?: ServiceType
   job_location?: string | null
   job_origin?: string | null

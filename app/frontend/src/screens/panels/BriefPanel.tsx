@@ -4,6 +4,7 @@ import { DurationWheelInput } from '../../components/DurationWheelInput'
 import { TruckRentalSection } from '../../components/TruckRentalSection'
 import { PayrollSection } from '../../components/PayrollSection'
 import { LeadCostCard } from '../../components/LeadCostCard'
+import { LeadContact } from '../../components/LeadContact'
 import { buildUploadUrl } from '../../services/api'
 import { useAcknowledgeLead, usePatchLead } from '../../hooks/useLeads'
 import { useUsers } from '../../hooks/useUsers'
@@ -566,26 +567,7 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
           </FieldRow>
 
           <FieldRow label="Phone">
-            <div className="flex items-center gap-2 flex-wrap">
-              <EditableField
-                value={lead.customer_phone}
-                onSave={v => save('customer_phone', v)}
-                placeholder="Tap to add phoneâ€¦"
-                type="tel"
-              />
-              {lead.customer_phone && (
-                <div className="flex gap-1 shrink-0">
-                  <a href={`tel:${lead.customer_phone}`}
-                    className="text-xs bg-green-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-green-700">
-                    Call
-                  </a>
-                  <a href={`sms:${lead.customer_phone}`}
-                    className="text-xs bg-blue-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-blue-700">
-                    Text
-                  </a>
-                </div>
-              )}
-            </div>
+            <LeadContact lead={lead} save={save} />
           </FieldRow>
 
           <FieldRow label="Service">
