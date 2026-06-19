@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.app_setting import AppSetting
 from app.models.city import City, DEFAULT_CITY_ID
 from app.models.job_assignment import JobAssignment
-from app.models.lead import Lead
+from app.models.lead import Lead, LeadStatus
 from app.models.user import User
 
 _log = logging.getLogger(__name__)
@@ -119,8 +119,8 @@ async def get_crew_emails(db: AsyncSession, lead_id: str) -> list[str]:
 async def _insert_event_or_raise(
     db: AsyncSession, lead: Lead, crew_emails: list[str]
 ) -> str | None:
-    if not crew_emails:
-        return None
+    # Crew are optional attendees, not a precondition — a booked job syncs to the
+    # connected (Holy Hauling) calendar even with no crew assigned.
     service = await _build_calendar_service(db, lead.city_id)
     if service is None:
         return None
@@ -257,31 +257,29 @@ async def delete_event(db: AsyncSession, event_id: str, city_id: str = DEFAULT_C
 
 
 async def sync_job_calendar(db: AsyncSession, lead_id: str) -> None:
-    """Create, update, or delete the Calendar event for a job based on current state.
+    """Create or update the Calendar event for a booked, dated job.
 
     Fire-and-forget: errors are logged but never propagated to callers.
-    One event per job; all assigned crew with emails are attendees.
+    The event tracks the booked+dated state of the job regardless of crew —
+    crew with emails are added as optional attendees. One event per job.
+    Non-booked / dateless jobs are a no-op (any existing event is left untouched;
+    cancellation-driven deletion is out of scope).
     """
     try:
         result = await db.execute(select(Lead).where(Lead.id == lead_id))
         lead = result.scalar_one_or_none()
         if lead is None:
             return
-        crew_emails = await get_crew_emails(db, lead_id)
+        if lead.status != LeadStatus.booked or lead.job_date_requested is None:
+            return
+        crew_emails = await get_crew_emails(db, lead_id)  # may be empty
         if lead.google_calendar_event_id:
-            if crew_emails:
-                await update_event(db, lead.google_calendar_event_id, lead, crew_emails)
-            else:
-                deleted = await delete_event(db, lead.google_calendar_event_id, lead.city_id)
-                if deleted:
-                    lead.google_calendar_event_id = None
-                    await db.commit()
+            await update_event(db, lead.google_calendar_event_id, lead, crew_emails)
         else:
-            if crew_emails:
-                event_id = await create_event(db, lead, crew_emails)
-                if event_id:
-                    lead.google_calendar_event_id = event_id
-                    await db.commit()
+            event_id = await create_event(db, lead, crew_emails)
+            if event_id:
+                lead.google_calendar_event_id = event_id
+                await db.commit()
     except Exception as exc:
         _log.error("sync_job_calendar failed for lead %s: %s", lead_id, exc)
 
@@ -362,13 +360,8 @@ async def sync_job_calendar_now(db: AsyncSession, lead: Lead) -> CalendarSyncRes
             status_code=409,
         )
 
+    # Crew are optional attendees — the job syncs to the connected calendar with or without them.
     crew_emails = await get_crew_emails(db, lead.id)
-    if not crew_emails:
-        return CalendarSyncResult(
-            ok=False,
-            detail="Assign at least one crew member with a Google email before syncing this job.",
-            status_code=409,
-        )
 
     try:
         if lead.google_calendar_event_id:

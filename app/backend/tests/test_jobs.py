@@ -353,7 +353,7 @@ async def test_add_assignment_stores_calendar_event_id(supervisor_client):
     from app.models.lead import Lead as _Lead
 
     client, factory = supervisor_client
-    lead = await _seed_lead(factory, status="booked")
+    lead = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 10))
     crew_user = await _seed_user(factory, username="crew-email", email="crew@gmail.com")
 
     with patch("app.services.calendar_service.create_event", new=AsyncMock(return_value="gcal-abc")) as mock_create:
@@ -368,19 +368,20 @@ async def test_add_assignment_stores_calendar_event_id(supervisor_client):
 
 
 @pytest.mark.asyncio
-async def test_add_assignment_no_email_skips_calendar_create(supervisor_client):
-    """Adding a crew member without an email should not call create_event."""
+async def test_add_assignment_no_email_still_syncs_booked_job(supervisor_client):
+    """A booked, dated job syncs even when the assigned crew has no email
+    (crew are optional attendees, not a precondition)."""
     from unittest.mock import AsyncMock, patch
 
     client, factory = supervisor_client
-    lead = await _seed_lead(factory, status="booked")
+    lead = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 10))
     crew_user = await _seed_user(factory, username="crew-noemail", email=None)
 
-    with patch("app.services.calendar_service.create_event", new=AsyncMock(return_value=None)) as mock_create:
+    with patch("app.services.calendar_service.create_event", new=AsyncMock(return_value="gcal-no-email")) as mock_create:
         r = await client.post(f"/jobs/{lead.id}/assignments", json={"user_id": crew_user.id})
 
     assert r.status_code == 201
-    mock_create.assert_not_called()
+    mock_create.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -410,7 +411,9 @@ async def test_manual_google_sync_creates_event(supervisor_client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_manual_google_sync_requires_crew_email(supervisor_client, monkeypatch):
+async def test_manual_google_sync_without_crew_email_still_syncs(supervisor_client, monkeypatch):
+    """Crew are optional attendees — a booked, dated job syncs to the connected
+    (Holy Hauling) calendar even when no crew has a Google email. No 409."""
     from unittest.mock import AsyncMock, patch
 
     client, factory = supervisor_client
@@ -425,11 +428,14 @@ async def test_manual_google_sync_requires_crew_email(supervisor_client, monkeyp
         s.add(AppSetting(key="google_refresh_token", value="refresh-token"))
         await s.commit()
 
-    with patch("app.services.calendar_service._get_credentials", new=AsyncMock(return_value=object())):
+    with (
+        patch("app.services.calendar_service._get_credentials", new=AsyncMock(return_value=object())),
+        patch("app.services.calendar_service._insert_event_or_raise", new=AsyncMock(return_value="gcal-no-crew")),
+    ):
         r = await client.post(f"/jobs/{lead.id}/sync-google")
 
-    assert r.status_code == 409
-    assert "Google email" in r.json()["detail"]
+    assert r.status_code == 200
+    assert r.json()["has_google_calendar_event"] is True
 
 
 @pytest.mark.asyncio
@@ -471,14 +477,15 @@ async def test_manual_google_sync_surfaces_disabled_calendar_api(supervisor_clie
 
 
 @pytest.mark.asyncio
-async def test_remove_assignment_clears_calendar_event_id_when_crew_empty(supervisor_client):
-    """Removing the last crew member should delete the event and clear the event ID."""
+async def test_remove_assignment_keeps_calendar_event_when_crew_empty(supervisor_client):
+    """Removing the last crew member updates the event's attendees but does NOT delete it —
+    the booked job stays on the Holy Hauling calendar."""
     from unittest.mock import AsyncMock, patch
     from sqlalchemy import select as _select
     from app.models.lead import Lead as _Lead
 
     client, factory = supervisor_client
-    lead = await _seed_lead(factory, status="booked")
+    lead = await _seed_lead(factory, status="booked", job_date_requested=date(2026, 5, 10))
     crew_user = await _seed_user(factory, username="only-crew", email="only@gmail.com")
     await _seed_assignment(factory, lead_id=lead.id, user_id=crew_user.id)
 
@@ -488,12 +495,16 @@ async def test_remove_assignment_clears_calendar_event_id_when_crew_empty(superv
         db_lead.google_calendar_event_id = "gcal-existing"
         await s.commit()
 
-    with patch("app.services.calendar_service.delete_event", new=AsyncMock(return_value=True)) as mock_delete:
+    with (
+        patch("app.services.calendar_service.update_event", new=AsyncMock(return_value=True)) as mock_update,
+        patch("app.services.calendar_service.delete_event", new=AsyncMock(return_value=True)) as mock_delete,
+    ):
         r = await client.delete(f"/jobs/{lead.id}/assignments/{crew_user.id}")
 
     assert r.status_code == 200
-    mock_delete.assert_called_once_with(unittest.mock.ANY, "gcal-existing", "st-louis")
+    mock_delete.assert_not_called()        # event is kept, not deleted
+    mock_update.assert_called_once()       # attendees refreshed instead
     async with factory() as s:
         result = await s.execute(_select(_Lead).where(_Lead.id == lead.id))
         db_lead = result.scalar_one()
-        assert db_lead.google_calendar_event_id is None
+        assert db_lead.google_calendar_event_id == "gcal-existing"  # retained

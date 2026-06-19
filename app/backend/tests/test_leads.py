@@ -524,8 +524,9 @@ async def test_update_lead_time_slot_triggers_calendar_sync_when_event_exists(cl
     mock_sync.assert_called_once()
 
 
-async def test_update_lead_no_calendar_sync_when_no_event(client, db_session):
-    """Changing job_address on a lead without a calendar event should not call sync."""
+async def test_update_lead_syncs_calendar_on_booked_field_change(client, db_session):
+    """A booked job syncs to Google Calendar when a calendar field changes, even with no
+    existing event — sync_job_calendar creates it (no crew required)."""
     from unittest.mock import AsyncMock, patch
     from app.models.lead import Lead as _Lead, LeadSourceType, LeadStatus, ServiceType
     from datetime import datetime, timezone
@@ -547,4 +548,4 @@ async def test_update_lead_no_calendar_sync_when_no_event(client, db_session):
         r = await client.patch(f"/leads/{lead.id}", json={"job_address": "789 Pine Rd"})
 
     assert r.status_code == 200
-    mock_sync.assert_not_called()
+    mock_sync.assert_called_once()

@@ -162,15 +162,31 @@ async def test_create_event_no_credentials_returns_none(db):
 
 
 @pytest.mark.asyncio
-async def test_create_event_empty_emails_returns_none(db):
+async def test_create_event_empty_emails_still_creates(db):
     from app.services import calendar_service
 
-    db.add(AppSetting(key="google_refresh_token", value="fake-token"))
-    await db.commit()
     lead = _make_lead()
-    result = await calendar_service.create_event(db, lead, [])
 
-    assert result is None
+    mock_creds = MagicMock()
+    mock_service = MagicMock()
+    mock_service.events.return_value.insert.return_value.execute.return_value = {"id": "gcal-no-crew"}
+
+    async def fake_get_credentials(_db, _city_id):
+        return mock_creds
+
+    with patch("app.services.calendar_service._get_credentials", side_effect=fake_get_credentials):
+        with patch("app.services.calendar_service.Request"):
+            with patch("app.services.calendar_service.build", return_value=mock_service):
+                result = await calendar_service.create_event(db, lead, [])
+
+    assert result == "gcal-no-crew"  # crew are optional attendees, not a precondition
+
+
+def test_build_event_body_no_crew_empty_attendees():
+    from app.services.calendar_service import _build_event_body
+
+    body = _build_event_body(_make_lead(), [], "America/Chicago")
+    assert body["attendees"] == []
 
 
 @pytest.mark.asyncio
@@ -253,3 +269,89 @@ async def test_delete_event_with_mocked_google(db):
 
     assert result is True
     mock_service.events.return_value.delete.return_value.execute.assert_called_once()
+
+
+def _mocked_google(insert_id: str | None = None):
+    """Returns (fake_get_credentials, mock_service) for patching the Google client."""
+    mock_creds = MagicMock()
+    mock_service = MagicMock()
+    if insert_id is not None:
+        mock_service.events.return_value.insert.return_value.execute.return_value = {"id": insert_id}
+
+    async def fake_get_credentials(_db, _city_id):
+        return mock_creds
+
+    return fake_get_credentials, mock_service
+
+
+async def _lead_by_id(db, lead_id):
+    from sqlalchemy import select
+    return (await db.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_sync_job_calendar_no_crew_creates_event(db):
+    from app.services import calendar_service
+
+    db.add(_make_lead(id="lead-1"))  # booked + dated, no crew assigned
+    await db.commit()
+    fake_creds, mock_service = _mocked_google(insert_id="gcal-auto")
+
+    with patch("app.services.calendar_service._get_credentials", side_effect=fake_creds):
+        with patch("app.services.calendar_service.Request"):
+            with patch("app.services.calendar_service.build", return_value=mock_service):
+                await calendar_service.sync_job_calendar(db, "lead-1")
+
+    assert (await _lead_by_id(db, "lead-1")).google_calendar_event_id == "gcal-auto"
+
+
+@pytest.mark.asyncio
+async def test_sync_job_calendar_non_booked_is_noop(db):
+    from app.services import calendar_service
+
+    db.add(_make_lead(id="lead-2", status=LeadStatus.in_review))
+    await db.commit()
+
+    async def fake_get_credentials(_db, _city_id):
+        raise AssertionError("non-booked job must not reach Google")
+
+    with patch("app.services.calendar_service._get_credentials", side_effect=fake_get_credentials):
+        await calendar_service.sync_job_calendar(db, "lead-2")
+
+    assert (await _lead_by_id(db, "lead-2")).google_calendar_event_id is None
+
+
+@pytest.mark.asyncio
+async def test_sync_job_calendar_updates_not_deletes_when_no_crew(db):
+    from app.services import calendar_service
+
+    db.add(_make_lead(id="lead-3", google_calendar_event_id="existing-evt"))
+    await db.commit()
+    fake_creds, mock_service = _mocked_google()
+
+    with patch("app.services.calendar_service._get_credentials", side_effect=fake_creds):
+        with patch("app.services.calendar_service.Request"):
+            with patch("app.services.calendar_service.build", return_value=mock_service):
+                await calendar_service.sync_job_calendar(db, "lead-3")
+
+    mock_service.events.return_value.update.return_value.execute.assert_called_once()
+    mock_service.events.return_value.delete.assert_not_called()
+    assert (await _lead_by_id(db, "lead-3")).google_calendar_event_id == "existing-evt"
+
+
+@pytest.mark.asyncio
+async def test_sync_job_calendar_now_no_crew_succeeds(db):
+    from app.services import calendar_service
+
+    lead = _make_lead(id="lead-4")  # booked + dated, no crew
+    db.add(lead)
+    await db.commit()
+    fake_creds, mock_service = _mocked_google(insert_id="gcal-manual")
+
+    with patch("app.services.calendar_service._get_credentials", side_effect=fake_creds):
+        with patch("app.services.calendar_service.Request"):
+            with patch("app.services.calendar_service.build", return_value=mock_service):
+                result = await calendar_service.sync_job_calendar_now(db, lead)
+
+    assert result.ok is True
+    assert lead.google_calendar_event_id == "gcal-manual"

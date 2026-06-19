@@ -308,7 +308,9 @@ async def update_lead(
             "scope_notes",
             "customer_name",
         }
-        if lead.google_calendar_event_id and any(f in _CALENDAR_FIELDS for f in changed):
+        # A booked job syncs to Google Calendar on booking and on any calendar-field
+        # change — sync_job_calendar creates the event (no crew required) or updates it.
+        if lead.status == LeadStatus.booked and any(f in _CALENDAR_FIELDS for f in changed):
             from app.services import calendar_service as _cal
             try:
                 await _cal.sync_job_calendar(db, lead_id)
