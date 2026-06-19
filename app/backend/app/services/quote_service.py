@@ -144,7 +144,10 @@ async def _safe_find_comparables(db: AsyncSession, lead: Lead) -> list[Comparabl
         return []
 
 
-async def _log_suggestion(db, lead, comparables, suggestion, model) -> None:
+async def _log_suggestion(
+    db: AsyncSession, lead: Lead, comparables: list[ComparableOut],
+    suggestion: QuoteSuggestionOut, model: str,
+) -> None:
     """Append a quote-suggestion provenance row. Best-effort - never breaks quoting."""
     try:
         price = suggestion.quoted_price_total
