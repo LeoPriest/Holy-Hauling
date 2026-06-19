@@ -290,6 +290,12 @@ async def update_lead(
             except Exception as exc:
                 _log.error("Push trigger failed: %s", exc)
 
+        # Lead-cost finance sync (atomic with the lead update): the net total drives a single
+        # lead-linked "Thumbtack lead fee" expense. Runs in this transaction, committed below.
+        if "lead_cost_cents" in changed:
+            from app.services import lead_cost_service
+            await lead_cost_service.sync_lead_cost_expense(db, lead)
+
         db.add(LeadEvent(
             id=_id(), lead_id=lead_id,
             event_type="field_updated",
@@ -316,17 +322,6 @@ async def update_lead(
                 await _cal.sync_job_calendar(db, lead_id)
             except Exception as exc:
                 _log.error("calendar sync on lead update failed: %s", exc)
-
-        # Lead-cost finance sync: keep the "Thumbtack lead fee" expense in sync on cost change
-        _COST_FIELDS = {"lead_cost_cents", "lead_cost_gross_cents", "lead_cost_bonus_cents"}
-        if any(f in _COST_FIELDS for f in changed):
-            from app.services import lead_cost_service
-            try:
-                await lead_cost_service.sync_lead_cost_expense(db, lead)
-                await db.commit()
-                await db.refresh(lead)
-            except Exception as exc:
-                _log.error("lead cost finance sync failed: %s", exc)
 
     return lead
 
