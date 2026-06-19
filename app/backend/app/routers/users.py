@@ -179,7 +179,7 @@ async def list_active_users(
             unavailable_dates=availability_map.get(user.id, []),
             unavailable_weekdays=[
                 day for day in _WEEKDAY_ORDER
-                if len(weekly_periods.get(user.id, {}).get(day, set())) == 3
+                if len(weekly_periods.get(user.id, {}).get(day, set())) == len(_PERIOD_ORDER)
             ],
         )
         for user in users
