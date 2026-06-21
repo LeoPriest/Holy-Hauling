@@ -178,7 +178,7 @@ async def mark_customer_responded(
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    lead = await lead_service.mark_customer_responded(db, lead_id, on=True, city_id=city_scope(current_user))
+    lead = await lead_service.mark_customer_responded(db, lead_id, on=True, actor=current_user.username, city_id=city_scope(current_user))
     return await _enrich(db, lead)
 
 
@@ -188,7 +188,7 @@ async def unmark_customer_responded(
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    lead = await lead_service.mark_customer_responded(db, lead_id, on=False, city_id=city_scope(current_user))
+    lead = await lead_service.mark_customer_responded(db, lead_id, on=False, actor=current_user.username, city_id=city_scope(current_user))
     return await _enrich(db, lead)
 
 
@@ -198,7 +198,7 @@ async def mark_refunded(
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    lead = await lead_service.mark_refunded(db, lead_id, on=True, city_id=city_scope(current_user))
+    lead = await lead_service.mark_refunded(db, lead_id, on=True, actor=current_user.username, city_id=city_scope(current_user))
     return await _enrich(db, lead)
 
 
@@ -208,7 +208,7 @@ async def unmark_refunded(
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    lead = await lead_service.mark_refunded(db, lead_id, on=False, city_id=city_scope(current_user))
+    lead = await lead_service.mark_refunded(db, lead_id, on=False, actor=current_user.username, city_id=city_scope(current_user))
     return await _enrich(db, lead)
 
 

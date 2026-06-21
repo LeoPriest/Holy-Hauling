@@ -476,26 +476,26 @@ async def acknowledge_lead(db: AsyncSession, lead_id: str, actor: Optional[str] 
     return lead
 
 
-async def mark_customer_responded(db: AsyncSession, lead_id: str, on: bool, city_id: Optional[str] = None) -> Lead:
+async def mark_customer_responded(db: AsyncSession, lead_id: str, on: bool, actor: Optional[str] = None, city_id: Optional[str] = None) -> Lead:
     lead = await get_lead(db, lead_id, city_id=city_id)
     lead.customer_responded_at = _now() if on else None
     db.add(LeadEvent(
         id=_id(), lead_id=lead_id,
         event_type="customer_responded" if on else "customer_responded_cleared",
-        actor="system",
+        actor=actor or "system",
     ))
     await db.commit()
     await db.refresh(lead)
     return lead
 
 
-async def mark_refunded(db: AsyncSession, lead_id: str, on: bool, city_id: Optional[str] = None) -> Lead:
+async def mark_refunded(db: AsyncSession, lead_id: str, on: bool, actor: Optional[str] = None, city_id: Optional[str] = None) -> Lead:
     lead = await get_lead(db, lead_id, city_id=city_id)
     lead.lead_refunded_at = _now() if on else None
     db.add(LeadEvent(
         id=_id(), lead_id=lead_id,
         event_type="lead_refunded" if on else "lead_refund_cleared",
-        actor="system",
+        actor=actor or "system",
     ))
     from app.services import lead_cost_service
     await lead_cost_service.sync_lead_cost_expense(db, lead)  # drops (on) or restores (off) the lead-fee expense
