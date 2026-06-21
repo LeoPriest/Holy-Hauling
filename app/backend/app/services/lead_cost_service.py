@@ -27,7 +27,8 @@ async def sync_lead_cost_expense(db: AsyncSession, lead: Lead) -> None:
         )
         return res.scalar_one_or_none()
 
-    if not cost or cost <= 0:
+    # Refunded leads carry no realized acquisition cost (the original lead_cost_cents is preserved on the lead).
+    if not cost or cost <= 0 or lead.lead_refunded_at is not None:
         tx = await _load_tx()
         if tx is not None:
             await db.delete(tx)

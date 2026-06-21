@@ -530,6 +530,21 @@ async def _migrate_leads_add_phone_proxy_columns(conn) -> None:
         print("[startup] leads: added customer_real_phone column")
 
 
+async def _migrate_leads_add_refund_columns(conn) -> None:
+    """Add refund-flagging timestamp columns to leads. Idempotent."""
+    result = await conn.execute(text("PRAGMA table_info(leads)"))
+    rows = result.fetchall()
+    if not rows:
+        return
+    existing = _existing_columns(rows)
+    if "customer_responded_at" not in existing:
+        await conn.execute(text("ALTER TABLE leads ADD COLUMN customer_responded_at DATETIME"))
+        print("[startup] leads: added customer_responded_at column")
+    if "lead_refunded_at" not in existing:
+        await conn.execute(text("ALTER TABLE leads ADD COLUMN lead_refunded_at DATETIME"))
+        print("[startup] leads: added lead_refunded_at column")
+
+
 async def _migrate_weekly_availability_add_period(conn) -> None:
     """Add a `period` column to user_weekly_availability, expanding each existing
     all-day block into three period rows (morning/afternoon/evening). Idempotent.
@@ -644,6 +659,7 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_checklist_seeded_at(conn)
         await _migrate_leads_add_cost_columns(conn)
         await _migrate_leads_add_phone_proxy_columns(conn)
+        await _migrate_leads_add_refund_columns(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_escalated_status_leads(conn)
         await _seed_default_admin(conn)

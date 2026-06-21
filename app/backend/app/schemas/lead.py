@@ -224,6 +224,8 @@ class LeadOut(BaseModel):
     assigned_to: Optional[str]
     created_at: datetime
     acknowledged_at: Optional[datetime]
+    customer_responded_at: Optional[datetime] = None
+    lead_refunded_at: Optional[datetime] = None
     updated_at: datetime
     # Slice 8 / 9
     move_distance_miles: Optional[float] = None

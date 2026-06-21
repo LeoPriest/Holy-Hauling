@@ -105,6 +105,8 @@ class Lead(Base):
 
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     acknowledged_at = Column(DateTime, nullable=True)
+    customer_responded_at = Column(DateTime, nullable=True)  # manual "customer responded" marker; suppresses refund candidacy
+    lead_refunded_at = Column(DateTime, nullable=True)        # set when the lead fee was refunded
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     checklist_seeded_at = Column(DateTime, nullable=True)
 
