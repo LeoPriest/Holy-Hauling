@@ -41,6 +41,19 @@ async def test_customer_responded_missing_lead_404(client):
     assert r.status_code == 404
 
 
+async def test_resolve_does_not_touch_updated_at(client):
+    # refund flags are orthogonal to the Aging/Overdue timer (updated_at)
+    from app.models.lead import Lead
+    lead_id = await _create_lead(client)
+    async with _factory(client)() as s:
+        before = (await s.execute(select(Lead).where(Lead.id == lead_id))).scalar_one().updated_at
+    await client.post(f"/leads/{lead_id}/customer-responded")
+    await client.post(f"/leads/{lead_id}/refund")
+    async with _factory(client)() as s:
+        after = (await s.execute(select(Lead).where(Lead.id == lead_id))).scalar_one().updated_at
+    assert after == before
+
+
 async def test_mark_refunded_drops_expense_preserves_cost(client):
     lead_id = await _create_lead(client)
     await client.patch(f"/leads/{lead_id}", json={"lead_cost_cents": 705})
