@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { LeadCard } from '../components/LeadCard'
 import { IngestProgressFlow } from '../components/IngestProgressFlow'
-import { useLeads } from '../hooks/useLeads'
+import { useLeads, useMarkCustomerResponded, useMarkRefunded } from '../hooks/useLeads'
+import { isRefundCandidate } from '../utils/refund'
 import { useSettings } from '../hooks/useSettings'
 import { useStaleLeads } from '../hooks/useStaleLeads'
 import { useUsers } from '../hooks/useUsers'
@@ -67,11 +68,17 @@ export function LeadQueue() {
   const escalatedLeadIds = useMemo(() => new Set(openEscalations.map(e => e.lead_id)), [openEscalations])
   const [escBandOpen, setEscBandOpen] = useState(true)
 
+  const respondMut = useMarkCustomerResponded()
+  const refundMut = useMarkRefunded()
+  const [refundBandOpen, setRefundBandOpen] = useState(true)
+
   const showQuote = user?.role === 'admin' || user?.role === 'facilitator'
 
   const displayLeads = view === 'active'
     ? leads.filter(l => !CLOSED_STATUSES.has(l.status))
     : leads.filter(l => CLOSED_STATUSES.has(l.status))
+
+  const refundCandidates = useMemo(() => displayLeads.filter(l => isRefundCandidate(l)), [displayLeads])
 
   const unackedCount = leads.filter(l => !l.acknowledged_at && !CLOSED_STATUSES.has(l.status)).length
 
@@ -225,6 +232,50 @@ export function LeadQueue() {
                       {LEVEL_LABELS[e.level]} · {e.decision_needed}
                     </span>
                   </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+        {view === 'active' && refundCandidates.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20">
+            <button
+              type="button"
+              onClick={() => setRefundBandOpen(o => !o)}
+              className="flex w-full min-h-12 items-center justify-between px-3 py-2 text-left"
+              aria-expanded={refundBandOpen}
+            >
+              <span className="font-semibold text-amber-800 dark:text-amber-200">
+                💸 Refund-eligible <span className="text-amber-600 dark:text-amber-400">{refundCandidates.length}</span>
+              </span>
+              <span className={`text-amber-500 transition-transform ${refundBandOpen ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
+            </button>
+            {refundBandOpen && (
+              <div className="space-y-1 px-2 pb-2">
+                {refundCandidates.map(l => (
+                  <div
+                    key={l.id}
+                    className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 dark:bg-gray-800/60"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{l.customer_name ?? 'Unknown'}</div>
+                      <div className="text-xs text-amber-700 dark:text-amber-300">Thumbtack · no response 72h+</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => respondMut.mutate({ leadId: l.id, on: true })}
+                      className="min-h-9 rounded-lg border border-gray-300 px-2.5 text-xs font-semibold dark:border-gray-600 dark:text-white"
+                    >
+                      Responded
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => refundMut.mutate({ leadId: l.id, on: true })}
+                      className="min-h-9 rounded-lg bg-emerald-500 px-2.5 text-xs font-semibold text-white"
+                    >
+                      Refunded
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

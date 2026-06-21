@@ -162,6 +162,8 @@ export interface Lead {
   lead_cost_bonus_cents?: number | null
   pros_contacted?: number | null
   pros_responded?: number | null
+  customer_responded_at?: string | null
+  lead_refunded_at?: string | null
   source_category_label: string
   active_followup?: LeadFollowup | null
   active_payment?: import('./payment').LeadPayment | null

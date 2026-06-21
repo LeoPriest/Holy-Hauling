@@ -15,6 +15,7 @@ import { QuotePanel } from './panels/QuotePanel'
 import { BookingConfirmation, formatCurrency, parseMoney, useQuoteDraft, validateQuote } from '../components/QuoteBuilder'
 import { buildConfirmationText } from '../utils/confirmationText'
 import { EscalationCard } from '../components/EscalationCard'
+import { RefundBanner } from '../components/RefundBanner'
 
 type Tab = 'brief' | 'quote' | 'log'
 
@@ -327,6 +328,7 @@ export function LeadCommandCenter() {
 
       {/* ── Escalation card (visible on all tabs) ────────── */}
       <EscalationCard leadId={lead.id} />
+      <RefundBanner lead={lead} />
 
       {/* ── Scrollable panel ─────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">

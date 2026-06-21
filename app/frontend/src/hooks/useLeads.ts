@@ -2,6 +2,7 @@
 import {
   acknowledgeLead,
   addNote,
+  apiFetch,
   applyExtractionFields,
   createLead,
   deleteLead,
@@ -212,6 +213,36 @@ export function useChatMessages(leadId: string) {
     queryKey: ['chat', leadId],
     queryFn: () => fetchChatMessages(leadId),
     enabled: !!leadId,
+  })
+}
+
+export function useMarkCustomerResponded() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ leadId, on }: { leadId: string; on: boolean }) => {
+      const r = await apiFetch(`/leads/${leadId}/customer-responded`, { method: on ? 'POST' : 'DELETE' })
+      if (!r.ok) throw new Error('Failed to update')
+      return r.json()
+    },
+    onSuccess: (_d, { leadId }) => {
+      qc.invalidateQueries({ queryKey: ['leads'] })
+      qc.invalidateQueries({ queryKey: ['lead', leadId] })
+    },
+  })
+}
+
+export function useMarkRefunded() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ leadId, on }: { leadId: string; on: boolean }) => {
+      const r = await apiFetch(`/leads/${leadId}/refund`, { method: on ? 'POST' : 'DELETE' })
+      if (!r.ok) throw new Error('Failed to update')
+      return r.json()
+    },
+    onSuccess: (_d, { leadId }) => {
+      qc.invalidateQueries({ queryKey: ['leads'] })
+      qc.invalidateQueries({ queryKey: ['lead', leadId] })
+    },
   })
 }
 
