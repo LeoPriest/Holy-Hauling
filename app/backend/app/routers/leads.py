@@ -172,6 +172,42 @@ async def acknowledge_lead(
     return await _enrich(db, lead)
 
 
+@router.post("/{lead_id}/customer-responded", response_model=LeadOut)
+async def mark_customer_responded(
+    lead_id: str,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    return await lead_service.mark_customer_responded(db, lead_id, on=True, city_id=city_scope(current_user))
+
+
+@router.delete("/{lead_id}/customer-responded", response_model=LeadOut)
+async def unmark_customer_responded(
+    lead_id: str,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    return await lead_service.mark_customer_responded(db, lead_id, on=False, city_id=city_scope(current_user))
+
+
+@router.post("/{lead_id}/refund", response_model=LeadOut)
+async def mark_refunded(
+    lead_id: str,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    return await lead_service.mark_refunded(db, lead_id, on=True, city_id=city_scope(current_user))
+
+
+@router.delete("/{lead_id}/refund", response_model=LeadOut)
+async def unmark_refunded(
+    lead_id: str,
+    current_user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    return await lead_service.mark_refunded(db, lead_id, on=False, city_id=city_scope(current_user))
+
+
 @router.post("/{lead_id}/notes", response_model=LeadEventOut, status_code=201)
 async def add_note(
     lead_id: str,
