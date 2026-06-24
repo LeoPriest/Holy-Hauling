@@ -329,6 +329,7 @@ async def get_quote_basis(
     current_user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
+    await lead_service.get_lead(db, lead_id, city_id=city_scope(current_user))  # city-scope + 404 guard
     return await quote_service.get_latest_suggestion_snapshot(db, lead_id)
 
 
