@@ -190,8 +190,10 @@ async def get_latest_suggestion_snapshot(db: AsyncSession, lead_id: str) -> Opti
     if row.comparables_json:
         try:
             comparables = [ComparableOut.model_validate(x) for x in json.loads(row.comparables_json)]
-        except Exception:
-            comparables = []  # legacy/malformed blob → degrade to empty, never 500
+        except (json.JSONDecodeError, ValidationError, TypeError) as exc:
+            # legacy/malformed blob → degrade to empty, never 500 (logged so corruption is observable)
+            comparables = []
+            _log.warning("quote basis comparables decode failed for lead %s: %s", lead_id, exc)
     return QuoteSuggestionSnapshotOut(
         suggested_price_cents=row.suggested_price_cents,
         was_grounded=row.was_grounded,
