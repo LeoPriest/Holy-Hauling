@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { usePatchLead, useSuggestQuote, useTriggerAiReview } from '../../hooks/useLeads'
+import { usePatchLead, useQuoteBasis, useSuggestQuote, useTriggerAiReview } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
+import type { Comparable } from '../../services/api'
 import { AiChatThread } from '../../components/AiChatThread'
+import { QuoteBasis } from '../../components/QuoteBasis'
 import { QuoteBuilderFields, createLineItem, parseMoney, type QuoteDraft } from '../../components/QuoteBuilder'
 import { useTruckRental } from '../../hooks/useTruckRental'
 
@@ -31,7 +33,8 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
   const [context, setContext] = useState(lead.quote_context ?? '')
   const [saved, setSaved] = useState(false)
   const suggest = useSuggestQuote()
-  const [rationale, setRationale] = useState('')
+  const [liveBasis, setLiveBasis] = useState<{ comparables: Comparable[]; rationale: string } | null>(null)
+  const { data: snapshot } = useQuoteBasis(leadId)
   const [suggestError, setSuggestError] = useState('')
 
   const handleSuggest = () => {
@@ -45,7 +48,7 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
             ? s.line_items.map(li => createLineItem(li.note, String(li.amount)))
             : [createLineItem('Base quote', String(s.quoted_price_total))],
         )
-        setRationale(s.rationale)
+        setLiveBasis({ comparables: s.comparables ?? [], rationale: s.rationale })
       },
       onError: e => setSuggestError((e as Error)?.message ?? 'Suggestion failed'),
     })
@@ -224,12 +227,10 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
           </div>
         </div>
 
-        {rationale && (
-          <div className="mb-3 rounded-xl border border-violet-200 bg-violet-50 dark:border-violet-800 dark:bg-violet-900/20 p-3">
-            <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">AI-drafted — review before booking</p>
-            <p className="mt-1 text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{rationale}</p>
-          </div>
-        )}
+        {(() => {
+          const basis = liveBasis ?? (snapshot ? { comparables: snapshot.comparables, rationale: snapshot.rationale } : null)
+          return basis ? <QuoteBasis comparables={basis.comparables} rationale={basis.rationale} /> : null
+        })()}
         {suggestError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{suggestError}</p>}
 
         {rental?.rental_cost_cents != null && rental.rental_cost_cents > 0 && (

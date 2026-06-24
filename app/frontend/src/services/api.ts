@@ -172,11 +172,32 @@ export async function getLatestAiReview(leadId: string): Promise<AiReview> {
   return r.json()
 }
 
+export interface Comparable {
+  lead_id: string
+  conversion: string
+  price_cents: number
+  price_basis: string
+  score: number
+  move_size_label?: string | null
+  move_distance_miles?: number | null
+  move_type?: string | null
+}
+
+export interface QuoteSnapshot {
+  suggested_price_cents: number | null
+  was_grounded: boolean
+  comparables_count: number
+  rationale: string
+  comparables: Comparable[]
+  created_at: string
+}
+
 export interface QuoteSuggestion {
   quoted_price_total: number
   line_items: { note: string; amount: number }[]
   estimated_duration_minutes: number
   rationale: string
+  comparables: Comparable[]
 }
 
 export async function suggestQuote(leadId: string): Promise<QuoteSuggestion> {
@@ -185,6 +206,12 @@ export async function suggestQuote(leadId: string): Promise<QuoteSuggestion> {
     const body = await r.json().catch(() => null)
     throw new Error(body?.detail ?? `Quote suggestion failed: ${r.status}`)
   }
+  return r.json()
+}
+
+export async function getQuoteBasis(leadId: string): Promise<QuoteSnapshot | null> {
+  const r = await apiFetch(`${BASE}/${leadId}/quote-suggestion/latest`)
+  if (!r.ok) throw new Error('Failed to load quote basis')
   return r.json()
 }
 

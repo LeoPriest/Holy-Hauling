@@ -10,6 +10,7 @@ import {
   fetchLead,
   fetchLeads,
   getLatestAiReview,
+  getQuoteBasis,
   ingestScreenshot,
   patchLead,
   sendChatMessage,
@@ -20,6 +21,7 @@ import {
   uploadScreenshot,
 } from '../services/api'
 import { useCity } from '../context/CityContext'
+import type { QuoteSnapshot } from '../services/api'
 import type { LeadCreate, LeadSourceType, LeadStatus, LeadUpdate, QuoteModifier } from '../types/lead'
 
 export function useLeads(filters?: { status?: LeadStatus; source_type?: LeadSourceType; assigned_to?: string }) {
@@ -40,8 +42,19 @@ export function useLead(id: string) {
   })
 }
 
+export function useQuoteBasis(leadId: string) {
+  return useQuery<QuoteSnapshot | null>({
+    queryKey: ['quote-basis', leadId],
+    queryFn: () => getQuoteBasis(leadId),
+  })
+}
+
 export function useSuggestQuote() {
-  return useMutation({ mutationFn: (leadId: string) => suggestQuote(leadId) })
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (leadId: string) => suggestQuote(leadId),
+    onSuccess: (_d, leadId) => qc.invalidateQueries({ queryKey: ['quote-basis', leadId] }),
+  })
 }
 
 export function useCreateLead() {
