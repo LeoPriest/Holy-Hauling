@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
@@ -27,3 +28,12 @@ class QuoteSuggestionOut(BaseModel):
     estimated_duration_minutes: int
     rationale: str = ""
     comparables: List[ComparableOut] = Field(default_factory=list)
+
+
+class QuoteSuggestionSnapshotOut(BaseModel):
+    suggested_price_cents: Optional[int] = None
+    was_grounded: bool
+    comparables_count: int
+    rationale: str = ""
+    comparables: List[ComparableOut] = Field(default_factory=list)
+    created_at: datetime

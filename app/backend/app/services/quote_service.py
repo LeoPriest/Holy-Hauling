@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from typing import Optional
 
 from fastapi import HTTPException
 from pydantic import ValidationError
@@ -23,7 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.ai_review import AiReview
 from app.models.lead import Lead
 from app.models.quote_suggestion_log import QuoteSuggestionLog
-from app.schemas.quote_suggestion import ComparableOut, QuoteSuggestionOut
+from app.schemas.quote_suggestion import (
+    ComparableOut,
+    QuoteSuggestionOut,
+    QuoteSuggestionSnapshotOut,
+)
 from app.services.comparables_service import find_comparables
 from app.services.ai_review_service import (
     _load_grounding,
@@ -169,6 +174,32 @@ async def _log_suggestion(
             await db.rollback()
         except Exception:
             pass
+
+
+async def get_latest_suggestion_snapshot(db: AsyncSession, lead_id: str) -> Optional[QuoteSuggestionSnapshotOut]:
+    result = await db.execute(
+        select(QuoteSuggestionLog)
+        .where(QuoteSuggestionLog.lead_id == lead_id)
+        .order_by(QuoteSuggestionLog.created_at.desc())
+        .limit(1)
+    )
+    row = result.scalar_one_or_none()
+    if row is None:
+        return None
+    comparables: list[ComparableOut] = []
+    if row.comparables_json:
+        try:
+            comparables = [ComparableOut.model_validate(x) for x in json.loads(row.comparables_json)]
+        except Exception:
+            comparables = []  # legacy/malformed blob → degrade to empty, never 500
+    return QuoteSuggestionSnapshotOut(
+        suggested_price_cents=row.suggested_price_cents,
+        was_grounded=row.was_grounded,
+        comparables_count=row.comparables_count,
+        rationale=row.rationale or "",
+        comparables=comparables,
+        created_at=row.created_at,
+    )
 
 
 async def suggest_quote(db: AsyncSession, lead_id: str) -> QuoteSuggestionOut:

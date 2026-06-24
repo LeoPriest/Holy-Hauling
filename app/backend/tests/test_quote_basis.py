@@ -52,3 +52,58 @@ async def test_log_suggestion_persists_comparables_and_rationale(client):
     assert decoded[0]["lead_id"] == "cmp-1"
     assert decoded[0]["conversion"] == "won"
     assert decoded[0]["price_cents"] == 131000
+
+
+async def test_latest_snapshot_returns_deserialized_basis(client):
+    factory = _factory(client)
+    lead_id = await _make_lead(factory)
+    comps = [_comparable("cmp-1")]
+    suggestion = QuoteSuggestionOut(quoted_price_total=890.0, estimated_duration_minutes=240,
+                                    rationale="SOP base rate.", comparables=comps)
+    async with factory() as s:
+        lead = (await s.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+        await quote_service._log_suggestion(s, lead, comps, suggestion, model="m")
+
+    r = await client.get(f"/leads/{lead_id}/quote-suggestion/latest")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["rationale"] == "SOP base rate."
+    assert body["was_grounded"] is True
+    assert body["comparables_count"] == 1
+    assert body["comparables"][0]["lead_id"] == "cmp-1"
+    assert body["comparables"][0]["price_basis"] == "realized"
+
+
+async def test_latest_snapshot_returns_most_recent(client):
+    factory = _factory(client)
+    lead_id = await _make_lead(factory)
+    async with factory() as s:
+        lead = (await s.execute(select(Lead).where(Lead.id == lead_id))).scalar_one()
+        await quote_service._log_suggestion(s, lead, [], QuoteSuggestionOut(
+            quoted_price_total=100.0, estimated_duration_minutes=60, rationale="first", comparables=[]), model="m")
+        await quote_service._log_suggestion(s, lead, [_comparable()], QuoteSuggestionOut(
+            quoted_price_total=200.0, estimated_duration_minutes=60, rationale="second", comparables=[_comparable()]), model="m")
+    r = await client.get(f"/leads/{lead_id}/quote-suggestion/latest")
+    assert r.json()["rationale"] == "second"
+    assert r.json()["comparables_count"] == 1
+
+
+async def test_latest_snapshot_null_when_never_drafted(client):
+    factory = _factory(client)
+    lead_id = await _make_lead(factory)
+    r = await client.get(f"/leads/{lead_id}/quote-suggestion/latest")
+    assert r.status_code == 200
+    assert r.json() is None
+
+
+async def test_latest_snapshot_tolerates_malformed_json(client):
+    factory = _factory(client)
+    lead_id = await _make_lead(factory)
+    async with factory() as s:
+        s.add(QuoteSuggestionLog(lead_id=lead_id, city_id="st-louis", was_grounded=True,
+                                 comparables_count=1, rationale="ok", comparables_json="{not json"))
+        await s.commit()
+    r = await client.get(f"/leads/{lead_id}/quote-suggestion/latest")
+    assert r.status_code == 200
+    assert r.json()["comparables"] == []
+    assert r.json()["rationale"] == "ok"
