@@ -70,12 +70,14 @@ Returns `204`/`null` (no body) when the lead has never been drafted. Schema `Quo
 
 ### Frontend — `QuoteBasis` in the Quote panel
 
-A `QuoteBasis` component rendered in `screens/panels/QuotePanel.tsx`, fed from **one** source of truth that has two fillers:
+A `QuoteBasis` component rendered in `screens/panels/QuotePanel.tsx`, **live-first with background reconcile** — two fillers, the live draft taking precedence:
 
-- **On panel load / reload:** `useQuoteBasis(leadId)` fetches the latest snapshot.
-- **Right after a fresh draft:** the live `/quote-suggestion` response already carries `comparables` + `rationale`; on success, invalidate the `['quote-basis', leadId]` query so the component refetches the just-written snapshot (single rendering path, no divergence between live and persisted).
+- **Right after a fresh draft (live-first):** the `/quote-suggestion` response already carries `comparables` + `rationale`. The panel holds it in local state and `QuoteBasis` renders it **instantly** — no wait for a refetch. On the same success, invalidate the `['quote-basis', leadId]` query so the persisted snapshot refetches in the background and **reconciles** to the same data (the just-written log row).
+- **On panel load / reload (no live draft this session):** `useQuoteBasis(leadId)` fetches the latest persisted snapshot and renders that.
 
-The frontend `QuoteSuggestion` TS type (`services/api.ts`) gains the missing `comparables` field (it's already in the payload), so the live response is fully typed too.
+`QuoteBasis` takes a single `basis` prop of one shape (`{ comparables, rationale, was_grounded, comparables_count, suggested_price_cents? }`); the panel passes the **live response if present this session, else the fetched snapshot**. Both fillers produce the identical shape, so there is one rendering path — the live one is just shown first and the persisted fetch confirms it.
+
+The frontend `QuoteSuggestion` TS type (`services/api.ts`) gains the missing `comparables` field (it's already in the payload), so the live response is fully typed.
 
 Renders (per the mockup):
 - **Grounding badge** — "◎ Grounded · N local jobs" when `comparables_count > 0`, else "Cold start" with a "priced from SOP & AI pricing guidance only" note.
@@ -90,10 +92,10 @@ This sits alongside (not replacing) the current rationale box and the AI Pricing
 Operator drafts a quote -> POST /leads/{id}/quote-suggestion
    suggest_quote returns {price, line_items, duration, rationale, comparables}
    _log_suggestion writes the row (+ comparables_json + rationale)  [best-effort]
-   frontend invalidates ['quote-basis', id]
-Quote panel -> useQuoteBasis(id) -> GET /leads/{id}/quote-suggestion/latest
-   -> QuoteBasis renders grounded/cold-start badge + comparable rows + rationale
-   reopen the lead later -> same fetch -> same basis (persisted)
+   frontend: hold the live response in panel state -> QuoteBasis renders it INSTANTLY
+             + invalidate ['quote-basis', id] -> snapshot refetches in background -> reconciles
+Reopen the lead later (no live draft) -> useQuoteBasis(id) -> GET /leads/{id}/quote-suggestion/latest
+   -> QuoteBasis renders the persisted snapshot (same shape, same basis)
 ```
 
 ## Error / empty states
