@@ -545,6 +545,21 @@ async def _migrate_leads_add_refund_columns(conn) -> None:
         print("[startup] leads: added lead_refunded_at column")
 
 
+async def _migrate_quote_log_add_basis_columns(conn) -> None:
+    """Add comparables_json + rationale to quote_suggestion_logs. Idempotent."""
+    result = await conn.execute(text("PRAGMA table_info(quote_suggestion_logs)"))
+    rows = result.fetchall()
+    if not rows:
+        return  # table not created yet; create_all builds the new shape
+    existing = _existing_columns(rows)
+    if "comparables_json" not in existing:
+        await conn.execute(text("ALTER TABLE quote_suggestion_logs ADD COLUMN comparables_json TEXT"))
+        print("[startup] quote_suggestion_logs: added comparables_json column")
+    if "rationale" not in existing:
+        await conn.execute(text("ALTER TABLE quote_suggestion_logs ADD COLUMN rationale TEXT"))
+        print("[startup] quote_suggestion_logs: added rationale column")
+
+
 async def _migrate_weekly_availability_add_period(conn) -> None:
     """Add a `period` column to user_weekly_availability, expanding each existing
     all-day block into three period rows (morning/afternoon/evening). Idempotent.
@@ -660,6 +675,7 @@ async def lifespan(app: FastAPI):
         await _migrate_leads_add_cost_columns(conn)
         await _migrate_leads_add_phone_proxy_columns(conn)
         await _migrate_leads_add_refund_columns(conn)
+        await _migrate_quote_log_add_basis_columns(conn)
         await conn.run_sync(Base.metadata.create_all)
         await _migrate_escalated_status_leads(conn)
         await _seed_default_admin(conn)

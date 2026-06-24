@@ -159,6 +159,8 @@ async def _log_suggestion(
             comparables_count=len(comparables),
             suggested_price_cents=round(price * 100) if price is not None else None,
             model_used=model,
+            comparables_json=json.dumps([c.model_dump() for c in comparables]),
+            rationale=suggestion.rationale or None,
         ))
         await db.commit()
     except Exception as exc:
