@@ -66,7 +66,7 @@ def _cohort_metrics(pairs: list[tuple[QuoteSuggestionLog, LeadOutcome]]) -> Coho
         bias = None
 
     return CohortMetrics(
-        n=n, win_rate=win_rate, priced_n=priced_n,
+        n=n, won=won, lost=lost, win_rate=win_rate, priced_n=priced_n,
         pricing_accuracy=accuracy, pricing_bias=bias,
     )
 

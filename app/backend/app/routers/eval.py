@@ -16,6 +16,6 @@ router = APIRouter(tags=["eval"])
 async def quote_grounding_eval(
     city_id: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_role("admin")),
+    _: User = Depends(require_role("admin", "facilitator")),
 ):
     return await compute_quote_grounding_eval(db, city_id)

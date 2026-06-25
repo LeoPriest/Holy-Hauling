@@ -37,3 +37,32 @@ async def test_quote_grounding_eval_endpoint(client, db_session):
     assert body["ungrounded"]["n"] == 1
     assert round(body["grounded"]["pricing_accuracy"], 3) == 0.05    # |63000-60000|/60000
     assert round(body["ungrounded"]["pricing_accuracy"], 3) == 0.2   # |72000-60000|/60000
+
+
+async def test_eval_exposes_won_lost(client, db_session):
+    await _seed(db_session, str(uuid.uuid4()), grounded=True, conversion="won", suggested=70000, realized=70000)
+    await _seed(db_session, str(uuid.uuid4()), grounded=True, conversion="lost", suggested=0, realized=0)
+    r = await client.get("/admin/eval/quote-grounding")
+    assert r.status_code == 200, r.text
+    g = r.json()["grounded"]
+    assert g["won"] == 1
+    assert g["lost"] == 1
+    assert g["n"] == 2
+
+
+async def test_eval_access_by_role(client):
+    from datetime import datetime, timezone
+    from main import app
+    from app.dependencies import require_auth
+    from app.models.user import User
+
+    def _mk(role):
+        return lambda: User(
+            id=f"u-{role}", username=role, credential_hash="x", role=role,
+            city_id="st-louis", is_active=True, created_at=datetime.now(timezone.utc),
+        )
+
+    for role, expect in [("admin", 200), ("facilitator", 200), ("supervisor", 403), ("crew", 403)]:
+        app.dependency_overrides[require_auth] = _mk(role)
+        r = await client.get("/admin/eval/quote-grounding")
+        assert r.status_code == expect, f"{role}: got {r.status_code}"

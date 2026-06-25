@@ -7,6 +7,8 @@ from pydantic import BaseModel
 
 class CohortMetrics(BaseModel):
     n: int
+    won: int = 0
+    lost: int = 0
     win_rate: Optional[float] = None
     priced_n: int
     pricing_accuracy: Optional[float] = None
