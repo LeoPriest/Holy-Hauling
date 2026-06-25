@@ -417,6 +417,24 @@ export function SettingsScreen() {
           </p>
         </section>
 
+        {canViewOpsSettings && (
+          <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Help</h2>
+            <button
+              type="button"
+              onClick={() => navigate('/help')}
+              className="flex min-h-11 w-full items-center gap-3 rounded-lg border border-gray-200 px-3 text-left dark:border-gray-700"
+            >
+              <span className="text-lg">📘</span>
+              <span className="flex-1">
+                <span className="block text-sm font-medium text-gray-900 dark:text-white">Facilitator guide</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">How leads flow + key terms</span>
+              </span>
+              <span className="text-gray-400">›</span>
+            </button>
+          </section>
+        )}
+
         {canViewOpsSettings && notificationStatus && (
           <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Notification Delivery</h2>
