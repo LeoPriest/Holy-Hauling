@@ -50,7 +50,7 @@ function AppRoutes() {
       <Route path="/" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator']}><LeadQueue /></RoleGuard></AuthGuard>} />
       <Route path="/leads/:id" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator']}><LeadCommandCenter /></RoleGuard></AuthGuard>} />
       <Route path="/settings" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><SettingsScreen /></RoleGuard></AuthGuard>} />
-      <Route path="/help" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator']}><HelpGuideScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/help" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor']}><HelpGuideScreen /></RoleGuard></AuthGuard>} />
       <Route path="/jobs" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><JobsScreen /></RoleGuard></AuthGuard>} />
       <Route path="/calendar" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator', 'supervisor', 'crew']}><CalendarScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin" element={<AuthGuard><RoleGuard roles={['admin']}><AdminScreen /></RoleGuard></AuthGuard>} />

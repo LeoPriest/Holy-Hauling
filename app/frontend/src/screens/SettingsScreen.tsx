@@ -12,6 +12,7 @@ import { MyPay } from '../components/MyPay'
 import { StandardKitEditor } from '../components/StandardKitEditor'
 import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
+import { guideForRole } from '../content/helpContent'
 import { apiFetch, fetchNotificationStatus } from '../services/api'
 
 type TestKey = `${TestAlertRequest['channel']}_${TestAlertRequest['recipient']}`
@@ -417,7 +418,7 @@ export function SettingsScreen() {
           </p>
         </section>
 
-        {canViewOpsSettings && (
+        {(user?.role === 'admin' || user?.role === 'facilitator' || user?.role === 'supervisor') && (
           <section className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-400">Help</h2>
             <button
@@ -427,8 +428,8 @@ export function SettingsScreen() {
             >
               <span className="text-lg">📘</span>
               <span className="flex-1">
-                <span className="block text-sm font-medium text-gray-900 dark:text-white">Facilitator guide</span>
-                <span className="block text-xs text-gray-500 dark:text-gray-400">How leads flow + key terms</span>
+                <span className="block text-sm font-medium text-gray-900 dark:text-white">{guideForRole(user?.role).title}</span>
+                <span className="block text-xs text-gray-500 dark:text-gray-400">{guideForRole(user?.role).tagline}</span>
               </span>
               <span className="text-gray-400">›</span>
             </button>

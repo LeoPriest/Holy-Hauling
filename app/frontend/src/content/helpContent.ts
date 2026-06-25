@@ -57,3 +57,90 @@ export const HELP_SECTIONS: HelpSection[] = [
     ],
   },
 ]
+
+const SUPERVISOR_SECTIONS: HelpSection[] = [
+  {
+    id: 'phases',
+    icon: '🚚',
+    title: 'Track the job through its phases',
+    subtitle: 'Keep the office in sync',
+    kind: 'steps',
+    steps: [
+      { title: 'Dispatched', detail: 'The job’s assigned and set to go. Tap it when you’re about to head out.' },
+      { title: 'En route', detail: 'You and the crew are driving to the customer. Tap it when you leave.' },
+      { title: 'Arrived', detail: 'You’re on site getting set up. Tap it when you pull in.' },
+      { title: 'Started', detail: 'The move is underway. Tap it when you begin loading.' },
+      { title: 'Completed', detail: 'The job’s done. Tap it to wrap up — it moves to the Completed tab.' },
+    ],
+  },
+  {
+    id: 'crew',
+    icon: '👷',
+    title: 'Your crew',
+    subtitle: 'Who’s on the job',
+    kind: 'text',
+    paragraphs: [
+      'Each job shows who’s assigned. As the on-site lead you can add or swap crew if something changes. Crew marked unavailable that day are flagged so you don’t assign them by mistake.',
+    ],
+  },
+  {
+    id: 'photos',
+    icon: '📸',
+    title: 'Photos & notes',
+    subtitle: 'Keep a record',
+    kind: 'text',
+    paragraphs: [
+      'Log before and after photos on the job, and add notes for anything worth recording — existing damage, tricky access, special customer requests. It keeps a record of the move and protects everyone if a question comes up later.',
+    ],
+  },
+  {
+    id: 'calendar',
+    icon: '🗓️',
+    title: 'The calendar',
+    subtitle: 'What’s coming',
+    kind: 'text',
+    paragraphs: [
+      'The Calendar tab shows your upcoming jobs by week or month — handy for seeing what’s ahead and planning your days.',
+    ],
+  },
+  {
+    id: 'terms',
+    icon: '📖',
+    title: 'Key terms',
+    subtitle: 'The job phases',
+    kind: 'terms',
+    terms: [
+      { word: 'Dispatched', def: 'The job is assigned and set to go; you haven’t left yet.' },
+      { word: 'En route', def: 'You and the crew are driving to the customer.' },
+      { word: 'Arrived', def: 'You’re on site, before the work starts.' },
+      { word: 'Started', def: 'The move is actively underway.' },
+      { word: 'Completed', def: 'The job’s finished and moved to the Completed tab.' },
+    ],
+  },
+]
+
+export interface HelpGuide {
+  title: string
+  tagline: string
+  intro: string
+  sections: HelpSection[]
+}
+
+export const HELP_GUIDES: Record<'facilitator' | 'supervisor', HelpGuide> = {
+  facilitator: {
+    title: 'Facilitator guide',
+    tagline: 'How leads flow + key terms',
+    intro: 'Your day-to-day with leads, start to finish — plus what the less-obvious words mean. Tap a section to open it.',
+    sections: HELP_SECTIONS,
+  },
+  supervisor: {
+    title: 'Supervisor guide',
+    tagline: 'How jobs work + key terms',
+    intro: 'You’re the lead on site — you run the move and the crew. Here’s how a job works and what the words mean. Tap a section to open it.',
+    sections: SUPERVISOR_SECTIONS,
+  },
+}
+
+export function guideForRole(role: string | undefined): HelpGuide {
+  return role === 'supervisor' ? HELP_GUIDES.supervisor : HELP_GUIDES.facilitator
+}
