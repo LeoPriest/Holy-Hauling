@@ -162,7 +162,7 @@ async def raise_escalation(
     ))
     await db.commit()
     await db.refresh(esc)
-    await _notify(db, ["admin", "supervisor"], f'Lead escalated ({level}) — {decision_needed}', lead.city_id)
+    await _notify(db, ["admin"], f'Lead escalated ({level}) — {decision_needed}', lead.city_id)
     return esc
 
 

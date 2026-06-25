@@ -320,7 +320,7 @@ async def _process_stale_leads(db: AsyncSession, settings: SettingsOut, city_id:
             if not existing_push.scalar_one_or_none():
                 try:
                     from app.services.push_service import send_push_to_roles
-                    push_roles = ["admin", "facilitator"] if not is_t2 else ["admin", "facilitator", "supervisor"]
+                    push_roles = ["admin", "facilitator"]  # supervisors don't act on lead escalations
                     push_msg = f'Lead "{name}" idle {idle_minutes}m — tap to review'
                     await send_push_to_roles(db, push_roles, push_msg, city_id=city_id)
                     db.add(LeadAlert(
