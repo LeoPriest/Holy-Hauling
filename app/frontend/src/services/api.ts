@@ -424,6 +424,30 @@ export async function fetchAdminMetrics(cityId?: string | null, days = 30): Prom
   return r.json()
 }
 
+// ── Quote grounding eval ─────────────────────────────────────────────────────
+
+export interface CohortMetrics {
+  n: number
+  won: number
+  lost: number
+  win_rate: number | null
+  priced_n: number
+  pricing_accuracy: number | null
+  pricing_bias: number | null
+}
+
+export interface QuoteGroundingEval {
+  grounded: CohortMetrics
+  ungrounded: CohortMetrics
+}
+
+export async function fetchQuoteGroundingEval(cityId: string | null): Promise<QuoteGroundingEval> {
+  const qs = cityId ? `?city_id=${encodeURIComponent(cityId)}` : ''
+  const r = await apiFetch(`/admin/eval/quote-grounding${qs}`)
+  if (!r.ok) throw new Error('Failed to load grounding stats')
+  return r.json()
+}
+
 // ── My pay ─────────────────────────────────────────────────────────────────
 
 export interface MyPayEntry {

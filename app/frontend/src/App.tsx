@@ -15,6 +15,7 @@ import { CalendarScreen } from './screens/CalendarScreen'
 import { AdminFinancesScreen } from './screens/AdminFinancesScreen'
 import { AdminCitiesScreen } from './screens/AdminCitiesScreen'
 import { AdminMetricsScreen } from './screens/AdminMetricsScreen'
+import { AdminQuoteGroundingScreen } from './screens/AdminQuoteGroundingScreen'
 import { AdminRentalsScreen } from './screens/AdminRentalsScreen'
 import { AdminPayrollScreen } from './screens/AdminPayrollScreen'
 import { AdminRecurringExpensesScreen } from './screens/AdminRecurringExpensesScreen'
@@ -55,6 +56,7 @@ function AppRoutes() {
       <Route path="/admin/finances" element={<AuthGuard><RoleGuard roles={['admin']}><AdminFinancesScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/cities" element={<AuthGuard><RoleGuard roles={['admin']}><AdminCitiesScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/metrics" element={<AuthGuard><RoleGuard roles={['admin']}><AdminMetricsScreen /></RoleGuard></AuthGuard>} />
+      <Route path="/admin/quote-grounding" element={<AuthGuard><RoleGuard roles={['admin', 'facilitator']}><AdminQuoteGroundingScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/rentals" element={<AuthGuard><RoleGuard roles={['admin']}><AdminRentalsScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/payroll" element={<AuthGuard><RoleGuard roles={['admin']}><AdminPayrollScreen /></RoleGuard></AuthGuard>} />
       <Route path="/admin/recurring-expenses" element={<AuthGuard><RoleGuard roles={['admin']}><AdminRecurringExpensesScreen /></RoleGuard></AuthGuard>} />

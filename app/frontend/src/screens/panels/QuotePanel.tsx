@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { usePatchLead, useQuoteBasis, useSuggestQuote, useTriggerAiReview } from '../../hooks/useLeads'
 import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
 import type { Comparable } from '../../services/api'
@@ -231,6 +232,9 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
           const basis = liveBasis ?? (snapshot ? { comparables: snapshot.comparables, rationale: snapshot.rationale } : null)
           return basis ? <QuoteBasis comparables={basis.comparables} rationale={basis.rationale} /> : null
         })()}
+        <Link to="/admin/quote-grounding" className="mb-3 inline-block text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
+          How grounded quoting is performing →
+        </Link>
         {suggestError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{suggestError}</p>}
 
         {rental?.rental_cost_cents != null && rental.rental_cost_cents > 0 && (

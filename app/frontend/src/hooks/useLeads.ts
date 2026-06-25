@@ -9,6 +9,7 @@ import {
   fetchChatMessages,
   fetchLead,
   fetchLeads,
+  fetchQuoteGroundingEval,
   getLatestAiReview,
   getQuoteBasis,
   ingestScreenshot,
@@ -21,7 +22,7 @@ import {
   uploadScreenshot,
 } from '../services/api'
 import { useCity } from '../context/CityContext'
-import type { QuoteSnapshot } from '../services/api'
+import type { QuoteGroundingEval, QuoteSnapshot } from '../services/api'
 import type { LeadCreate, LeadSourceType, LeadStatus, LeadUpdate, QuoteModifier } from '../types/lead'
 
 export function useLeads(filters?: { status?: LeadStatus; source_type?: LeadSourceType; assigned_to?: string }) {
@@ -46,6 +47,13 @@ export function useQuoteBasis(leadId: string) {
   return useQuery<QuoteSnapshot | null>({
     queryKey: ['quote-basis', leadId],
     queryFn: () => getQuoteBasis(leadId),
+  })
+}
+
+export function useQuoteGroundingEval(cityId: string | null) {
+  return useQuery<QuoteGroundingEval>({
+    queryKey: ['grounding-eval', cityId],
+    queryFn: () => fetchQuoteGroundingEval(cityId),
   })
 }
 
