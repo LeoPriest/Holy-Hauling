@@ -6,6 +6,50 @@ All meaningful development changes for the Holy Hauling app are logged here.
 
 ---
 
+## [2026-06-25] Role-Aware Help + Escalation-Push Cleanup
+
+### Added
+- **Role-aware `/help` + supervisor guide** (`dbb36f3`): generalized the help screen — `content/helpContent.ts` now exposes `HELP_GUIDES{facilitator, supervisor}` + `guideForRole(role)` (admin→facilitator), and the screen renders the viewer's guide. Added a **supervisor (on-site-lead) guide**: jobs-centric (phase tracking, crew, photos/notes, calendar, glossary). Settings entry + `/help` route widened to admin + facilitator + supervisor with a role-adaptive label.
+
+### Changed
+- **Escalation-push cleanup** (`d4a833a`): supervisors no longer receive lead-escalation pushes (they don't act on them and can't open leads). Escalation raise now notifies `["admin"]` (was admin + supervisor) and the T2 staleness push drops supervisor. The booked-lead / new-job-assignment push to supervisor + crew is intentionally unchanged.
+
+---
+
+## [2026-06-24] Quote-Logic Transparency, Help Guide, SPA Deep-Link Fix
+
+### Added
+- **Per-quote basis** (`2e94b9f`): persist `comparables_json` + `rationale` on `quote_suggestion_log`; `GET /leads/{id}/quote-suggestion/latest` (city-scoped, malformed-safe) returns the latest snapshot. New `QuoteBasis` section in the Quote panel shows the comparable jobs the AI anchored on (price · Realized/Quoted · Won/Lost · why-similar · tap-to-open) + grounded/cold-start badge + persisted rationale, live-first with background reconcile.
+- **Grounding-eval view** (`4946907`): exposed `won` / `lost` on `CohortMetrics`; opened `GET /admin/eval/quote-grounding` to admin + facilitator; new `AdminQuoteGroundingScreen` (facilitator-friendly plain-language metric cards — Win rate w/ won·lost, Pricing accuracy, Over/under — with sample-gated takeaway + per-metric winner marks). Reached via an Admin card + a "How grounded quoting is performing" link in the Quote panel.
+- **Facilitator help guide** (`edf86e6`): a passive reference at `/help` — collapsible accordion sections (lifecycle walkthrough + glossary), reached from a "Help" entry in Settings. Content authored in one typed data file (`content/helpContent.ts`), no markdown dependency, static.
+
+### Fixed
+- **SPA deep-link 404s in production** (`61c24e7`): typed/refreshed deep-link URLs 404'd because the production frontend is served by `serve` from `dist/`, which reads SPA rewrites from a `serve.json` *in the served dir*, but `serve.json` lived in the project root. Moved it to `app/frontend/public/` so the build emits `dist/serve.json` with the `{rewrites:[{source:'/**',destination:'/index.html'}]}` rule.
+
+---
+
+## [2026-06-22] 72-Hour Refund-Eligible Flagging
+
+### Added
+- **72-hour refund-eligible flagging** (`2fc7901`): `Lead.customer_responded_at` + `Lead.lead_refunded_at`. Candidate-only (never auto-concludes), computed client-side: Thumbtack + early status + 72h since arrival + unresolved. Four reversible resolve endpoints (`POST/DELETE /leads/{id}/customer-responded` + `/refund`), each emitting a `LeadEvent` with the acting user; marking refunded reversibly drops the lead-fee expense (realized_cost → 0) while preserving `lead_cost_cents`. Frontend `RefundBanner` (candidate → resolved chips w/ Undo → pre-empt marker) + a "Refund-eligible" queue band.
+
+---
+
+## [2026-06-19] Crew-Assist + Thumbtack Numbers Alignment
+
+### Added
+- **Crew agenda** (`9d93e69`): for crew, the Jobs tab is a single agenda — active/in-progress job pinned ("Continue job"), then Today / Tomorrow / This week / Later, with an Upcoming / Completed toggle. Calendar tab hidden for crew (office keeps it). Frontend-only (`utils/jobAgenda.ts`, `components/CrewAgenda.tsx`), reuses `GET /jobs`.
+- **Completed Jobs view** (`f4ed266`): `GET /jobs?status=completed`; completed jobs carry `realized_revenue_cents` (live income sum) + `completed_at`; read-only Completed tab with an "N completed · $X realized" header.
+- **My Pay & hours** (`150f9a6`): `GET /users/me/pay` returns the caller's own pay records (scoped to `user_id`) + totals (earnings, hours, job count); a "My Pay" section in Settings (all roles, own pay only). New `MyPayEntry` / `MyPayOut` schemas; reuses `PayRecord` + `Lead`.
+- **Per-job checklist (items to bring)** (`31a00c6`): new `lead_checklist_item` table + `Lead.checklist_seeded_at`. Seeded once (lazily, on first open of a booked job) from a configurable standard kit (an `AppSetting`, editable in Settings by admin/facilitator) + code-driven scope extras (stairs → stair dolly, large move → blankets, hauling → bags, truck unless labor-only). Crew-owned per-lead GET(lazy-seed)/POST/PATCH/DELETE item CRUD + `GET/PUT /settings/checklist-kit`. Frontend `JobChecklist` in the working modal (optimistic, scope/added tags, 44px targets) + `StandardKitEditor` in Settings.
+- **Lead-cost tracking + competition capture** (`bc21b2d`): six `Lead` cols — `lead_cost_cents` (net Total), `lead_cost_gross_cents`, `lead_cost_bonus_cents`, `lead_cost_finance_transaction_id`, `pros_contacted`, `pros_responded`. OCR extended to read the Thumbtack fee breakdown (Direct lead / Bonus / Total) + competition line, disambiguated from the "Estimated cost" quote, with `Decimal` money parsing. The net total auto-syncs a lead-linked "Thumbtack lead fee" `FinanceTransaction` (mirrors truck-rental sync) → flows into the outcome layer's realized_cost / ROI. Frontend `LeadCostCard` in the Brief panel.
+- **Thumbtack Numbers (proxy phone)** (`71e8f8a`): `Lead.customer_phone_is_proxy` (bool) + `Lead.customer_real_phone`; a `contact_phone(lead)` helper (real-if-valid-else-proxy) used by Square payment SMS + exposed as a computed `LeadOut.contact_phone`; proxy auto-tagged when a valid `customer_phone` is set on a Thumbtack-source lead (manual override persists). Frontend `LeadContact` (replaces the Phone row): "needs a number" prompt, "Thumbtack line" badge, real # as Primary, inline edit.
+
+### Notes
+- The Thumbtack-alignment work (lead-cost capture, proxy phones, and the 72h refund flag landed 2026-06-22) responds to Thumbtack's 2026 "Thumbtack Numbers" rollout: masked proxy phones, a ~10% lead-price hike, and 72h refunds.
+
+---
+
 ## [2026-06-15] Calendar UX + AI Review Context Fix
 
 ### Added
