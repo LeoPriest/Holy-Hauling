@@ -49,5 +49,21 @@ async def thumbtack_webhook(
             )
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    await thumbtack_service.record_event(db, conn, body)
+    record_failed = False
+    try:
+        await thumbtack_service.record_event(db, conn, body)
+    except Exception:
+        # Never log the body — it carries customer name, phone, and address.
+        logger.exception(
+            "thumbtack webhook record_event failed connection=%s", conn.id
+        )
+        record_failed = True
+
+    if record_failed:
+        # 503 so Thumbtack retries the delivery rather than believing a lost
+        # write succeeded. A lead cannot be re-derived the way a Square
+        # payment status can, so we do not swallow this the way square_router
+        # does.
+        raise HTTPException(status_code=503, detail="Could not record event")
+
     return Response(status_code=200)

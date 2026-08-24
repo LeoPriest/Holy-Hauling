@@ -380,8 +380,17 @@ async def test_webhook_rejects_wrong_password_and_stores_nothing(client, db_sess
 
 @pytest.mark.asyncio
 async def test_webhook_rejects_unknown_token(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.thumbtack import ThumbtackWebhookEvent
+
     r = await client.post("/ingest/webhook/thumbtack/not-a-real-token", json=LEAD_BODY)
     assert r.status_code == 401
+
+    count = await db_session.execute(
+        sa_select(func.count()).select_from(ThumbtackWebhookEvent)
+    )
+    assert count.scalar() == 0
 
 
 @pytest.mark.asyncio
@@ -476,3 +485,20 @@ async def test_webhook_creates_no_leads(client, db_session):
     count = await db_session.execute(sa_select(func.count()).select_from(Lead))
     # Phase 1 captures only. Mapping arrives in Phase 2.
     assert count.scalar() == 0
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_503_when_record_event_fails(client, db_session, monkeypatch):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("db is unavailable")
+
+    monkeypatch.setattr(thumbtack_service, "record_event", _boom)
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=LEAD_BODY)
+
+    # Thumbtack must retry rather than believe a lost write succeeded.
+    assert r.status_code == 503
