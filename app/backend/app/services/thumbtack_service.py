@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 # so a legitimate body is small. 1 MB is generous.
 MAX_BODY_BYTES = 1_000_000
 
+# How much of a rejected oversized body to keep. Enough for the operator to
+# recognise what arrived, small enough that a flood of them cannot bloat the DB.
+OVERSIZE_PREFIX_BYTES = 2_048
+
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -197,6 +201,45 @@ async def record_event(
     logger.info(
         "thumbtack webhook recorded connection=%s kind=%s status=%s",
         conn.id, kind, status,
+    )
+    return event
+
+
+async def record_oversize(
+    db: AsyncSession,
+    conn: ThumbtackConnection,
+    raw_prefix: bytes,
+    *,
+    declared: int | None = None,
+) -> ThumbtackWebhookEvent:
+    """Record a delivery that was refused for being too large.
+
+    A rejected delivery that leaves no trace is a silent loss, which is exactly
+    what a capture-first receiver exists to prevent. The operator needs to see
+    that Thumbtack tried and what it looked like, even though we would not store
+    the whole thing.
+    """
+    prefix = raw_prefix[:OVERSIZE_PREFIX_BYTES].decode("utf-8", errors="replace")
+    size = f"{declared} bytes declared" if declared is not None else "size not declared"
+    event = ThumbtackWebhookEvent(
+        connection_id=conn.id,
+        kind="unknown",
+        external_id=None,
+        raw_body=prefix,
+        status="failed",
+        error=(
+            f"Delivery rejected: body exceeds the {MAX_BODY_BYTES} byte limit "
+            f"({size}). Only the first {len(prefix)} characters were captured."
+        ),
+    )
+    db.add(event)
+    conn.last_error_at = _now()
+    await db.commit()
+    await db.refresh(event)
+    # Deliberately not logging the prefix: it may carry customer PII.
+    logger.warning(
+        "thumbtack webhook rejected as oversized connection=%s declared=%s",
+        conn.id, declared,
     )
     return event
 

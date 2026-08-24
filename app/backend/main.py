@@ -689,7 +689,10 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(check_stale_leads, "interval", minutes=5, id="check_stale_leads", replace_existing=True)
     _scheduler.add_job(check_due_followups, "interval", minutes=1, id="check_due_followups", replace_existing=True)
     _scheduler.add_job(reconcile_all_outcomes, "interval", minutes=15, id="reconcile_outcomes", replace_existing=True)
-    _scheduler.add_job(thumbtack_service.prune_old_events, "interval", hours=24, id="prune_thumbtack_events", replace_existing=True)
+    # next_run_time so the 90-day PII prune also runs once at startup. Without it
+    # APScheduler schedules the first run at start+24h and the timer resets on every
+    # restart, so a service that redeploys daily would never prune at all.
+    _scheduler.add_job(thumbtack_service.prune_old_events, "interval", hours=24, id="prune_thumbtack_events", replace_existing=True, next_run_time=datetime.now(timezone.utc))
     _scheduler.start()
 
     yield

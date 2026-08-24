@@ -14,6 +14,7 @@ import type {
   ThumbtackConnection,
   ThumbtackConnectionCreated,
 } from '../types/thumbtack'
+import { parseUtc } from '../utils/time'
 
 const BUSINESSES: { value: ThumbtackBusiness; label: string }[] = [
   { value: 'holy_hauling', label: 'Holy Hauling' },
@@ -23,10 +24,24 @@ const BUSINESSES: { value: ThumbtackBusiness; label: string }[] = [
 // 44px minimum touch target — tablet is the primary surface.
 const TOUCH = 'min-h-[44px]'
 
+// A connection that has gone quiet for this long is worth flagging, not a green dot.
+const STALE_AFTER_MS = 48 * 60 * 60 * 1000
+
+/** Milliseconds since an API timestamp, or null if absent or unparseable. */
+function msSince(iso: string | null): number | null {
+  if (!iso) return null
+  // parseUtc, not new Date: the backend serializes naive UTC with no Z, so a raw
+  // Date() reads it as local time and every event looks like it arrived in the future.
+  const then = parseUtc(iso).getTime()
+  if (!Number.isFinite(then)) return null
+  return Date.now() - then
+}
+
 function relativeTime(iso: string | null): string {
   if (!iso) return 'never'
-  const then = new Date(iso).getTime()
-  const mins = Math.floor((Date.now() - then) / 60000)
+  const elapsed = msSince(iso)
+  if (elapsed === null) return 'unknown'
+  const mins = Math.floor(elapsed / 60000)
   if (mins < 1) return 'just now'
   if (mins < 60) return `${mins}m ago`
   const hours = Math.floor(mins / 60)
@@ -202,12 +217,30 @@ function ConnectionRow({ conn }: { conn: ThumbtackConnection }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [error, setError] = useState('')
 
-  const healthy = Boolean(conn.last_event_at)
-  const dot = !conn.is_active
-    ? 'bg-gray-400'
-    : healthy
-      ? 'bg-green-500'
-      : 'bg-amber-400'
+  // Derived from recency, not from "has ever delivered" — a webhook that stopped
+  // delivering has to become visible, which a latching green dot never does.
+  const sinceEvent = msSince(conn.last_event_at)
+  const sinceError = msSince(conn.last_error_at)
+  const failing = sinceError !== null && (sinceEvent === null || sinceError < sinceEvent)
+
+  let dot = 'bg-gray-400'
+  let notice: string | null = null
+  if (conn.is_active) {
+    if (failing) {
+      dot = 'bg-red-500'
+      notice = `Deliveries are arriving but failing — last error ${relativeTime(
+        conn.last_error_at,
+      )}.`
+    } else if (sinceEvent === null) {
+      dot = 'bg-amber-400'
+      notice = 'Nothing received yet. Check the URL is saved and enabled in Thumbtack.'
+    } else if (sinceEvent > STALE_AFTER_MS) {
+      dot = 'bg-amber-400'
+      notice = `Last received ${relativeTime(conn.last_event_at)} — check Thumbtack.`
+    } else {
+      dot = 'bg-green-500'
+    }
+  }
 
   async function run(action: () => Promise<unknown>, fallback: string) {
     setError('')
@@ -245,7 +278,9 @@ function ConnectionRow({ conn }: { conn: ThumbtackConnection }) {
               )
             }
             disabled={setActive.isPending}
-            className={`${TOUCH} rounded-lg bg-gray-200 px-4 text-sm font-medium text-gray-800 disabled:opacity-40 dark:bg-gray-700 dark:text-gray-100`}
+            // min-w so the row does not reflow mid-action and slide Delete under
+            // the finger. Tablet is the primary surface.
+            className={`${TOUCH} min-w-[104px] rounded-lg bg-gray-200 px-4 text-sm font-medium text-gray-800 disabled:opacity-40 dark:bg-gray-700 dark:text-gray-100`}
           >
             {setActive.isPending ? '…' : conn.is_active ? 'Disable' : 'Enable'}
           </button>
@@ -282,9 +317,15 @@ function ConnectionRow({ conn }: { conn: ThumbtackConnection }) {
         </div>
       </div>
 
-      {conn.is_active && !healthy && (
-        <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">
-          Nothing received yet. Check the URL is saved and enabled in Thumbtack.
+      {notice && (
+        <p
+          className={`mt-2 text-xs ${
+            failing
+              ? 'text-red-600 dark:text-red-400'
+              : 'text-amber-700 dark:text-amber-400'
+          }`}
+        >
+          {notice}
         </p>
       )}
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}

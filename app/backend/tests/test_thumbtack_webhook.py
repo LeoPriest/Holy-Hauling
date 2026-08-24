@@ -470,7 +470,86 @@ async def test_webhook_rejects_oversized_body(client, db_session):
     )
 
     assert r.status_code == 413
-    assert await thumbtack_service.list_events(db_session, connection_id=conn.id) == []
+    # Rejected, but not silently: the operator must be able to see it happened.
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 1
+    assert events[0].status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_webhook_oversized_body_leaves_a_visible_failed_event(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+    huge = b'{"leadID":"big","padding":"' + b"x" * (thumbtack_service.MAX_BODY_BYTES + 10) + b'"}'
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}",
+        content=huge,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert r.status_code == 413
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 1
+    event = events[0]
+    assert event.status == "failed"
+    assert "exceeds" in (event.error or "")
+    # A prefix is kept so the operator can recognise what arrived.
+    assert event.raw_body.startswith('{"leadID":"big"')
+    assert len(event.raw_body) <= thumbtack_service.OVERSIZE_PREFIX_BYTES
+
+    await db_session.refresh(conn)
+    assert conn.last_error_at is not None
+
+
+@pytest.mark.asyncio
+async def test_webhook_caps_streaming_body_with_no_content_length(client, db_session):
+    """A chunked POST declares no length; the read must still be bounded."""
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+    chunk = b"x" * 100_000
+
+    async def _stream():
+        yield b'{"leadID":"big","padding":"'
+        for _ in range(12):  # ~1.2 MB, over MAX_BODY_BYTES
+            yield chunk
+        yield b'"}'
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}",
+        content=_stream(),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert r.status_code == 413
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 1
+    assert events[0].status == "failed"
+    await db_session.refresh(conn)
+    assert conn.last_error_at is not None
+
+
+@pytest.mark.asyncio
+async def test_webhook_unknown_token_stores_nothing_even_when_oversized(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import thumbtack_service
+
+    huge = b'{"a":"' + b"x" * (thumbtack_service.MAX_BODY_BYTES + 10) + b'"}'
+
+    r = await client.post(
+        "/ingest/webhook/thumbtack/not-a-real-token",
+        content=huge,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert r.status_code == 401
+    count = await db_session.execute(sa_select(func.count()).select_from(ThumbtackWebhookEvent))
+    assert count.scalar() == 0
 
 
 @pytest.mark.asyncio
@@ -517,6 +596,8 @@ async def test_admin_create_connection_returns_url_and_credentials(client):
     assert data["city_id"] == "st-louis"
     assert data["business"] == "holy_hauling"
     assert data["webhook_url"].endswith(f"/ingest/webhook/thumbtack/{data['url_token']}")
+    # The URL is the bearer secret for the endpoint, so it is never handed out as http.
+    assert data["webhook_url"].startswith("https://")
     assert data["auth_username"]
     assert data["auth_secret"]
 
@@ -665,3 +746,35 @@ async def test_admin_events_limit_returns_requested_count(client):
 
     assert r.status_code == 200
     assert len(r.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_webhook_url_is_https_for_a_non_local_host(client, monkeypatch):
+    """Behind a TLS terminator the app can see scheme http; the pasted URL must not."""
+    monkeypatch.delenv("PUBLIC_BASE_URL", raising=False)
+
+    r = await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+        headers={"Host": "api.holyhauling.com"},
+    )
+
+    assert r.status_code == 201
+    url = r.json()["webhook_url"]
+    assert url.startswith("https://api.holyhauling.com/"), url
+
+
+@pytest.mark.asyncio
+async def test_public_base_url_override_wins(client, monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://leads.example.com/")
+
+    r = await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL 2", "city_id": "st-louis", "business": "holy_hauling"},
+    )
+
+    assert r.status_code == 201
+    data = r.json()
+    assert data["webhook_url"] == (
+        f"https://leads.example.com/ingest/webhook/thumbtack/{data['url_token']}"
+    )
