@@ -502,3 +502,109 @@ async def test_webhook_returns_503_when_record_event_fails(client, db_session, m
 
     # Thumbtack must retry rather than believe a lost write succeeded.
     assert r.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_admin_create_connection_returns_url_and_credentials(client):
+    r = await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "Holy Hauling — St. Louis", "city_id": "st-louis", "business": "holy_hauling"},
+    )
+
+    assert r.status_code == 201
+    data = r.json()
+    assert data["label"] == "Holy Hauling — St. Louis"
+    assert data["city_id"] == "st-louis"
+    assert data["business"] == "holy_hauling"
+    assert data["webhook_url"].endswith(f"/ingest/webhook/thumbtack/{data['url_token']}")
+    assert data["auth_username"]
+    assert data["auth_secret"]
+
+
+@pytest.mark.asyncio
+async def test_admin_list_never_exposes_the_secret(client):
+    create = await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )
+    secret = create.json()["auth_secret"]
+
+    r = await client.get("/admin/thumbtack/connections")
+
+    assert r.status_code == 200
+    body = r.text
+    assert secret not in body
+    assert "auth_secret_hash" not in body
+    row = r.json()[0]
+    assert "auth_secret" not in row
+    assert row["is_active"] is True
+    assert row["last_event_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_admin_rejects_unknown_business_and_city(client):
+    bad_business = await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "X", "city_id": "st-louis", "business": "not_a_business"},
+    )
+    assert bad_business.status_code == 422
+
+    bad_city = await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "X", "city_id": "atlantis", "business": "holy_hauling"},
+    )
+    assert bad_city.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_disable_and_delete_connection(client):
+    created = (await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )).json()
+
+    patched = await client.patch(
+        f"/admin/thumbtack/connections/{created['id']}", json={"is_active": False}
+    )
+    assert patched.status_code == 200
+    assert patched.json()["is_active"] is False
+
+    deleted = await client.delete(f"/admin/thumbtack/connections/{created['id']}")
+    assert deleted.status_code == 204
+
+    assert (await client.get("/admin/thumbtack/connections")).json() == []
+
+    assert (await client.delete(f"/admin/thumbtack/connections/{created['id']}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_events_endpoint_shows_captured_bodies(client):
+    created = (await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )).json()
+
+    await client.post(f"/ingest/webhook/thumbtack/{created['url_token']}", json=LEAD_BODY)
+
+    r = await client.get(f"/admin/thumbtack/events?connection_id={created['id']}")
+
+    assert r.status_code == 200
+    events = r.json()
+    assert len(events) == 1
+    assert events[0]["kind"] == "lead"
+    assert events[0]["status"] == "received"
+    assert json.loads(events[0]["raw_body"])["leadID"] == "lead-123"
+
+
+@pytest.mark.asyncio
+async def test_admin_deleting_a_connection_removes_its_events(client):
+    created = (await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )).json()
+    await client.post(f"/ingest/webhook/thumbtack/{created['url_token']}", json=LEAD_BODY)
+
+    await client.delete(f"/admin/thumbtack/connections/{created['id']}")
+
+    r = await client.get("/admin/thumbtack/events")
+    assert r.json() == []

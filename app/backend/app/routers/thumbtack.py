@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies import require_role
+from app.models.city import City
+from app.models.user import User
+from app.schemas.thumbtack import (
+    ConnectionCreate,
+    ConnectionCreated,
+    ConnectionOut,
+    ConnectionPatch,
+    EventOut,
+)
 from app.services import thumbtack_service
 
 logger = logging.getLogger(__name__)
@@ -67,3 +79,83 @@ async def thumbtack_webhook(
         raise HTTPException(status_code=503, detail="Could not record event")
 
     return Response(status_code=200)
+
+
+# ── Admin surface ─────────────────────────────────────────────────────────
+
+def _webhook_url(request: Request, url_token: str) -> str:
+    """Build the URL Ron pastes into Thumbtack.
+
+    Derived from the live request by default so it is always correct for the
+    environment actually serving it. PUBLIC_BASE_URL overrides that for setups
+    behind a proxy that rewrites the host.
+    """
+    base = (os.environ.get("PUBLIC_BASE_URL") or str(request.base_url)).rstrip("/")
+    return f"{base}/ingest/webhook/thumbtack/{url_token}"
+
+
+@router.get("/admin/thumbtack/connections", response_model=list[ConnectionOut])
+async def list_connections(
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await thumbtack_service.list_connections(db)
+
+
+@router.post("/admin/thumbtack/connections", response_model=ConnectionCreated, status_code=201)
+async def create_connection(
+    payload: ConnectionCreate,
+    request: Request,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    city = await db.execute(select(City).where(City.id == payload.city_id).limit(1))
+    if city.scalar_one_or_none() is None:
+        raise HTTPException(status_code=422, detail=f"Unknown city: {payload.city_id}")
+
+    conn, secret = await thumbtack_service.create_connection(
+        db, label=payload.label, city_id=payload.city_id, business=payload.business
+    )
+    return ConnectionCreated(
+        **ConnectionOut.model_validate(conn).model_dump(),
+        webhook_url=_webhook_url(request, conn.url_token),
+        auth_secret=secret,
+    )
+
+
+@router.patch("/admin/thumbtack/connections/{connection_id}", response_model=ConnectionOut)
+async def patch_connection(
+    connection_id: str,
+    payload: ConnectionPatch,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.is_active is None:
+        raise HTTPException(status_code=422, detail="Nothing to update")
+    conn = await thumbtack_service.set_active(db, connection_id, payload.is_active)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return conn
+
+
+@router.delete("/admin/thumbtack/connections/{connection_id}", status_code=204)
+async def delete_connection(
+    connection_id: str,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    if not await thumbtack_service.delete_connection(db, connection_id):
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return Response(status_code=204)
+
+
+@router.get("/admin/thumbtack/events", response_model=list[EventOut])
+async def list_events(
+    connection_id: Optional[str] = None,
+    limit: int = 50,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await thumbtack_service.list_events(
+        db, connection_id=connection_id, limit=min(limit, 200)
+    )
