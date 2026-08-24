@@ -101,6 +101,17 @@ const CARDS = [
       </svg>
     ),
   },
+  {
+    path: '/admin/thumbtack',
+    label: 'Thumbtack',
+    description: 'Webhook connections and incoming lead deliveries',
+    color: 'bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+        <path d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+      </svg>
+    ),
+  },
 ]
 
 export function AdminScreen() {
