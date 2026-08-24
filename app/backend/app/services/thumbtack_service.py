@@ -3,9 +3,10 @@ from __future__ import annotations
 import base64
 import binascii
 import hmac
+import json
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -124,3 +125,122 @@ def verify_basic_header(authorization: str | None, conn: ThumbtackConnection) ->
         return auth_service.verify_pin(password, conn.auth_secret_hash)
     except ValueError:
         return False
+
+
+def classify(body: object) -> tuple[str, str | None]:
+    """Identify an event by body shape and return (kind, external_id).
+
+    The Thumbtack form sends every checked event type to one URL, so shape is
+    the only discriminator available. Anything unrecognised is 'unknown' and is
+    kept for inspection rather than rejected.
+    """
+    if not isinstance(body, dict):
+        return "unknown", None
+
+    message = body.get("message")
+    if isinstance(message, dict):
+        return "message", message.get("messageID")
+
+    review = body.get("review")
+    if "reviewEventType" in body or isinstance(review, dict):
+        review_obj = review if isinstance(review, dict) else {}
+        return "review", review_obj.get("reviewID")
+
+    if body.get("leadID") and isinstance(body.get("request"), dict):
+        return "lead", body.get("leadID")
+
+    return "unknown", None
+
+
+async def record_event(
+    db: AsyncSession, conn: ThumbtackConnection, raw_body: bytes
+) -> ThumbtackWebhookEvent:
+    """Persist a delivery verbatim, then classify it. Never raises for a bad body."""
+    try:
+        text = raw_body.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw_body.decode("utf-8", errors="replace")
+
+    kind = "unknown"
+    external_id = None
+    status = "received"
+    error = None
+
+    try:
+        parsed = json.loads(text)
+        kind, external_id = classify(parsed)
+        if kind == "review":
+            # Reviews are out of scope this phase; recorded, not acted on.
+            status = "ignored"
+    except (json.JSONDecodeError, ValueError) as exc:
+        status = "failed"
+        error = f"Body is not valid JSON: {exc}"
+
+    event = ThumbtackWebhookEvent(
+        connection_id=conn.id,
+        kind=kind,
+        external_id=external_id,
+        raw_body=text,
+        status=status,
+        error=error,
+    )
+    db.add(event)
+
+    if status == "failed":
+        conn.last_error_at = _now()
+    else:
+        conn.last_event_at = _now()
+
+    await db.commit()
+    await db.refresh(event)
+    # Deliberately not logging the body: it carries customer name, phone, and address.
+    logger.info(
+        "thumbtack webhook recorded connection=%s kind=%s status=%s",
+        conn.id, kind, status,
+    )
+    return event
+
+
+async def list_events(
+    db: AsyncSession, *, connection_id: str | None = None, limit: int = 50
+) -> list[ThumbtackWebhookEvent]:
+    stmt = select(ThumbtackWebhookEvent).order_by(ThumbtackWebhookEvent.received_at.desc())
+    if connection_id:
+        stmt = stmt.where(ThumbtackWebhookEvent.connection_id == connection_id)
+    result = await db.execute(stmt.limit(limit))
+    return list(result.scalars().all())
+
+
+async def prune_events(db: AsyncSession, *, older_than_days: int = 90) -> int:
+    """Raw bodies carry customer PII, so the ledger is not kept indefinitely."""
+    # received_at round-trips through SQLite as a naive value (see the model's
+    # _now() default landing in a plain DateTime column — the house pattern from
+    # screenshot.py), so the cutoff must be naive to match what's actually stored.
+    cutoff = (_now() - timedelta(days=older_than_days)).replace(tzinfo=None)
+    result = await db.execute(
+        delete(ThumbtackWebhookEvent)
+        .where(ThumbtackWebhookEvent.received_at < cutoff)
+        # "evaluate" (the default) re-checks the WHERE clause in Python against
+        # objects already in the session's identity map to keep it in sync. That
+        # breaks here: a freshly-refreshed row's received_at comes back naive,
+        # while a row mutated in-memory by a caller (e.g. a test backdating it)
+        # keeps whatever tzinfo it was assigned, so the same query can compare
+        # naive and aware datetimes in the same pass. "fetch" sidesteps the
+        # in-memory comparison by selecting matching PKs before deleting.
+        .execution_options(synchronize_session="fetch")
+    )
+    await db.commit()
+    return result.rowcount or 0
+
+
+async def prune_old_events() -> None:
+    """Entry point for the scheduler — opens its own session."""
+    from app.database import AsyncSessionLocal
+
+    try:
+        async with AsyncSessionLocal() as db:
+            removed = await prune_events(db, older_than_days=90)
+            if removed:
+                print(f"[thumbtack] pruned {removed} webhook events older than 90 days")
+    except Exception as exc:
+        print(f"[thumbtack] prune error: {exc}")
