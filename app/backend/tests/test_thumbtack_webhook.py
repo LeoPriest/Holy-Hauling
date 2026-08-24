@@ -608,3 +608,60 @@ async def test_admin_deleting_a_connection_removes_its_events(client):
 
     r = await client.get("/admin/thumbtack/events")
     assert r.json() == []
+
+
+@pytest.mark.asyncio
+async def test_admin_events_limit_rejects_negative_value(client):
+    created = (await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )).json()
+    for _ in range(3):
+        await client.post(f"/ingest/webhook/thumbtack/{created['url_token']}", json=LEAD_BODY)
+
+    r = await client.get("/admin/thumbtack/events?limit=-1")
+
+    # A negative SQLite LIMIT means "no limit" -- this must never reach the
+    # service layer. Rejected at validation, not silently clamped.
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_events_limit_rejects_zero(client):
+    created = (await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )).json()
+    await client.post(f"/ingest/webhook/thumbtack/{created['url_token']}", json=LEAD_BODY)
+
+    r = await client.get("/admin/thumbtack/events?limit=0")
+
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_events_limit_rejects_value_over_200(client):
+    created = (await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )).json()
+    await client.post(f"/ingest/webhook/thumbtack/{created['url_token']}", json=LEAD_BODY)
+
+    r = await client.get("/admin/thumbtack/events?limit=500")
+
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_admin_events_limit_returns_requested_count(client):
+    created = (await client.post(
+        "/admin/thumbtack/connections",
+        json={"label": "HH STL", "city_id": "st-louis", "business": "holy_hauling"},
+    )).json()
+    for _ in range(4):
+        await client.post(f"/ingest/webhook/thumbtack/{created['url_token']}", json=LEAD_BODY)
+
+    r = await client.get(f"/admin/thumbtack/events?connection_id={created['id']}&limit=2")
+
+    assert r.status_code == 200
+    assert len(r.json()) == 2

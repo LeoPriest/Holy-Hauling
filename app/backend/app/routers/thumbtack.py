@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -152,10 +152,10 @@ async def delete_connection(
 @router.get("/admin/thumbtack/events", response_model=list[EventOut])
 async def list_events(
     connection_id: Optional[str] = None,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200),
     current_user: User = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
     return await thumbtack_service.list_events(
-        db, connection_id=connection_id, limit=min(limit, 200)
+        db, connection_id=connection_id, limit=limit
     )
