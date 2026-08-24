@@ -8,6 +8,29 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 
 ## Currently Working
 
+### Thumbtack webhooks — Phase 1 (connect and capture)
+
+- Admin screen at `/admin/thumbtack`: create a connection (label, city, business),
+  copy the endpoint URL and Basic credentials into thumbtack.com/pro/webhooks/create,
+  disable or delete a connection, and watch incoming deliveries.
+- Public receiver `POST /ingest/webhook/thumbtack/{url_token}`: identifies the
+  connection by an unguessable path token, verifies Basic credentials if the caller
+  sends any, stores the raw body, and returns 200. Unknown or disabled tokens and bad
+  credentials get 401; oversized bodies get 413; database failures get 503 (triggering Thumbtack retry).
+- Deliveries are classified by body shape (lead / message / review / unknown) and kept
+  in a ledger with the verbatim body for 90 days.
+- `GET /admin/thumbtack/events` paginated delivery feed: validates `limit` (1–200) and
+  returns 422 for values outside that range; returns raw body, classification, timestamp,
+  and connection details.
+- **No leads, messages, or reviews are created yet.** Phase 1 captures only; mapping
+  arrives in Phase 2 once the real payload shape is confirmed.
+
+**Known limitation:** the older `POST /ingest/webhook/thumbtack` route is unusable in
+production — it requires a logged-in user and expects a payload shape Thumbtack does
+not send. Phase 2 replaces it. Do not point Thumbtack at it.
+
+---
+
 ### Lead pipeline & intake
 - [x] Backend boots cleanly, loads `.env` (`load_dotenv` then Railway env override), prints grounding-file status on startup
 - [x] Lead queue with filters (status, source type, assigned handler) and Active / Released tabs

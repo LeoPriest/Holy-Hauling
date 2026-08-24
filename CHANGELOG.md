@@ -6,6 +6,24 @@ All meaningful development changes for the Holy Hauling app are logged here.
 
 ---
 
+## [2026-08-24] Thumbtack Webhooks — Phase 1 (Connect and Capture)
+
+### Added
+- **Thumbtack webhook receiver** (`feat/thumbtack-webhooks`): new `thumbtack_webhook_delivery` table + `ThumbTackConnection` model; admin screen `/admin/thumbtack` to create/manage connections (label, city, business) with auto-generated URL token and Basic credentials; `POST /ingest/webhook/thumbtack/{url_token}` public receiver validates token + credentials + body size, classifies payload (lead / message / review / unknown), stores raw body for 90 days.
+- **Delivery feed** (`GET /admin/thumbtack/events`): paginated list of deliveries with classification, timestamp, connection details, and raw body; validates `limit` (1–200, returns 422 outside range).
+- **Status codes**: 200 on success; 401 for unknown/disabled tokens or bad credentials; 413 for oversized bodies; 503 on database failure (so Thumbtack retries).
+- **Phase 1 scope**: capture and ledger only; no lead/message/review creation (Phase 2).
+
+### Notes
+- See spec: `docs/superpowers/specs/2026-08-24-thumbtack-webhook-integration-design.md`
+- See plan: `docs/superpowers/plans/2026-08-24-thumbtack-webhooks-phase-1.md`
+- The older `POST /ingest/webhook/thumbtack` route (requires login, wrong payload shape) remains for backward compatibility but is unusable in production; Phase 2 replaces it.
+
+### Verified
+- Backend suite: 430 passed, 0 failed (full async test, 2026-08-24)
+
+---
+
 ## [2026-06-25] Role-Aware Help + Escalation-Push Cleanup
 
 ### Added
