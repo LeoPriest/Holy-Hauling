@@ -318,3 +318,161 @@ async def test_prune_events_removes_only_old_rows(client, db_session):
     assert removed == 1
     remaining = await thumbtack_service.list_events(db_session, connection_id=conn.id)
     assert [e.id for e in remaining] == [fresh.id]
+
+
+async def _make_connection(db_session, city_id="st-louis", business="holy_hauling"):
+    from app.services import thumbtack_service
+
+    return await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id=city_id, business=business
+    )
+
+
+def _basic(user: str, password: str) -> dict:
+    import base64
+
+    raw = base64.b64encode(f"{user}:{password}".encode()).decode()
+    return {"Authorization": f"Basic {raw}"}
+
+
+@pytest.mark.asyncio
+async def test_webhook_accepts_valid_token_without_auth_header(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=LEAD_BODY)
+
+    assert r.status_code == 200
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 1
+    assert events[0].kind == "lead"
+
+
+@pytest.mark.asyncio
+async def test_webhook_accepts_correct_basic_credentials(client, db_session):
+    conn, secret = await _make_connection(db_session)
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}",
+        json=LEAD_BODY,
+        headers=_basic(conn.auth_username, secret),
+    )
+
+    assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_webhook_rejects_wrong_password_and_stores_nothing(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}",
+        json=LEAD_BODY,
+        headers=_basic(conn.auth_username, "wrong-secret"),
+    )
+
+    assert r.status_code == 401
+    assert await thumbtack_service.list_events(db_session, connection_id=conn.id) == []
+
+
+@pytest.mark.asyncio
+async def test_webhook_rejects_unknown_token(client, db_session):
+    r = await client.post("/ingest/webhook/thumbtack/not-a-real-token", json=LEAD_BODY)
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_webhook_rejects_disabled_connection(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+    await thumbtack_service.set_active(db_session, conn.id, False)
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=LEAD_BODY)
+
+    assert r.status_code == 401
+    assert await thumbtack_service.list_events(db_session, connection_id=conn.id) == []
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_200_for_unparseable_body(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}",
+        content=b"{not json",
+        headers={"Content-Type": "application/json"},
+    )
+
+    # Thumbtack must never see a failure for a body we could not parse.
+    assert r.status_code == 200
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 1
+    assert events[0].status == "failed"
+    assert events[0].raw_body == "{not json"
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_200_for_unrecognised_shape(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}", json={"something": "new"}
+    )
+
+    assert r.status_code == 200
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert events[0].kind == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_webhook_records_message_and_review_at_the_same_url(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+    url = f"/ingest/webhook/thumbtack/{conn.url_token}"
+
+    assert (await client.post(url, json=MESSAGE_BODY)).status_code == 200
+    assert (await client.post(url, json=REVIEW_BODY)).status_code == 200
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    kinds = {e.kind for e in events}
+    assert kinds == {"message", "review"}
+
+
+@pytest.mark.asyncio
+async def test_webhook_rejects_oversized_body(client, db_session):
+    from app.services import thumbtack_service
+
+    conn, _ = await _make_connection(db_session)
+    huge = b'{"a":"' + b"x" * (thumbtack_service.MAX_BODY_BYTES + 10) + b'"}'
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}",
+        content=huge,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert r.status_code == 413
+    assert await thumbtack_service.list_events(db_session, connection_id=conn.id) == []
+
+
+@pytest.mark.asyncio
+async def test_webhook_creates_no_leads(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.lead import Lead
+
+    conn, _ = await _make_connection(db_session)
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=LEAD_BODY)
+
+    count = await db_session.execute(sa_select(func.count()).select_from(Lead))
+    # Phase 1 captures only. Mapping arrives in Phase 2.
+    assert count.scalar() == 0
