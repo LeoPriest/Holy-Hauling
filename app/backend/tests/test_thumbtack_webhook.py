@@ -778,3 +778,84 @@ async def test_public_base_url_override_wins(client, monkeypatch):
     assert data["webhook_url"] == (
         f"https://leads.example.com/ingest/webhook/thumbtack/{data['url_token']}"
     )
+
+
+# ── V4 event shapes (developers.thumbtack.com) ────────────────────────────────
+# The self-serve webhook documents its events as NegotiationCreatedV4 /
+# MessageCreatedV4 / ReviewCreatedV4, keyed on `negotiationID` rather than the
+# `leadID` used by the older pro-api reference. classify() must recognise both,
+# bare or wrapped in an envelope, and still fall back to 'unknown'.
+
+def test_classify_v4_lead_bare():
+    from app.services import thumbtack_service
+
+    body = {
+        "negotiationID": "neg-1",
+        "request": {"category": "Junk Removal", "description": "garage"},
+        "customer": {"name": "Jane"},
+    }
+    assert thumbtack_service.classify(body) == ("lead", "neg-1")
+
+
+def test_classify_v4_lead_without_request_object():
+    from app.services import thumbtack_service
+
+    # A negotiationID alone is enough — unlike leadID, which needs a request
+    # object to disambiguate it from message/review payloads.
+    assert thumbtack_service.classify({"negotiationID": "neg-2"}) == ("lead", "neg-2")
+
+
+def test_classify_v4_message_bare_beats_lead():
+    from app.services import thumbtack_service
+
+    # A message payload also carries negotiationID — it must NOT classify as a lead.
+    body = {"negotiationID": "neg-1", "messageID": "msg-1", "text": "Saturday?"}
+    assert thumbtack_service.classify(body) == ("message", "msg-1")
+
+
+def test_classify_v4_review_bare_beats_lead():
+    from app.services import thumbtack_service
+
+    # A review payload also carries negotiationID — it must NOT classify as a lead.
+    body = {"reviewID": "rev-1", "negotiationID": "neg-1", "rating": "5", "reviewText": "great"}
+    assert thumbtack_service.classify(body) == ("review", "rev-1")
+
+
+def test_classify_v4_envelope_lead():
+    from app.services import thumbtack_service
+
+    body = {"eventType": "NegotiationCreatedV4", "data": {"negotiationID": "neg-9"}}
+    assert thumbtack_service.classify(body) == ("lead", "neg-9")
+
+
+def test_classify_v4_envelope_message():
+    from app.services import thumbtack_service
+
+    body = {
+        "eventType": "MessageCreatedV4",
+        "data": {"messageID": "msg-9", "negotiationID": "neg-9", "text": "hi"},
+    }
+    assert thumbtack_service.classify(body) == ("message", "msg-9")
+
+
+def test_classify_v4_envelope_review():
+    from app.services import thumbtack_service
+
+    body = {"eventType": "ReviewCreatedV4", "data": {"reviewID": "rev-9", "rating": "4"}}
+    assert thumbtack_service.classify(body) == ("review", "rev-9")
+
+
+def test_classify_declared_event_type_with_unrecognised_shape():
+    from app.services import thumbtack_service
+
+    # We know WHAT it is even when we cannot find an id — better than 'unknown'.
+    assert thumbtack_service.classify({"eventType": "NegotiationCreatedV4"}) == ("lead", None)
+
+
+def test_classify_still_returns_unknown_for_unrecognised_bodies():
+    from app.services import thumbtack_service
+
+    # The safety net must survive the change.
+    assert thumbtack_service.classify({"hello": "world"}) == ("unknown", None)
+    assert thumbtack_service.classify({"eventType": "SomethingElseV9"}) == ("unknown", None)
+    assert thumbtack_service.classify({"data": {"nope": 1}}) == ("unknown", None)

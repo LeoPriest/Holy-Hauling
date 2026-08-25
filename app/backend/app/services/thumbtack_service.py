@@ -131,6 +131,60 @@ def verify_basic_header(authorization: str | None, conn: ThumbtackConnection) ->
         return False
 
 
+# Thumbtack documents two payload vocabularies. The older pro-api reference
+# keys leads on `leadID`; the developer platform documents V4 events keyed on
+# `negotiationID` (NegotiationCreatedV4 / MessageCreatedV4 / ReviewCreatedV4).
+# The self-serve webhook may send either, bare or inside an envelope, so we
+# recognise both and still fall back to 'unknown'.
+_V4_EVENT_KINDS = {
+    "negotiationcreatedv4": "lead",
+    "messagecreatedv4": "message",
+    "reviewcreatedv4": "review",
+}
+
+
+def _declared_kind(obj: dict) -> str | None:
+    """Kind taken from an explicit event-type field, if the body carries one."""
+    for key in ("eventType", "event_type", "type", "event", "reviewEventType"):
+        value = obj.get(key)
+        if not isinstance(value, str):
+            continue
+        kind = _V4_EVENT_KINDS.get(value.strip().lower())
+        if kind:
+            return kind
+        if value.strip().upper().startswith("REVIEW_"):
+            return "review"
+    return None
+
+
+def _sniff_kind(obj: dict) -> tuple[str, str | None]:
+    """Kind inferred from body shape.
+
+    Order matters: message and review payloads both carry `negotiationID`, so
+    they must be ruled out before anything is treated as a lead.
+    """
+    message = obj.get("message")
+    if isinstance(message, dict):
+        return "message", message.get("messageID")
+    if obj.get("messageID"):
+        return "message", obj.get("messageID")
+
+    review = obj.get("review")
+    if isinstance(review, dict):
+        return "review", review.get("reviewID")
+    if obj.get("reviewID"):
+        return "review", obj.get("reviewID")
+    if "reviewEventType" in obj:
+        return "review", None
+
+    if obj.get("leadID") and isinstance(obj.get("request"), dict):
+        return "lead", obj.get("leadID")
+    if obj.get("negotiationID"):
+        return "lead", obj.get("negotiationID")
+
+    return "unknown", None
+
+
 def classify(body: object) -> tuple[str, str | None]:
     """Identify an event by body shape and return (kind, external_id).
 
@@ -141,17 +195,23 @@ def classify(body: object) -> tuple[str, str | None]:
     if not isinstance(body, dict):
         return "unknown", None
 
-    message = body.get("message")
-    if isinstance(message, dict):
-        return "message", message.get("messageID")
+    # A delivery may arrive bare or wrapped in an envelope carrying the payload.
+    candidates = [body]
+    for key in ("data", "payload"):
+        nested = body.get(key)
+        if isinstance(nested, dict):
+            candidates.append(nested)
 
-    review = body.get("review")
-    if "reviewEventType" in body or isinstance(review, dict):
-        review_obj = review if isinstance(review, dict) else {}
-        return "review", review_obj.get("reviewID")
+    for candidate in candidates:
+        kind, external_id = _sniff_kind(candidate)
+        if kind != "unknown":
+            return kind, external_id
 
-    if body.get("leadID") and isinstance(body.get("request"), dict):
-        return "lead", body.get("leadID")
+    # Shape told us nothing, but an explicit event type still identifies it.
+    for candidate in candidates:
+        declared = _declared_kind(candidate)
+        if declared:
+            return declared, None
 
     return "unknown", None
 
