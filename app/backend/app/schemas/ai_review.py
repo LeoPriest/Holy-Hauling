@@ -1,9 +1,23 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class RangeLever(BaseModel):
+    """One unknown that moves the price, with what each answer is worth.
+
+    Exactly two options by design — a lever is a binary the operator resolves in
+    one question on a call. Three branches do not fit a phone card and stop being
+    glanceable; that is what the full A–O analysis is for.
+    """
+    factor: str                 # "Couch type"
+    low_answer: str             # "Standard sofa"
+    low_price: int              # whole dollars
+    high_answer: str            # "Sectional / sleeper"
+    high_price: int             # whole dollars
 
 
 class AiReviewSections(BaseModel):
@@ -32,6 +46,17 @@ class AiReviewSections(BaseModel):
     m_quick_read: str
     n_pattern_anchor: str
     o_branch_replies: str
+    # ── Structured decision fields (2026-08-25) ──────────────────────────────
+    # Derived by the model from the prose above; all optional so reviews written
+    # before this feature keep validating. Money is whole dollars, never float.
+    sayability: Optional[Literal["ready", "confirm_first", "hold"]] = None
+    target_low: Optional[int] = None
+    target_high: Optional[int] = None
+    floor: Optional[int] = None
+    band_position: Optional[Literal["low", "mid", "high"]] = None
+    band_reason: Optional[str] = None
+    range_levers: Optional[list[RangeLever]] = Field(default=None)
+    floor_defense: Optional[str] = None
 
 
 class AiReviewOut(BaseModel):

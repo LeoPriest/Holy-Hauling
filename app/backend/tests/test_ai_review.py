@@ -407,3 +407,74 @@ def test_legacy_ah_record_readable():
     # Fields with no legacy equivalent default to ""
     assert out.sections.f_pricing_band == ""
     assert out.sections.d_transport_path == ""
+
+
+# ── Structured decision fields (2026-08-25) ──────────────────────────────────
+
+_PROSE_ONLY = {
+    "a_next_message": "Call now", "b_call_plan": "Confirm scope",
+    "c_behavior_class": "shopper", "d_transport_path": "own truck",
+    "e_escalation_note": "none", "f_pricing_band": "525-725",
+    "g_band_position": "Mid", "h_friction_points": "couch size unknown",
+    "i_sayability_check": "Partial", "j_quote_style": "Range",
+    "k_quote_source_label": "Based on what you described",
+    "l_pricing_guidance": "Target 525-650, floor 475",
+    "m_quick_read": "clean dual-service job", "n_pattern_anchor": "similar to prior",
+    "o_branch_replies": "if she balks, sharpen haul",
+}
+
+
+def test_legacy_sections_validate_with_new_fields_absent():
+    from app.schemas.ai_review import AiReviewSections
+
+    sections = AiReviewSections.model_validate(_PROSE_ONLY)
+
+    # Every new field defaults to None — a review written before this feature
+    # must keep validating untouched.
+    assert sections.sayability is None
+    assert sections.target_low is None
+    assert sections.target_high is None
+    assert sections.floor is None
+    assert sections.band_position is None
+    assert sections.band_reason is None
+    assert sections.range_levers is None
+    assert sections.floor_defense is None
+
+
+def test_structured_fields_round_trip_through_json():
+    from app.schemas.ai_review import AiReviewSections
+
+    payload = {
+        **_PROSE_ONLY,
+        "sayability": "confirm_first",
+        "target_low": 525,
+        "target_high": 650,
+        "floor": 475,
+        "band_position": "mid",
+        "band_reason": "flat access, no stairs",
+        "floor_defense": "Sharpen the haul line only — never discount both.",
+        "range_levers": [{
+            "factor": "Couch type",
+            "low_answer": "Standard sofa", "low_price": 525,
+            "high_answer": "Sectional / sleeper", "high_price": 650,
+        }],
+    }
+    sections = AiReviewSections.model_validate(payload)
+    restored = AiReviewSections.model_validate_json(sections.model_dump_json())
+
+    assert restored.target_low == 525
+    assert restored.floor == 475
+    assert restored.sayability == "confirm_first"
+    assert restored.range_levers is not None
+    assert restored.range_levers[0].factor == "Couch type"
+    assert restored.range_levers[0].high_price == 650
+
+
+def test_sayability_rejects_a_value_outside_the_enum():
+    import pytest as _pytest
+    from pydantic import ValidationError
+
+    from app.schemas.ai_review import AiReviewSections
+
+    with _pytest.raises(ValidationError):
+        AiReviewSections.model_validate({**_PROSE_ONLY, "sayability": "maybe"})
