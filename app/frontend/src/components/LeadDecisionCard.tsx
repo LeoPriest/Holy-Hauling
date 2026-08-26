@@ -66,7 +66,8 @@ export function LeadDecisionCard({
   onRetryLoad,
 }: {
   lead: Lead
-  aiReview: AiReview | undefined
+  /** `null` means the query resolved and the lead has never been reviewed. */
+  aiReview: AiReview | null | undefined
   /** The review GET is in flight. Distinct from "there is no review". */
   reviewLoading?: boolean
   /** The review GET failed. Also distinct from "there is no review". */
@@ -94,8 +95,10 @@ export function LeadDecisionCard({
   }
 
   // ── The review failed to load ─────────────────────────────────────────
-  // This lead may well already have a validated floor. Do not offer to
-  // overwrite it — offer to read it again.
+  // A never-reviewed lead is NOT a fault: the backend answers 404 for it and
+  // `getLatestAiReview` resolves that to null, so it never reaches here. Only
+  // a real fault does, and this lead may well already have a validated floor.
+  // Do not offer to overwrite it — offer to read it again.
   if (reviewError && !aiReview) {
     return (
       <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -119,7 +122,8 @@ export function LeadDecisionCard({
     )
   }
 
-  // ── No review at all ──────────────────────────────────────────────────
+  // ── The query resolved and there is genuinely no review ───────────────
+  // Reached by a never-reviewed lead (resolved null). The trigger lives here.
   if (!aiReview) {
     return (
       <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">

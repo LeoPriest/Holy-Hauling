@@ -30,7 +30,7 @@ const PRICING_SECTIONS: {
 
 interface Props {
   lead: Lead
-  aiReview: AiReview | undefined
+  aiReview: AiReview | null | undefined
   leadId: string
   quoteDraft: QuoteDraft
   onLockAndBook: () => void

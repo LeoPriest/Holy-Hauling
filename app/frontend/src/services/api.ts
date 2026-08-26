@@ -166,9 +166,20 @@ export async function triggerAiReview(leadId: string, actor?: string): Promise<A
   return r.json()
 }
 
-export async function getLatestAiReview(leadId: string): Promise<AiReview> {
+/**
+ * The latest AI review for a lead, or `null` when the lead has never been
+ * reviewed.
+ *
+ * The backend answers 404 for the perfectly normal never-reviewed case, so a
+ * 404 is resolved as `null` rather than thrown. Throwing it would make every
+ * fresh lead indistinguishable from a real fault, and the card would offer a
+ * Retry that 404s forever instead of the Run AI review button. Every other
+ * non-ok status IS a fault and still throws.
+ */
+export async function getLatestAiReview(leadId: string): Promise<AiReview | null> {
   const r = await apiFetch(`${BASE}/${leadId}/ai-review`)
-  if (!r.ok) throw new Error('No AI review found')
+  if (r.status === 404) return null
+  if (!r.ok) throw new Error(`Could not load the AI review (${r.status})`)
   return r.json()
 }
 

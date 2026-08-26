@@ -178,6 +178,12 @@ export function useIngestScreenshot() {
   })
 }
 
+/**
+ * Data is `AiReview` when one exists and `null` when the lead has never been
+ * reviewed — a never-reviewed lead resolves, it does not error. `isError` here
+ * therefore means a genuine fault (network, 500, timeout), which is what lets
+ * the decision card offer Retry instead of a pointless Run AI review.
+ */
 export function useLatestAiReview(leadId: string) {
   return useQuery({
     queryKey: ['ai-review', leadId],
