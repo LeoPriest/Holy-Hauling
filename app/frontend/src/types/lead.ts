@@ -63,6 +63,18 @@ export interface QuoteModifier {
   note: string
 }
 
+export type Sayability = 'ready' | 'confirm_first' | 'hold'
+export type BandPosition = 'low' | 'mid' | 'high'
+
+/** One unknown that moves the price, with what each answer is worth. */
+export interface RangeLever {
+  factor: string
+  low_answer: string
+  low_price: number
+  high_answer: string
+  high_price: number
+}
+
 export interface AiReviewSections {
   // Action-first
   a_next_message: string
@@ -82,6 +94,17 @@ export interface AiReviewSections {
   m_quick_read: string
   n_pattern_anchor: string
   o_branch_replies: string
+  // Structured decision fields — absent on reviews written before 2026-08-25.
+  // The backend drops any figure that fails validation, so a present value is
+  // trustworthy and an absent one means "no quotable number", never "zero".
+  sayability?: Sayability | null
+  target_low?: number | null
+  target_high?: number | null
+  floor?: number | null
+  band_position?: BandPosition | null
+  band_reason?: string | null
+  range_levers?: RangeLever[] | null
+  floor_defense?: string | null
 }
 
 export interface AiReview {
