@@ -143,7 +143,12 @@ export function LeadCommandCenter() {
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
-  const { data: aiReview } = useLatestAiReview(id!)
+  const {
+    data: aiReview,
+    isLoading: aiReviewLoading,
+    isError: aiReviewError,
+    refetch: refetchAiReview,
+  } = useLatestAiReview(id!)
   const updateStatus = useUpdateStatus()
   const { followup, saving: followupSaving, save: saveFollowup, cancel: cancelFollowup } = useFollowup(id!)
   const { payment, saving: paymentSaving, error: paymentError, sendRequest: sendPaymentRequest, cancel: cancelPaymentRequest } = usePayment(id!)
@@ -333,7 +338,13 @@ export function LeadCommandCenter() {
       {/* ── Scrollable panel ─────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
         {/* First thing on open, on every tab; scrolls away once read. */}
-        <LeadDecisionCard lead={lead} aiReview={aiReview} />
+        <LeadDecisionCard
+          lead={lead}
+          aiReview={aiReview}
+          reviewLoading={aiReviewLoading}
+          reviewError={aiReviewError}
+          onRetryLoad={() => { void refetchAiReview() }}
+        />
         {/* Moved inside the scroll region so it stops eating permanent
             vertical space on a phone. */}
         <RefundBanner lead={lead} />

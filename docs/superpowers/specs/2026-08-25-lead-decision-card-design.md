@@ -113,8 +113,14 @@ make them trustworthy. Validation runs at parse time in `ai_review_service`:
 
 - `floor <= target_low <= target_high` — if violated, **all four money fields are dropped to
   `None`** and the card renders the legacy state. It does not render a partial set.
-- Every lever price must fall within `[floor, target_high]`. A lever outside the range means the
-  model contradicted itself; drop `range_levers` only, keep the range.
+- Every lever price must fall within `[target_low, target_high]`, and `low_price <= high_price`.
+  The bound is the **target** range, not the floor: the floor is the walkaway minimum, it sits
+  below the target range, and it is never a quotable target. A lever priced at the floor renders
+  in the most quotable cell on the card -- directly beneath the target headline -- and the
+  operator reads his own walkaway aloud as a price, which is the exact incident in the Problem
+  section. An inverted lever (`low_price > high_price`) prints the expensive figure against the
+  cheap answer. Either fault means the model contradicted itself; drop `range_levers` only, keep
+  the range.
 - Any money field ≤ 0 or > 100000 is treated as a parse failure.
 - Dropping a field is **logged** with the lead id and the offending value.
 

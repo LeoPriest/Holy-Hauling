@@ -576,6 +576,69 @@ def test_lever_priced_outside_the_range_drops_levers_but_keeps_the_range():
     assert out.floor == 475
 
 
+def test_lever_priced_at_the_floor_drops_levers_but_keeps_the_range():
+    """The floor is a walkaway, never a quotable target.
+
+    A lever at the floor renders in the most quotable cell on the card, directly
+    beneath the target headline, and the operator reads his own walkaway aloud as
+    a price. Levers are bounded by [target_low, target_high], not by the floor.
+    """
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    payload = _with(range_levers=[{
+        "factor": "Couch type",
+        "low_answer": "Standard sofa", "low_price": 475,   # exactly the floor
+        "high_answer": "Sectional", "high_price": 650,
+    }])
+    out = _validate_money(AiReviewSections.model_validate(payload), "lead-1")
+
+    assert out.range_levers is None
+    # Only the levers drop; the range was self-consistent.
+    assert out.target_low == 525
+    assert out.target_high == 650
+    assert out.floor == 475
+
+
+def test_lever_priced_between_floor_and_target_low_drops_levers():
+    """Above the floor is not good enough — it must be inside the target range."""
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    payload = _with(range_levers=[{
+        "factor": "Couch type",
+        "low_answer": "Standard sofa", "low_price": 510,   # the real incident
+        "high_answer": "Sectional", "high_price": 650,
+    }])
+    out = _validate_money(AiReviewSections.model_validate(payload), "lead-1")
+
+    assert out.range_levers is None
+    assert out.target_low == 525
+
+
+def test_inverted_lever_is_dropped():
+    """low_price > high_price means the model swapped the two answers.
+
+    Both prices sit inside the range, so no other check fires; the card would
+    print the sectional price against the standard sofa.
+    """
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    payload = _with(range_levers=[{
+        "factor": "Couch type",
+        "low_answer": "Standard sofa", "low_price": 650,
+        "high_answer": "Sectional", "high_price": 525,
+    }])
+    out = _validate_money(AiReviewSections.model_validate(payload), "lead-1")
+
+    assert out.range_levers is None
+    # The range itself is untouched.
+    assert out.target_low == 525
+    assert out.target_high == 650
+    assert out.floor == 475
+
+
 def test_at_most_two_levers_survive_widest_swing_first():
     from app.schemas.ai_review import AiReviewSections
     from app.services.ai_review_service import _validate_money
@@ -583,10 +646,10 @@ def test_at_most_two_levers_survive_widest_swing_first():
     payload = _with(range_levers=[
         {"factor": "Narrow", "low_answer": "a", "low_price": 600,
          "high_answer": "b", "high_price": 610},           # swing 10
-        {"factor": "Widest", "low_answer": "a", "low_price": 480,
-         "high_answer": "b", "high_price": 650},           # swing 170
-        {"factor": "Middle", "low_answer": "a", "low_price": 500,
-         "high_answer": "b", "high_price": 600},           # swing 100
+        {"factor": "Widest", "low_answer": "a", "low_price": 525,
+         "high_answer": "b", "high_price": 650},           # swing 125
+        {"factor": "Middle", "low_answer": "a", "low_price": 550,
+         "high_answer": "b", "high_price": 640},           # swing 90
     ])
     out = _validate_money(AiReviewSections.model_validate(payload), "lead-1")
 

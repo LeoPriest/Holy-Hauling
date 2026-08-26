@@ -163,8 +163,10 @@ wrote in the prose sections above:
   the customer pushes back.
 - "range_levers" is the unknown that moves the price WITH what each answer is
   worth — the conditional you wrote in section L (for example "standard sofa,
-  low end; sectional, push higher"). Every lever price must fall between "floor"
-  and "target_high". Give at most two, each with exactly two answers.
+  low end; sectional, push higher"). Every lever price must fall between
+  "target_low" and "target_high" — never at or below "floor", which is the
+  walkaway minimum and is never quotable — and "low_price" must not exceed
+  "high_price". Give at most two, each with exactly two answers.
 
 Use null for anything you cannot state confidently. "range_levers" must be null
 when no single unknown dominates the price — an invented lever is worse than
@@ -361,19 +363,28 @@ def _validate_money(sections: AiReviewSections, lead_id: str) -> AiReviewSection
             sections.range_levers = None
 
     if sections.range_levers:
-        floor, high = sections.floor, sections.target_high
-        if floor is None or high is None:
+        # Levers are bounded by the TARGET range, not by the floor. The floor is
+        # the walkaway minimum — it sits below the target range and is never a
+        # quotable number. A lever priced at the floor renders in the most
+        # quotable cell on the card, directly under the target headline, and the
+        # operator reads his own walkaway aloud as a target.
+        low, high = sections.target_low, sections.target_high
+        if low is None or high is None:
             logger.warning("ai_review levers dropped for lead=%s: no range", lead_id)
             sections.range_levers = None
         else:
             out_of_range = [
                 lever for lever in sections.range_levers
-                if not (floor <= lever.low_price <= high and floor <= lever.high_price <= high)
+                if not (
+                    low <= lever.low_price <= high
+                    and low <= lever.high_price <= high
+                    and lever.low_price <= lever.high_price
+                )
             ]
             if out_of_range:
                 logger.warning(
-                    "ai_review levers dropped for lead=%s: %s priced outside [%s, %s]",
-                    lead_id, [lever.factor for lever in out_of_range], floor, high,
+                    "ai_review levers dropped for lead=%s: %s priced outside [%s, %s] or inverted",
+                    lead_id, [lever.factor for lever in out_of_range], low, high,
                 )
                 sections.range_levers = None
             elif len(sections.range_levers) > _MAX_LEVERS:

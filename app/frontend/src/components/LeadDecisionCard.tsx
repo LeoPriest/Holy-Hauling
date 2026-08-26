@@ -58,12 +58,66 @@ function Lever({ lever }: { lever: RangeLever }) {
   )
 }
 
-export function LeadDecisionCard({ lead, aiReview }: { lead: Lead; aiReview: AiReview | undefined }) {
+export function LeadDecisionCard({
+  lead,
+  aiReview,
+  reviewLoading = false,
+  reviewError = false,
+  onRetryLoad,
+}: {
+  lead: Lead
+  aiReview: AiReview | undefined
+  /** The review GET is in flight. Distinct from "there is no review". */
+  reviewLoading?: boolean
+  /** The review GET failed. Also distinct from "there is no review". */
+  reviewError?: boolean
+  /** Refetch the review query. Never triggers a new model call. */
+  onRetryLoad?: () => void
+}) {
   const triggerReview = useTriggerAiReview()
   const s = aiReview?.sections
 
   const hasMoney =
     s?.target_low != null && s?.target_high != null && s?.floor != null
+
+  // ── The review is still loading ───────────────────────────────────────
+  // No Run AI review button here: tapping it mid-read pays for a model call
+  // that would replace the review already on its way.
+  if (reviewLoading && !aiReview) {
+    return (
+      <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-3 h-2.5 w-32 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="mb-3 h-8 w-48 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">Loading review…</p>
+      </div>
+    )
+  }
+
+  // ── The review failed to load ─────────────────────────────────────────
+  // This lead may well already have a validated floor. Do not offer to
+  // overwrite it — offer to read it again.
+  if (reviewError && !aiReview) {
+    return (
+      <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
+          Review not loaded
+        </p>
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+          Could not reach the server to load this lead's AI review. If one exists it is still
+          there — this is a connection fault, not a missing review.
+        </p>
+        {onRetryLoad && (
+          <button
+            onClick={onRetryLoad}
+            className={`${TOUCH} mb-3 w-full rounded-xl border border-gray-300 px-4 font-medium text-gray-700 active:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:active:bg-gray-700`}
+          >
+            Retry
+          </button>
+        )}
+        <CallRow lead={lead} />
+      </div>
+    )
+  }
 
   // ── No review at all ──────────────────────────────────────────────────
   if (!aiReview) {
@@ -117,15 +171,25 @@ export function LeadDecisionCard({ lead, aiReview }: { lead: Lead; aiReview: AiR
   }
 
   const isHold = s?.sayability === 'hold'
-  const isConfirm = s?.sayability === 'confirm_first'
+  // Only an explicit 'ready' earns the green badge. A null sayability is the
+  // model declining to judge — the prompt tells it to emit null for anything it
+  // cannot state confidently — so an abstention must never be presented as the
+  // most confident claim on the card. It falls through to the cautious tone.
+  const isReady = s?.sayability === 'ready'
 
   const headTone = isHold
     ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-    : isConfirm
-      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-      : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+    : isReady
+      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
 
-  const headLabel = isHold ? 'Hold — scope not firm' : isConfirm ? 'Confirm first' : 'Ready to quote'
+  const headLabel = isHold
+    ? 'Hold — scope not firm'
+    : isReady
+      ? 'Ready to quote'
+      : s?.sayability === 'confirm_first'
+        ? 'Confirm first'
+        : 'Check before quoting'
 
   return (
     <div className="m-3 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
