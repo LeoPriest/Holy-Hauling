@@ -16,6 +16,7 @@ import { BookingConfirmation, formatCurrency, parseMoney, useQuoteDraft, validat
 import { buildConfirmationText } from '../utils/confirmationText'
 import { EscalationCard } from '../components/EscalationCard'
 import { RefundBanner } from '../components/RefundBanner'
+import { LeadDecisionCard } from '../components/LeadDecisionCard'
 
 type Tab = 'brief' | 'quote' | 'log'
 
@@ -326,12 +327,16 @@ export function LeadCommandCenter() {
         </div>
       )}
 
-      {/* ── Escalation card (visible on all tabs) ────────── */}
+      {/* An open escalation is a genuine interrupt — it stays pinned. */}
       <EscalationCard leadId={lead.id} />
-      <RefundBanner lead={lead} />
 
       {/* ── Scrollable panel ─────────────────────────────── */}
       <main className="flex-1 overflow-y-auto">
+        {/* First thing on open, on every tab; scrolls away once read. */}
+        <LeadDecisionCard lead={lead} aiReview={aiReview} />
+        {/* Moved inside the scroll region so it stops eating permanent
+            vertical space on a phone. */}
+        <RefundBanner lead={lead} />
         {tab === 'brief' && (
           <BriefPanel
             lead={lead}
