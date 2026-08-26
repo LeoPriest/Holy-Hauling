@@ -8,7 +8,17 @@ import { QuoteBasis } from '../../components/QuoteBasis'
 import { QuoteBuilderFields, createLineItem, parseMoney, type QuoteDraft } from '../../components/QuoteBuilder'
 import { useTruckRental } from '../../hooks/useTruckRental'
 
-const PRICING_SECTIONS: { key: keyof AiReviewSections; label: string }[] = [
+const PRICING_SECTIONS: {
+  key:
+    | 'f_pricing_band'
+    | 'g_band_position'
+    | 'h_friction_points'
+    | 'i_sayability_check'
+    | 'j_quote_style'
+    | 'k_quote_source_label'
+    | 'l_pricing_guidance'
+  label: string
+}[] = [
   { key: 'f_pricing_band',       label: 'F. Pricing Band' },
   { key: 'g_band_position',      label: 'G. Band Position' },
   { key: 'h_friction_points',    label: 'H. Main Friction Points' },
@@ -191,16 +201,22 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
         </div>
 
         {aiReview ? (
-          <div className="space-y-2">
-            {PRICING_SECTIONS.map(({ key, label }) => (
-              <div key={key} className="bg-orange-50 border border-orange-200 rounded-xl p-3">
-                <p className="text-xs font-semibold text-orange-700 mb-1">{label}</p>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-                  {aiReview.sections[key] || '—'}
-                </p>
-              </div>
-            ))}
-          </div>
+          <details className="group rounded-xl border border-orange-200 bg-orange-50">
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-orange-800">
+              Full analysis
+              <span className="text-orange-600 transition-transform group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="space-y-2 p-3 pt-0">
+              {PRICING_SECTIONS.map(({ key, label }) => (
+                <div key={key} className="rounded-xl border border-orange-200 bg-white p-3">
+                  <p className="mb-1 text-xs font-semibold text-orange-700">{label}</p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800">
+                    {aiReview.sections[key] || '—'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </details>
         ) : (
           <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 text-center">
             <p className="text-sm text-gray-400">
