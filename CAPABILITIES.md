@@ -130,6 +130,28 @@ not send. Phase 2 replaces it. Do not point Thumbtack at it.
 - [x] **Role-aware `/help` guide** — passive reference at `/help`: collapsible accordion sections (lifecycle walkthrough + glossary), reached from a "Help" entry in Settings. Content in one typed data file (`content/helpContent.ts`), no markdown dependency, static. `HELP_GUIDES{facilitator, supervisor}` + `guideForRole(role)` (admin→facilitator); the screen renders the viewer's guide
 - [x] **Supervisor (on-site-lead) guide** — jobs-centric: phase tracking, crew, photos/notes, calendar, glossary. `/help` route widened to admin + facilitator + supervisor with a role-adaptive label
 
+### Lead decision card (Phase A)
+
+- A card at the top of the lead window, on every tab: target range, walkaway floor,
+  what kind of job it is, and the unknown that decides the price rendered with what
+  each answer is worth ("standard sofa $525 / sectional $650").
+- Fed by optional structured fields on `AiReviewSections` (`sayability`, `target_low`,
+  `target_high`, `floor`, `band_position`, `band_reason`, `range_levers`,
+  `floor_defense`), derived by the model from prose sections G, H, I, and L. No
+  database migration — they live inside the existing `sections_json` column.
+- Money is validated at parse time and **dropped wholesale** on failure: if
+  `floor <= target_low <= target_high` does not hold, all four figures become null and
+  the card shows "no quotable number" with a re-run action. It never renders a partial
+  set. Every drop is logged with the lead id.
+- Reviews written before this feature validate unchanged and show the re-run state.
+  Figures are never parsed out of legacy prose.
+- When the AI review is in `hold` state (scope too unresolved to price), the card
+  suppresses the target range, price levers, and floor-defense line. A `hold` review
+  can carry money fields (holdover from legacy reviews), but they are not rendered.
+- The A–O pricing sections are now one collapsed "Full analysis" accordion.
+- `RefundBanner` moved inside the scroll region; it previously occupied permanent
+  height above it on every tab.
+
 ---
 
 ## Partially Working / Needs Live Verification

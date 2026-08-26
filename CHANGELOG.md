@@ -6,6 +6,26 @@ All meaningful development changes for the Holy Hauling app are logged here.
 
 ---
 
+## [2026-08-25] Lead Decision Card — Phase A
+
+### Added
+- **Decision card UI** (`feat/lead-decision-card`): new card at the top of the lead window, visible on every tab. Displays target range (`target_low` / `target_high`), walkaway floor, job category (band_position), and a lever if the job has one dominant unknown (range_levers: what-if scenarios with prices). Grouped pricing sections A–O now collapsed into "Full analysis" accordion. `RefundBanner` moved inside the scroll region.
+- **Structured decision fields on `AiReviewSections`**: `sayability`, `target_low`, `target_high`, `floor`, `band_position`, `band_reason`, `range_levers`, `floor_defense` — optional, derived by Claude from prose sections G–L. Live inside the existing `sections_json` column; no database migration required.
+- **Server-side money validation**: parsed figures are dropped wholesale if `floor <= target_low <= target_high` does not hold — all four figures null, card shows "no quotable number", failure logged with lead id. Never renders partial sets. Legacy reviews show the re-run state (no fabricated numbers).
+- **`hold` state behavior**: when an AI review is in `hold` state (scope too unresolved to quote), the card suppresses target range, price levers, and floor-defense line. Hold reviews can carry money fields (legacy data), but they are not rendered.
+
+### Notes
+- See spec: `docs/superpowers/specs/2026-08-25-lead-decision-card-design.md`
+- See plan: `docs/superpowers/plans/2026-08-25-lead-decision-card-phase-a.md`
+- No database migration required — fields are optional JSON inside the existing `sections_json` column.
+- Money validation is explicit and wholesale; every validation failure is logged.
+- Legacy reviews validate unchanged and render the re-run state, never a fabricated number.
+
+### Verified
+- Backend suite: 458 passed, 0 failed (full async test, 2026-08-25)
+
+---
+
 ## [2026-08-24] Thumbtack Webhooks — Phase 1 (Connect and Capture)
 
 ### Added
