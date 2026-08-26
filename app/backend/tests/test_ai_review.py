@@ -615,3 +615,31 @@ def test_review_with_no_structured_fields_passes_through_untouched():
 
     assert out.target_low is None
     assert out.m_quick_read == "clean dual-service job"
+
+
+def test_prompt_asks_for_the_structured_decision_block():
+    from app.services import ai_review_service as svc
+
+    template = svc._SYSTEM_PROMPT_TEMPLATE
+
+    for key in (
+        "sayability", "target_low", "target_high", "floor",
+        "band_position", "band_reason", "range_levers", "floor_defense",
+    ):
+        assert key in template, f"prompt never mentions {key}"
+
+    # The optionality is load-bearing: a model pressured to invent a lever
+    # produces a fake one, which is worse than none.
+    assert "null" in template
+
+
+def test_prompt_version_changes_when_the_template_changes(monkeypatch):
+    from app.services import ai_review_service as svc
+
+    before = svc._prompt_version("SOP CONTENT")
+    monkeypatch.setattr(svc, "_SYSTEM_PROMPT_TEMPLATE", svc._SYSTEM_PROMPT_TEMPLATE + " x")
+    after = svc._prompt_version("SOP CONTENT")
+
+    # The grounding-eval harness cohorts by prompt_version. If this ever stops
+    # changing, pre-card and post-card reviews get silently pooled.
+    assert before != after

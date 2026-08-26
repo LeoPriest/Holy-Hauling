@@ -133,8 +133,42 @@ No markdown, no code blocks, no text outside the JSON:
   "l_pricing_guidance": "...",
   "m_quick_read": "...",
   "n_pattern_anchor": "...",
-  "o_branch_replies": "..."
+  "o_branch_replies": "...",
+
+  "sayability": "ready | confirm_first | hold",
+  "target_low": 525,
+  "target_high": 650,
+  "floor": 475,
+  "band_position": "low | mid | high",
+  "band_reason": "flat access, no stairs",
+  "floor_defense": "Sharpen the haul line only — never discount both.",
+  "range_levers": [
+    {{"factor": "Couch type",
+      "low_answer": "Standard sofa", "low_price": 525,
+      "high_answer": "Sectional / sleeper", "high_price": 650}}
+  ]
 }}
+
+THE STRUCTURED KEYS ARE NOT NEW ANALYSIS. Derive each one from what you already
+wrote in the prose sections above:
+- "sayability" restates section I. Use "ready" when the scope is firm enough to
+  quote now, "confirm_first" when a specific unknown must be resolved first, and
+  "hold" when the scope is too unresolved to price at all.
+- "target_low"/"target_high"/"floor" are the figures from section L, as whole
+  dollars with no currency symbol, commas, or decimals. "floor" is the minimum
+  acceptable job. floor <= target_low <= target_high must hold.
+- "band_position" restates section G. "band_reason" is the single clearest
+  reason it sits there, under 120 characters, no trailing period.
+- "floor_defense" is the one sentence from section L about what to concede when
+  the customer pushes back.
+- "range_levers" is the unknown that moves the price WITH what each answer is
+  worth — the conditional you wrote in section L (for example "standard sofa,
+  low end; sectional, push higher"). Every lever price must fall between "floor"
+  and "target_high". Give at most two, each with exactly two answers.
+
+Use null for anything you cannot state confidently. "range_levers" must be null
+when no single unknown dominates the price — an invented lever is worse than
+none. Never guess a number to fill a field.
 """.strip()
 
 _USER_TEMPLATE = """
