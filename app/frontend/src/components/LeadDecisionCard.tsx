@@ -156,9 +156,9 @@ export function LeadDecisionCard({ lead, aiReview }: { lead: Lead; aiReview: AiR
       )}
 
       <div className="space-y-2 p-4 pt-3">
-        {s?.range_levers?.map((lever, i) => <Lever key={`${lever.factor}-${i}`} lever={lever} />)}
+        {!isHold && s?.range_levers?.map((lever, i) => <Lever key={`${lever.factor}-${i}`} lever={lever} />)}
 
-        {s?.floor_defense && hasMoney && (
+        {!isHold && s?.floor_defense && hasMoney && (
           <div className="rounded-xl border-l-[3px] border-red-500 bg-red-50 p-3 dark:bg-red-900/20">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
               If they push back
