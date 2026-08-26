@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from typing import Optional
 
@@ -96,6 +97,14 @@ Synthesized recommendation: the specific dollar figure or range the facilitator 
 use on this call, the band and position driving it, and any adjustments to apply before quoting.
 Never share this section verbatim with the customer.
 """.strip()
+
+# Money sanity bounds for the structured decision fields. A quote above this is
+# a parse failure, not a big job.
+_MONEY_CEILING = 100000
+# A band reason longer than this wraps to five lines on a phone card.
+_MAX_BAND_REASON = 120
+# More than two levers and the card is a form again.
+_MAX_LEVERS = 2
 
 _SYSTEM_PROMPT_TEMPLATE = """
 You are the AI Lead Review Engine for Holy Hauling, a moving and junk hauling company.
@@ -283,6 +292,74 @@ def _to_out(review: AiReview) -> AiReviewOut:
     )
 
 
+def _validate_money(sections: AiReviewSections, lead_id: str) -> AiReviewSections:
+    """Sanitise the model-emitted decision fields before they are persisted.
+
+    These are money figures produced by a text generator. Emitting them as
+    structured data does not make them true. Anything that fails a check is
+    DROPPED, never corrected or truncated — the card is designed to show a
+    "no quotable number" state, which is safe, rather than a wrong figure,
+    which is not.
+    """
+    logger = logging.getLogger(__name__)
+
+    def _sane(value: Optional[int]) -> bool:
+        return value is not None and 0 < value <= _MONEY_CEILING
+
+    money = (sections.floor, sections.target_low, sections.target_high)
+    any_money_present = any(v is not None for v in money)
+
+    if any_money_present:
+        floor, low, high = money
+        ok = (
+            _sane(floor) and _sane(low) and _sane(high)
+            and floor <= low <= high
+        )
+        if not ok:
+            logger.warning(
+                "ai_review money dropped for lead=%s floor=%s target_low=%s target_high=%s",
+                lead_id, floor, low, high,
+            )
+            sections.floor = None
+            sections.target_low = None
+            sections.target_high = None
+            # A lever prices a point inside the range; with no range it means nothing.
+            sections.range_levers = None
+
+    if sections.range_levers:
+        floor, high = sections.floor, sections.target_high
+        if floor is None or high is None:
+            logger.warning("ai_review levers dropped for lead=%s: no range", lead_id)
+            sections.range_levers = None
+        else:
+            out_of_range = [
+                lever for lever in sections.range_levers
+                if not (floor <= lever.low_price <= high and floor <= lever.high_price <= high)
+            ]
+            if out_of_range:
+                logger.warning(
+                    "ai_review levers dropped for lead=%s: %s priced outside [%s, %s]",
+                    lead_id, [lever.factor for lever in out_of_range], floor, high,
+                )
+                sections.range_levers = None
+            elif len(sections.range_levers) > _MAX_LEVERS:
+                # Keep the ones that move the number most.
+                sections.range_levers = sorted(
+                    sections.range_levers,
+                    key=lambda lever: lever.high_price - lever.low_price,
+                    reverse=True,
+                )[:_MAX_LEVERS]
+
+    if sections.band_reason is not None and len(sections.band_reason) > _MAX_BAND_REASON:
+        logger.warning(
+            "ai_review band_reason dropped for lead=%s: %d chars",
+            lead_id, len(sections.band_reason),
+        )
+        sections.band_reason = None
+
+    return sections
+
+
 # ---------------------------------------------------------------------------
 # Service functions
 # ---------------------------------------------------------------------------
@@ -358,6 +435,8 @@ async def trigger_review(
         sections = AiReviewSections.model_validate(parsed)
     except (json.JSONDecodeError, ValidationError) as exc:
         raise HTTPException(502, f"AI returned an invalid A–O structure: {exc}") from exc
+
+    sections = _validate_money(sections, lead_id)
 
     # Persist
     review = AiReview(

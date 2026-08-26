@@ -478,3 +478,140 @@ def test_sayability_rejects_a_value_outside_the_enum():
 
     with _pytest.raises(ValidationError):
         AiReviewSections.model_validate({**_PROSE_ONLY, "sayability": "maybe"})
+
+
+def _with(**over) -> dict:
+    """A well-formed structured payload, overridden per test."""
+    base = {
+        **_PROSE_ONLY,
+        "sayability": "confirm_first",
+        "target_low": 525, "target_high": 650, "floor": 475,
+        "band_position": "mid", "band_reason": "flat access, no stairs",
+        "floor_defense": "Sharpen the haul line only.",
+        "range_levers": [{
+            "factor": "Couch type",
+            "low_answer": "Standard sofa", "low_price": 525,
+            "high_answer": "Sectional / sleeper", "high_price": 650,
+        }],
+    }
+    base.update(over)
+    return base
+
+
+def test_valid_money_survives_validation():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    out = _validate_money(AiReviewSections.model_validate(_with()), "lead-1")
+
+    assert out.target_low == 525
+    assert out.target_high == 650
+    assert out.floor == 475
+    assert out.range_levers is not None and len(out.range_levers) == 1
+
+
+def test_floor_above_target_low_drops_all_four_money_fields():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    # floor 600 > target_low 525 — the model contradicted itself.
+    out = _validate_money(AiReviewSections.model_validate(_with(floor=600)), "lead-1")
+
+    assert out.target_low is None
+    assert out.target_high is None
+    assert out.floor is None
+    assert out.range_levers is None      # levers cannot outlive the range
+    # Prose is never touched.
+    assert out.l_pricing_guidance == "Target 525-650, floor 475"
+
+
+def test_inverted_range_drops_all_four_money_fields():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    out = _validate_money(
+        AiReviewSections.model_validate(_with(target_low=650, target_high=525)), "lead-1"
+    )
+
+    assert out.target_low is None
+    assert out.floor is None
+
+
+def test_money_at_or_below_zero_is_dropped():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    out = _validate_money(AiReviewSections.model_validate(_with(floor=0)), "lead-1")
+
+    assert out.floor is None
+    assert out.target_low is None
+
+
+def test_money_above_the_ceiling_is_dropped():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _MONEY_CEILING, _validate_money
+
+    out = _validate_money(
+        AiReviewSections.model_validate(_with(target_high=_MONEY_CEILING + 1)), "lead-1"
+    )
+
+    assert out.target_high is None
+    assert out.target_low is None
+
+
+def test_lever_priced_outside_the_range_drops_levers_but_keeps_the_range():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    payload = _with(range_levers=[{
+        "factor": "Couch type",
+        "low_answer": "Standard sofa", "low_price": 100,      # below floor 475
+        "high_answer": "Sectional", "high_price": 650,
+    }])
+    out = _validate_money(AiReviewSections.model_validate(payload), "lead-1")
+
+    assert out.range_levers is None
+    # The range itself was self-consistent, so it survives.
+    assert out.target_low == 525
+    assert out.floor == 475
+
+
+def test_at_most_two_levers_survive_widest_swing_first():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    payload = _with(range_levers=[
+        {"factor": "Narrow", "low_answer": "a", "low_price": 600,
+         "high_answer": "b", "high_price": 610},           # swing 10
+        {"factor": "Widest", "low_answer": "a", "low_price": 480,
+         "high_answer": "b", "high_price": 650},           # swing 170
+        {"factor": "Middle", "low_answer": "a", "low_price": 500,
+         "high_answer": "b", "high_price": 600},           # swing 100
+    ])
+    out = _validate_money(AiReviewSections.model_validate(payload), "lead-1")
+
+    assert out.range_levers is not None
+    assert [lever.factor for lever in out.range_levers] == ["Widest", "Middle"]
+
+
+def test_overlong_band_reason_is_dropped_not_truncated():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _MAX_BAND_REASON, _validate_money
+
+    out = _validate_money(
+        AiReviewSections.model_validate(_with(band_reason="x" * (_MAX_BAND_REASON + 1))),
+        "lead-1",
+    )
+
+    assert out.band_reason is None
+    assert out.target_low == 525     # nothing else is affected
+
+
+def test_review_with_no_structured_fields_passes_through_untouched():
+    from app.schemas.ai_review import AiReviewSections
+    from app.services.ai_review_service import _validate_money
+
+    out = _validate_money(AiReviewSections.model_validate(_PROSE_ONLY), "lead-1")
+
+    assert out.target_low is None
+    assert out.m_quick_read == "clean dual-service job"
