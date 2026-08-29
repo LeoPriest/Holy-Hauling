@@ -627,15 +627,6 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
             />
           </FieldRow>
 
-          <FieldRow label="Booking Date">
-            <EditableField
-              value={lead.job_date_requested}
-              onSave={v => { save('job_date_requested', v); if (v) onBookingDateSet?.() }}
-              placeholder="Tap to add dateâ€¦"
-              type="date"
-            />
-          </FieldRow>
-
           <FieldRow label="Time Slot">
             <EditableField
               value={lead.appointment_time_slot}
