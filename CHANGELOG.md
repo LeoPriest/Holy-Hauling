@@ -6,6 +6,25 @@ All meaningful development changes for the Holy Hauling app are logged here.
 
 ---
 
+## [2026-08-26] Lead Window — Phase B (Density and One-Voice Pricing)
+
+### Added
+- **Lead window density pass** (`feat/lead-window-phase-b`): consolidated `Booking Date` to render once on Brief (deleted the separate Quote row which was the only path that wrote `job_date_requested` without `job_date_end`); made `Est. Duration` edit on Quote only and display read-only on Brief; reduced intake screenshot preview from ~192px to a 64px thumbnail that opens full-size on tap.
+- **Unified quote anchoring**: `suggest_quote` now anchors to the AI review's validated `target_low`/`target_high`/`floor` when present, preventing the builder and decision card from stating different bands. Legacy reviews (no structured figures) behave byte-identically to before.
+- **Non-blocking floor validation**: floor caption beneath the quoted-price input now warns when the typed total is below it, but still permits booking. Nothing renders when the review carries no validated floor (no placeholder, dash, or zero).
+
+### Notes
+- See spec: `docs/superpowers/specs/2026-08-25-lead-window-phase-b-design.md`
+- See plan: `docs/superpowers/plans/2026-08-26-lead-window-phase-b.md`
+- No database migration required — all changes are UI/logic consolidation and backend quote-anchoring logic.
+- The `Booking Date` row deletion prevents new stranded end-dates; already-stranded values are not cleaned up (data-completeness gap, open item).
+
+### Verified
+- Backend suite: 465 passed, 0 failed (full async test, 2026-08-28)
+- Frontend: `tsc --noEmit` and `npm run build` both pass (2026-08-28)
+
+---
+
 ## [2026-08-25] Lead Decision Card — Phase A
 
 ### Added

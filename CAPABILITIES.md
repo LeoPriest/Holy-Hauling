@@ -152,6 +152,30 @@ not send. Phase 2 replaces it. Do not point Thumbtack at it.
 - `RefundBanner` moved inside the scroll region; it previously occupied permanent
   height above it on every tab.
 
+### Lead window — Phase B (density and one-voice pricing)
+
+- `Booking Date` renders once on Brief. The deleted row was the only path that
+  wrote `job_date_requested` without `job_date_end`, so editing through it stranded a
+  previously-set end date. Already-stranded values are not cleaned up — only new ones
+  are prevented.
+- `Est. Duration` is edited on the Quote tab and displayed read-only on Brief. Two
+  controls previously wrote one field through two save paths, so a stale quote draft
+  could silently revert a Brief edit.
+- The intake screenshot is a 64px thumbnail row that opens full-size on tap, replacing
+  a ~192px crop whose visible content duplicated the table beneath it.
+- The walkaway floor renders beneath the quoted-price input, and turns to a warning
+  stating the gap when the typed total is below it. **Non-blocking by design** — the
+  failure being fixed is not knowing, not being allowed. Nothing renders when the
+  review carries no validated floor.
+- `suggest_quote` now anchors to the A-O review's validated `target_low`/`target_high`/
+  `floor` when present, so the builder and the decision card cannot state different
+  bands. With no structured figures the prompt is byte-identical to before, so legacy
+  reviews behave exactly as they did.
+
+**Not in Phase B:** comparables quality — four comparables spanning $200-$950, each
+showing a single filled dot, under a badge reading "GROUNDED · 4 LOCAL JOBS". That is a
+`find_comparables` scoring problem and has its own pass.
+
 ---
 
 ## Partially Working / Needs Live Verification
