@@ -1,6 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { DateOptionsEditor } from '../../components/DateOptionsEditor'
-import { DurationWheelInput } from '../../components/DurationWheelInput'
 import { TruckRentalSection } from '../../components/TruckRentalSection'
 import { PayrollSection } from '../../components/PayrollSection'
 import { LeadCostCard } from '../../components/LeadCostCard'
@@ -436,14 +435,6 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
     })
   }
 
-  const saveEstimatedDuration = (value: number | null) => {
-    if (value == null) {
-      patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: null } })
-      return
-    }
-    patch.mutate({ id: lead.id, data: { estimated_job_duration_minutes: value } })
-  }
-
   const handleQuoteBlur = () => {
     setQuoteError('')
     const trimmed = quoteInput.trim()
@@ -638,18 +629,14 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
           </FieldRow>
 
           <FieldRow label="Est. Duration">
-            <div className="space-y-2">
-              <DurationWheelInput
-                value={lead.estimated_job_duration_minutes}
-                onChange={saveEstimatedDuration}
-                allowClear
-              />
-              {lead.estimated_job_duration_minutes != null && (
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  Current: {fmtDurationMinutes(lead.estimated_job_duration_minutes)}
-                </p>
-              )}
-            </div>
+            {lead.estimated_job_duration_minutes != null ? (
+              <p className="text-sm text-gray-900 dark:text-white">
+                {fmtDurationMinutes(lead.estimated_job_duration_minutes)}
+                <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">set on Quote</span>
+              </p>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500">Set on the Quote tab</p>
+            )}
           </FieldRow>
 
           <FieldRow label="Notes">
