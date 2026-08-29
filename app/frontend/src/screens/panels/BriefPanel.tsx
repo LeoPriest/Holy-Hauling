@@ -506,14 +506,19 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
             href={buildUploadUrl(intakeShot.stored_path)}
             target="_blank"
             rel="noreferrer"
-            className="block rounded-xl overflow-hidden border border-gray-200 bg-gray-100"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-2 active:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:active:bg-gray-700"
           >
             <img
               src={buildUploadUrl(intakeShot.stored_path)}
-              alt="Thumbtack screenshot"
-              className="w-full object-cover max-h-48"
+              alt="Intake screenshot"
+              className="h-16 w-16 shrink-0 rounded-lg object-cover"
             />
-            <p className="text-xs text-gray-400 px-3 py-1.5">Tap to open full size</p>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-gray-900 dark:text-white">
+                Intake screenshot
+              </span>
+              <span className="block text-xs text-gray-400 dark:text-gray-500">Tap to open</span>
+            </span>
           </a>
         </section>
       )}
