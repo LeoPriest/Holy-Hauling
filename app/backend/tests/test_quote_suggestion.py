@@ -246,3 +246,66 @@ async def test_suggest_quote_capture_failure_does_not_break_quote(client, monkey
          patch("app.services.quote_service._make_client", return_value=_mock_client()):
         r = await client.post(f"/leads/{lead_id}/quote-suggestion")
     assert r.status_code == 200, r.text  # capture failure must not break quoting
+
+
+# ── Structured anchor in the pricing context (2026-08-26) ────────────────────
+
+import json as _json
+
+_PROSE_SECTIONS = {
+    "f_pricing_band": "Two bands apply. Combined ~$525-$725.",
+    "g_band_position": "Mid. Flat access, no stairs.",
+    "l_pricing_guidance": "Target combined quote: $525-$650. Minimum: $475.",
+}
+
+
+def _sections(**extra) -> str:
+    return _json.dumps({**_PROSE_SECTIONS, **extra})
+
+
+def test_pricing_context_leads_with_the_structured_anchor():
+    from app.services.quote_service import _build_pricing_context
+
+    out = _build_pricing_context(_sections(target_low=525, target_high=650, floor=475))
+
+    assert "525" in out and "650" in out and "475" in out
+    # The anchor must precede the prose, so the instruction is read first.
+    assert out.index("525") < out.index("Two bands apply")
+    # The prose is kept, not replaced — it carries reasoning the figures do not.
+    assert "Two bands apply" in out
+    assert "Mid. Flat access" in out
+
+
+def test_pricing_context_without_structured_fields_is_unchanged():
+    from app.services.quote_service import _build_pricing_context
+
+    out = _build_pricing_context(_sections())
+
+    # Byte-identical to the pre-change format. suggest_quote's prompt shape is
+    # load-bearing for every legacy review; silent drift here changes behaviour
+    # on leads nobody re-ran.
+    expected = (
+        "\nPRIOR AI PRICING GUIDANCE:\n"
+        f"f_pricing_band: {_PROSE_SECTIONS['f_pricing_band']}\n"
+        f"g_band_position: {_PROSE_SECTIONS['g_band_position']}\n"
+        f"l_pricing_guidance: {_PROSE_SECTIONS['l_pricing_guidance']}"
+    )
+    assert out == expected
+
+
+def test_pricing_context_falls_back_when_the_figure_set_is_partial():
+    from app.services.quote_service import _build_pricing_context
+
+    # _validate_money guarantees these arrive as a set or not at all, so this
+    # state should be unreachable — but "unreachable" is a claim about today's
+    # validator, and a half-stated anchor would be worse than none.
+    partial = _build_pricing_context(_sections(target_low=525, target_high=650))
+
+    assert "anchor" not in partial.lower()
+    assert partial == _build_pricing_context(_sections())
+
+
+def test_pricing_context_is_empty_when_there_are_no_sections():
+    from app.services.quote_service import _build_pricing_context
+
+    assert _build_pricing_context(_json.dumps({})) == ""

@@ -95,6 +95,51 @@ def _build_scope(lead: Lead) -> dict:
     }
 
 
+_PRICING_PROSE_KEYS = ["f_pricing_band", "g_band_position", "l_pricing_guidance"]
+
+
+def _build_pricing_context(sections_json: str) -> str:
+    """Render the prior-review grounding block from a review's sections JSON.
+
+    When the review carries the structured figures Phase A validated, the block
+    leads with an explicit anchor so the suggestion lands inside the same range
+    the decision card is showing the operator. Otherwise the output is
+    byte-identical to what this produced before that anchor existed — legacy
+    reviews must not silently change behaviour.
+    """
+    try:
+        sections = json.loads(sections_json)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    if not isinstance(sections, dict):
+        return ""
+
+    lines = [f"{key}: {sections[key]}" for key in _PRICING_PROSE_KEYS if sections.get(key)]
+    if not lines:
+        return ""
+
+    prose = "\nPRIOR AI PRICING GUIDANCE:\n" + "\n".join(lines)
+
+    low, high, floor = (
+        sections.get("target_low"),
+        sections.get("target_high"),
+        sections.get("floor"),
+    )
+    # All three or none. A partial set would state a half-anchor, which is
+    # worse than leaving the model to the prose.
+    if not all(isinstance(v, int) for v in (low, high, floor)):
+        return prose
+
+    anchor = (
+        "\nALREADY DECIDED BY THE A-O REVIEW:\n"
+        f"target ${low}-${high}, floor ${floor}.\n"
+        "Anchor your suggestion inside this range. Choose a specific number "
+        "within it using the scope and comparable jobs below — do not derive a "
+        "different band, and never suggest below the floor."
+    )
+    return anchor + prose
+
+
 async def _latest_pricing_context(db: AsyncSession, lead_id: str) -> str:
     """Fold the latest AI review's pricing sections in as extra grounding, if present."""
     result = await db.execute(
@@ -103,15 +148,7 @@ async def _latest_pricing_context(db: AsyncSession, lead_id: str) -> str:
     review = result.scalar_one_or_none()
     if not review:
         return ""
-    try:
-        sections = json.loads(review.sections_json)
-    except (json.JSONDecodeError, TypeError):
-        return ""
-    keys = ["f_pricing_band", "g_band_position", "l_pricing_guidance"]
-    lines = [f"{key}: {sections[key]}" for key in keys if sections.get(key)]
-    if not lines:
-        return ""
-    return "\nPRIOR AI PRICING GUIDANCE:\n" + "\n".join(lines)
+    return _build_pricing_context(review.sections_json)
 
 
 def _format_comparables(comparables: list[ComparableOut]) -> str:
