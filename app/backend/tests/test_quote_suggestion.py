@@ -309,3 +309,57 @@ def test_pricing_context_is_empty_when_there_are_no_sections():
     from app.services.quote_service import _build_pricing_context
 
     assert _build_pricing_context(_json.dumps({})) == ""
+
+
+def test_pricing_context_keeps_the_anchor_when_the_prose_is_empty():
+    from app.services.quote_service import _build_pricing_context
+
+    # Empty prose must not swallow validated figures. Returning "" here would
+    # leave suggest_quote ungrounded and free to re-derive its own band.
+    out = _build_pricing_context(
+        _json.dumps({
+            "f_pricing_band": "",
+            "g_band_position": "",
+            "l_pricing_guidance": "",
+            "target_low": 525,
+            "target_high": 650,
+            "floor": 475,
+        })
+    )
+
+    assert "525" in out and "650" in out and "475" in out
+    assert "ALREADY DECIDED" in out
+    # No prose lines, so no prose block trails the anchor.
+    assert "PRIOR AI PRICING GUIDANCE" not in out
+
+
+def test_pricing_context_is_empty_with_neither_figures_nor_prose():
+    from app.services.quote_service import _build_pricing_context
+
+    assert _build_pricing_context(
+        _json.dumps({"f_pricing_band": "", "g_band_position": "", "l_pricing_guidance": ""})
+    ) == ""
+
+
+def test_pricing_context_does_not_anchor_to_a_hold_review():
+    from app.services.quote_service import _build_pricing_context
+
+    # 'hold' means the scope was too unresolved to price. The decision card
+    # suppresses these figures; the suggestion prompt must too.
+    out = _build_pricing_context(
+        _sections(sayability="hold", target_low=525, target_high=650, floor=475)
+    )
+
+    assert "ALREADY DECIDED" not in out
+    assert "Anchor your suggestion" not in out
+    # The prose still carries reasoning and is kept, exactly as before.
+    assert out == _build_pricing_context(_sections(sayability="hold"))
+    assert "Two bands apply" in out
+
+
+def test_pricing_context_hold_with_no_prose_is_empty():
+    from app.services.quote_service import _build_pricing_context
+
+    assert _build_pricing_context(
+        _json.dumps({"sayability": "hold", "target_low": 525, "target_high": 650, "floor": 475})
+    ) == ""

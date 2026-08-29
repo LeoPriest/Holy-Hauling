@@ -132,7 +132,19 @@ export function validateQuote(draft: QuoteDraft): ValidatedQuote {
 
 // ── Inline builder fields ────────────────────────────────────────────────────
 
-export function QuoteBuilderFields({ draft, floor }: { draft: QuoteDraft; floor?: number | null }) {
+export type DurationSaveState = 'idle' | 'saving' | 'saved' | 'error'
+
+export function QuoteBuilderFields({
+  draft,
+  floor,
+  onDurationCommit,
+  durationSaveState = 'idle',
+}: {
+  draft: QuoteDraft
+  floor?: number | null
+  onDurationCommit?: (value: number | null) => void
+  durationSaveState?: DurationSaveState
+}) {
   const quotedTotalValue = parseMoney(draft.quotedPriceTotal)
   // The floor is a validated figure or it is absent — never a placeholder.
   // quotedTotalValue is null while the field is empty or mid-edit, so an
@@ -173,10 +185,26 @@ export function QuoteBuilderFields({ draft, floor }: { draft: QuoteDraft; floor?
 
       <label className="block space-y-1">
         <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Estimated duration</span>
-        <DurationWheelInput value={draft.estimatedDurationMinutes} onChange={draft.setEstimatedDurationMinutes} />
-        <p className="text-xs text-gray-400 dark:text-gray-500">
-          Google Calendar will use this length when the job has a scheduled time slot.
-        </p>
+        <DurationWheelInput
+          value={draft.estimatedDurationMinutes}
+          onChange={value => {
+            draft.setEstimatedDurationMinutes(value)
+            onDurationCommit?.(value)
+          }}
+        />
+        {durationSaveState === 'saving' ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400">Saving duration…</p>
+        ) : durationSaveState === 'saved' ? (
+          <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">✓ Duration saved</p>
+        ) : durationSaveState === 'error' ? (
+          <p className="text-xs font-medium text-red-600 dark:text-red-400">
+            Couldn’t save the duration. Set it again to retry.
+          </p>
+        ) : (
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            Google Calendar will use this length when the job has a scheduled time slot.
+          </p>
+        )}
       </label>
 
       <div className="space-y-3">

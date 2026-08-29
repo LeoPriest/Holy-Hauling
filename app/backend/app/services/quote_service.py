@@ -115,16 +115,21 @@ def _build_pricing_context(sections_json: str) -> str:
         return ""
 
     lines = [f"{key}: {sections[key]}" for key in _PRICING_PROSE_KEYS if sections.get(key)]
-    if not lines:
-        return ""
-
-    prose = "\nPRIOR AI PRICING GUIDANCE:\n" + "\n".join(lines)
+    # The anchor is built independent of the prose. A review can carry validated
+    # figures and empty prose sections; gating the anchor on the prose would drop
+    # the grounding entirely and let suggest_quote re-derive its own band.
+    prose = "\nPRIOR AI PRICING GUIDANCE:\n" + "\n".join(lines) if lines else ""
 
     low, high, floor = (
         sections.get("target_low"),
         sections.get("target_high"),
         sections.get("floor"),
     )
+    # A hold review means the model judged the scope too unresolved to price, so
+    # its figures are suppressed on the decision card. They must not become an
+    # anchor here either — same seam, same rule.
+    if sections.get("sayability") == "hold":
+        return prose
     # All three or none. A partial set would state a half-anchor, which is
     # worse than leaving the model to the prose.
     if not all(isinstance(v, int) for v in (low, high, floor)):

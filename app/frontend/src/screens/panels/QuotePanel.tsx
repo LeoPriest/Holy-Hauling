@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { usePatchLead, useQuoteBasis, useSuggestQuote, useTriggerAiReview } from '../../hooks/useLeads'
-import type { AiReview, AiReviewSections, Lead } from '../../types/lead'
+import type { AiReview, Lead } from '../../types/lead'
 import type { Comparable } from '../../services/api'
 import { AiChatThread } from '../../components/AiChatThread'
 import { QuoteBasis } from '../../components/QuoteBasis'
-import { QuoteBuilderFields, createLineItem, parseMoney, type QuoteDraft } from '../../components/QuoteBuilder'
+import { QuoteBuilderFields, createLineItem, parseMoney, type DurationSaveState, type QuoteDraft } from '../../components/QuoteBuilder'
 import { useTruckRental } from '../../hooks/useTruckRental'
 
 const PRICING_SECTIONS: {
@@ -40,6 +40,10 @@ interface Props {
 
 export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, bookError, isBooking }: Props) {
   const patch = usePatchLead()
+  // Separate mutation instance so duration saves don't drive the Save Context
+  // button's pending/success label.
+  const durationPatch = usePatchLead()
+  const [durationSaved, setDurationSaved] = useState(false)
   const triggerReview = useTriggerAiReview()
   const [context, setContext] = useState(lead.quote_context ?? '')
   const [saved, setSaved] = useState(false)
@@ -104,6 +108,30 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
     quoteDraft.setLineItems(prev => [...prev, createLineItem('Truck rental', dollars.toFixed(2))])
     quoteDraft.setQuotedPriceTotal((currentTotal + dollars).toFixed(2))
   }
+
+  // The Brief tab tells the operator duration is "set on the Quote tab", so the
+  // Quote control has to persist on change — the draft alone is only written by
+  // lockAndBook, which needs a valid price and flips the lead to booked.
+  function saveDuration(value: number | null) {
+    setDurationSaved(false)
+    durationPatch.mutate(
+      { id: leadId, data: { estimated_job_duration_minutes: value } },
+      {
+        onSuccess: () => {
+          setDurationSaved(true)
+          setTimeout(() => setDurationSaved(false), 2000)
+        },
+      },
+    )
+  }
+
+  const durationSaveState: DurationSaveState = durationPatch.isPending
+    ? 'saving'
+    : durationPatch.isError
+      ? 'error'
+      : durationSaved
+        ? 'saved'
+        : 'idle'
 
   const isBooked = lead.status === 'booked'
 
@@ -262,7 +290,15 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
           </button>
         )}
 
-        <QuoteBuilderFields draft={quoteDraft} floor={aiReview?.sections.floor ?? null} />
+        <QuoteBuilderFields
+          draft={quoteDraft}
+          /* A hold review's figures are suppressed on the decision card, so the
+             floor must not survive here — otherwise the walkaway is the only
+             number on the screen, sitting beside the price input. */
+          floor={aiReview?.sections.sayability === 'hold' ? null : (aiReview?.sections.floor ?? null)}
+          onDurationCommit={saveDuration}
+          durationSaveState={durationSaveState}
+        />
 
         {bookError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{bookError}</p>}
 
