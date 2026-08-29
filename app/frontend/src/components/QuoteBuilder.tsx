@@ -132,8 +132,13 @@ export function validateQuote(draft: QuoteDraft): ValidatedQuote {
 
 // ── Inline builder fields ────────────────────────────────────────────────────
 
-export function QuoteBuilderFields({ draft }: { draft: QuoteDraft }) {
+export function QuoteBuilderFields({ draft, floor }: { draft: QuoteDraft; floor?: number | null }) {
   const quotedTotalValue = parseMoney(draft.quotedPriceTotal)
+  // The floor is a validated figure or it is absent — never a placeholder.
+  // quotedTotalValue is null while the field is empty or mid-edit, so an
+  // untouched field must not read as "below floor".
+  const belowFloor =
+    floor != null && quotedTotalValue != null && quotedTotalValue < floor
   const summedLineItems = roundMoney(
     draft.lineItems.reduce((sum, item) => sum + (parseMoney(item.amount) ?? 0), 0),
   )
@@ -151,6 +156,19 @@ export function QuoteBuilderFields({ draft }: { draft: QuoteDraft }) {
           placeholder="500.00"
           className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         />
+        {floor != null && (
+          <p
+            className={
+              belowFloor
+                ? 'text-xs font-medium text-red-600 dark:text-red-400'
+                : 'text-xs text-gray-400 dark:text-gray-500'
+            }
+          >
+            {belowFloor
+              ? `$${(floor - quotedTotalValue!).toLocaleString('en-US')} below the $${floor.toLocaleString('en-US')} floor`
+              : `Floor $${floor.toLocaleString('en-US')} — do not go below`}
+          </p>
+        )}
       </label>
 
       <label className="block space-y-1">

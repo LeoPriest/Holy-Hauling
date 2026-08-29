@@ -262,7 +262,7 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
           </button>
         )}
 
-        <QuoteBuilderFields draft={quoteDraft} />
+        <QuoteBuilderFields draft={quoteDraft} floor={aiReview?.sections.floor ?? null} />
 
         {bookError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{bookError}</p>}
 
