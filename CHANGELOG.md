@@ -6,6 +6,69 @@ All meaningful development changes for the Holy Hauling app are logged here.
 
 ---
 
+## [2026-09-01] Thumbtack Webhooks — Phase 2 (Leads and Alerts)
+
+### Added
+- **Lead creation from captured deliveries** (`feat/thumbtack-phase-2`): a pure
+  mapper (`thumbtack_mapper.map_lead_payload`) converts a `lead`-classified delivery
+  into `MappedLead` field values, and `thumbtack_service._persist_lead` writes a
+  `Lead` from it — city from the connection, `leadPrice` parsed into
+  `lead_cost_cents` and synced to finance, customer phone stored with
+  `customer_phone_is_proxy = True`. Runs after the raw body is already committed, so
+  a mapping failure marks the event and never loses the delivery.
+- **Push on arrival**: facilitator + admin roles are pushed the moment a lead lands;
+  out-of-area leads say so in the notification text. The Lead is committed before the
+  push is attempted, so a push failure (logged and swallowed) never costs the lead.
+- **Location-mismatch flag**: when the description names a zip or US state
+  (allow-listed against the 50 USPS codes + DC) that doesn't match the connection's
+  search area, a `[WARNING]` line is appended to `Lead.quote_context`. Never
+  suppresses the lead — it was paid for either way.
+- **Idempotent redelivery and test-ping handling**: the same `negotiationID`
+  delivered twice creates no second lead or expense; Thumbtack's webhook-creation
+  test ping (no `negotiationID`) creates nothing.
+- **Retry button** on `/admin/thumbtack`, doing two jobs depending on the event: a
+  **replay** of an event that never became a lead, and a **heal** of an event whose
+  Lead was created but whose finance sync failed (`processed` with a non-null
+  `event.error`, not `failed`). The button renders on `status === 'failed'`,
+  `kind === 'unknown'`, **or a non-null `event.error`** — the third condition is what
+  makes the heal case reachable. `RetryResult.created` is `True` only for a genuine
+  new-Lead insert; a found-existing or healed retry returns `created: False` with a
+  non-null `lead_id`.
+
+### Corrected from the design spec during review
+- **`RetryResult.created`** originally meant `event.lead_id is not None`, which
+  conflated a genuine insert with "found an existing lead." Fixed to mean "this call
+  inserted a new Lead row" — nothing else.
+- **The spec's payload-mapping table claimed `Lead.source_business` /
+  `thumbtack_business_id` columns.** Neither exists. The Thumbtack business identity
+  is not queryable off a Lead; it survives only in `Lead.raw_payload` and the webhook
+  event's stored raw body (90-day retention).
+- **The out-of-area check uses an allow-list**, not the denylist the spec assumed —
+  an early denylist excluded "OK" and "ID" as prose words, silently suppressing the
+  Oklahoma/Idaho mismatches it was built to catch.
+- **The AI review does not auto-run on webhook leads**, unlike the screenshot-intake
+  path — a paid model call on every inbound lead (including broker and out-of-area
+  ones) was judged not worth it. The facilitator taps "Run AI review" per lead.
+
+### Notes
+- See spec: `docs/superpowers/specs/2026-09-01-thumbtack-phase-2-design.md`
+- See plan: `docs/superpowers/plans/2026-09-01-thumbtack-phase-2.md`
+- No database migration — every column this phase writes already existed on `Lead`.
+- **No backfill.** Deliveries captured before this shipped are still raw rows with no
+  Lead; they can be replayed one at a time from the Retry button.
+- **Known, pre-existing, out of scope this phase:** `push_service._send_one` calls
+  `pywebpush` as a blocking call inside an async function, with no timeout — a
+  wedged push provider can stall a webhook response (never costs the lead, since the
+  Lead commits first). No index on `Lead.source_reference_id`, which the idempotency
+  lookup queries on every delivery. No frontend test harness exists; the retry button
+  is verified by `tsc`, `npm run build`, and a human pass on a real device.
+
+### Verified
+- Backend suite: 514 passed, 0 failed (full suite, 2026-09-01)
+- Frontend: `tsc --noEmit` and `npm run build` both pass (2026-09-01)
+
+---
+
 ## [2026-08-26] Lead Window — Phase B (Density and One-Voice Pricing)
 
 ### Added

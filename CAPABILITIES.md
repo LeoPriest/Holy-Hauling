@@ -22,12 +22,113 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 - `GET /admin/thumbtack/events` paginated delivery feed: validates `limit` (1–200) and
   returns 422 for values outside that range; returns raw body, classification, timestamp,
   and connection details.
-- **No leads, messages, or reviews are created yet.** Phase 1 captures only; mapping
-  arrives in Phase 2 once the real payload shape is confirmed.
+- **Messages and reviews are still capture-only.** Phase 2 (below) maps `lead`
+  deliveries into Leads; message/review mapping is not built.
 
 **Known limitation:** the older `POST /ingest/webhook/thumbtack` route is unusable in
 production — it requires a logged-in user and expects a payload shape Thumbtack does
-not send. Phase 2 replaces it. Do not point Thumbtack at it.
+not send. The token-scoped receiver above replaces it. Do not point Thumbtack at it.
+
+---
+
+### Thumbtack webhooks — Phase 2 (leads and alerts)
+
+- A delivery classified `lead` becomes a Lead in the facilitator queue: city pinned
+  from the connection, `leadPrice` parsed into `lead_cost_cents` and synced to
+  finance (idempotent — a redelivery adds no second expense), and the customer's
+  phone recorded as a **Thumbtack proxy line** (`customer_phone_is_proxy = True`)
+  rather than their real number.
+- A refunded delivery (`chargeState == "Refunded"`) runs `mark_refunded` instead of
+  a direct cost sync, which drops the realized cost to zero and reverses the finance
+  expense the same way a manual refund does.
+- The facilitator and admin roles are pushed the moment a lead lands
+  (`send_push_to_roles(..., ["facilitator", "admin"], city_id=...)`). Out-of-area
+  leads say so in the notification text (`· WARNING address may be out of area`). A
+  push failure is logged and swallowed — the Lead is committed before the push is
+  attempted, so a wedged or failing push provider never costs the lead, only the
+  alert.
+- **Location mismatch flag.** `location` carries the search-area city/state/zip; the
+  street address, when present at all, is only in the description prose (`address1`/
+  `address2` are empty on every observed lead). When the description names a zip
+  whose leading digit differs from the search area's, or a US state code other than
+  the search area's own, the lead is flagged as a `[WARNING]` line appended to
+  `Lead.quote_context` (no new column) — never suppressed,
+  since the lead was paid for either way. The state check matches against an
+  **allow-list of the 50 USPS codes plus DC**, not a denylist — an earlier denylist
+  excluded "OK" and "ID" as ordinary prose words, which silently ate the Oklahoma and
+  Idaho mismatches it existed to catch. Accepted residual: a description that happens
+  to contain the word "OK" (as in "that's OK") can still produce a false positive.
+  That's the accepted tradeoff — the flag only ever adds a warning, never hides a
+  lead, so a false positive costs a glance and a false negative costs a shipped
+  problem.
+- **Thumbtack's business identity does not live on the Lead.** `Lead` has no
+  `source_business` or `thumbtack_business_id` column — an earlier version of this
+  plan assumed one, and it was wrong. The mapper extracts `business.businessID` from
+  the payload, but the persister never writes it to a Lead field; it survives only
+  inside `Lead.raw_payload` (kept indefinitely) and the webhook event's stored raw
+  body (90-day retention, pruned by `prune_old_events`). If per-business reporting is
+  ever needed, it has to be read back out of one of those two places, not queried off
+  `Lead` directly.
+- Re-delivery of the same `negotiationID` creates no second lead and no second
+  finance expense — `_persist_lead`'s idempotency lookup on
+  `(source_reference_id, source_type)` returns the existing lead id and does not
+  touch cost sync or push again.
+- Thumbtack's synthetic test ping (sent on webhook creation) carries no
+  `negotiationID` and creates no lead (`map_lead_payload` returns `None`).
+- **The AI review does not auto-run on webhook leads**, deliberately — unlike the
+  screenshot-intake path, which does chain OCR → AI review automatically
+  (`IngestProgressFlow.tsx`). Auto-running it here would be a paid model call on
+  every inbound lead, including broker leads and out-of-area ones the facilitator
+  may never act on. The facilitator taps "Run AI review" per lead, same as any other
+  lead.
+- **Failed deliveries can be retried from `/admin/thumbtack`**, and retry does two
+  different jobs depending on the event:
+  - **Replay.** An event that never became a lead (`failed` status, or `unknown`
+    kind) is re-mapped from its stored raw body — no request back to Thumbtack.
+  - **Heal.** A delivery that already created its Lead but whose finance sync failed
+    ends `processed`, not `failed` — the Lead is real, and marking it `failed` would
+    invite a retry that (per the idempotency lookup) can never re-create it or fix
+    anything. `event.error` carries `"lead created but lead cost sync failed: ..."`
+    in this case. Retrying that event re-runs the cost sync against the
+    already-created lead and clears `event.error` on success. Because of this, the
+    admin screen's Retry button renders on **three** conditions, not one:
+    `event.status === 'failed' OR event.kind === 'unknown' OR event.error` — the
+    third is what makes a `processed`-but-erroring event reachable at all.
+  - `RetryResult.created` is `True` **only** when the retry call genuinely inserted a
+    new Lead row. A retry that found an existing lead via the idempotency lookup, or
+    one that only healed a cost sync, returns `created: False` with a non-null
+    `lead_id` — the two are not distinguished on the wire; both read as "Lead already
+    existed — nothing new created" in the UI. "No lead at all" is the only case with
+    `lead_id: None`.
+
+**Payload note.** The published Thumbtack documentation is wrong about seven fields —
+`customer.name` is actually `firstName`/`lastName`, `category` is an object,
+`request.title` does not exist, `schedule` is `proposedTimes[]`, `leadPrice` is the
+string `"$15.88"`, `chargeState` is `"Charged"`, and `location.address1` is empty. The
+real captured body is checked in at `app/backend/tests/fixtures/thumbtack_lead_v4.json`
+and is the authority.
+
+**Not in Phase 2:** photos (`request.attachments[]`), inbound messages, replying to
+Thumbtack, and extracting the street address out of description prose. The AI review
+does not auto-run on webhook leads (see above). Deliveries captured before Phase 2
+shipped are still raw rows with no Lead — no backfill script was written; they can be
+replayed one at a time from `/admin/thumbtack`'s Retry button once a connection
+exists to own them.
+
+**Known limitations carried into Phase 2, out of scope for this phase:**
+- `push_service._send_one` (called from `send_push_to_roles`/`send_push_to_user`)
+  invokes `pywebpush.webpush` as a plain blocking call from inside an `async def`,
+  with no timeout — not offloaded to a thread pool. A wedged push provider blocks the
+  event loop for the request that triggered it. Pre-existing before this phase; the
+  Lead is always committed before the push is attempted, so this can stall a webhook
+  response but cannot cost a lead.
+- **No index on `Lead.source_reference_id`**, which the idempotency lookup above
+  queries on every delivery. Pre-existing; a migration was ruled out of scope for
+  this phase (the plan's global constraint was "no database migration — every column
+  this writes already exists on `Lead`").
+- **No frontend test harness exists in this repo.** The retry button (and everything
+  else on the React side) is verified by `tsc --noEmit`, `npm run build`, and a human
+  pass on a real device — not by an automated UI test suite.
 
 ---
 
