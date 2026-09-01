@@ -283,6 +283,14 @@ async def _persist_lead(
     # Captured now, not read off `lead` after a possible rollback below — same
     # expired-instance trap as `conn.id` in record_event.
     lead_id = lead.id
+    # Push message values captured here too: `conn` is bound to `db` and a
+    # rollback in either branch below would expire it just like `lead`. None
+    # of these are ORM instances once copied out, so they survive the rollback.
+    push_city_id = conn.city_id
+    push_first_name = (mapped.customer_name or "New lead").split(" ")[0]
+    push_category = mapped.service_type.value if mapped.service_type else "lead"
+    push_where = mapped.job_location or conn.city_id
+    push_location_mismatch = mapped.location_mismatch
 
     # A failure past this point must never look like a failed delivery: the
     # Lead row is already committed and real. It is marked `processed` either
@@ -315,6 +323,23 @@ async def _persist_lead(
             logger.exception("thumbtack lead cost sync failed lead=%s", lead_id)
             await db.rollback()
             cost_sync_error = str(exc)
+
+    # The notification is why any of this matters — he works leads from a truck
+    # between other jobs and will not be watching the app. Built from the
+    # locals captured above, not from `lead`/`mapped` reads that could follow
+    # a rollback.
+    message = f"New Thumbtack lead — {push_first_name} · {push_category} · {push_where}"
+    if push_location_mismatch:
+        message += " · WARNING address may be out of area"
+
+    try:
+        await push_service.send_push_to_roles(
+            db, ["facilitator", "admin"], message, city_id=push_city_id
+        )
+    except Exception:
+        # A lead that landed with no ping still beats no lead. Log the lead id
+        # only — the message text carries the customer's name and is PII.
+        logger.exception("thumbtack lead push failed lead=%s", lead_id)
 
     event.lead_id = lead_id
     event.status = "processed"

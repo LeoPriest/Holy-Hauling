@@ -1069,3 +1069,77 @@ async def test_redelivery_links_exactly_one_finance_transaction(client, db_sessi
     )).scalar()
 
     assert count == 1
+
+
+# ── Task 4: notify the phone ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_new_lead_pushes_to_the_facilitator(client, db_session, monkeypatch):
+    from app.services import push_service, thumbtack_service
+
+    sent: list[tuple[list[str], str, str | None]] = []
+
+    async def _capture(db, roles, message, city_id=None):
+        sent.append((roles, message, city_id))
+        return 1
+
+    monkeypatch.setattr(push_service, "send_push_to_roles", _capture)
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+
+    assert len(sent) == 1
+    roles, message, city_id = sent[0]
+    assert "facilitator" in roles
+    assert city_id == "st-louis"
+    assert "Handyman" in message
+
+
+@pytest.mark.asyncio
+async def test_an_out_of_area_lead_says_so_in_the_notification(client, db_session, monkeypatch):
+    from app.services import push_service, thumbtack_service
+
+    sent: list[str] = []
+
+    async def _capture(db, roles, message, city_id=None):
+        sent.append(message)
+        return 1
+
+    monkeypatch.setattr(push_service, "send_push_to_roles", _capture)
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    # The real body has a CT address under a St. Louis location.
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+
+    # He must be able to triage from the notification without opening the app.
+    assert "out of area" in sent[0].lower()
+
+
+@pytest.mark.asyncio
+async def test_a_push_failure_does_not_lose_the_lead(client, db_session, monkeypatch):
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import push_service, thumbtack_service
+
+    async def _boom(db, roles, message, city_id=None):
+        raise RuntimeError("push service down")
+
+    monkeypatch.setattr(push_service, "send_push_to_roles", _boom)
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+
+    assert r.status_code == 200
+    # The lead is the valuable artifact; the notification is a convenience.
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one_or_none()
+    assert lead is not None
