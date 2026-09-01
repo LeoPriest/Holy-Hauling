@@ -236,7 +236,10 @@ async def _persist_lead(
         return None   # test ping, or a body carrying no negotiationID
 
     existing = await db.execute(
-        select(Lead).where(Lead.source_reference_id == mapped.source_reference_id).limit(1)
+        select(Lead).where(
+            Lead.source_reference_id == mapped.source_reference_id,
+            Lead.source_type == LeadSourceType.thumbtack_api,
+        ).limit(1)
     )
     already = existing.scalar_one_or_none()
     if already is not None:
@@ -277,29 +280,50 @@ async def _persist_lead(
     db.add(lead)
     await db.commit()
     await db.refresh(lead)
+    # Captured now, not read off `lead` after a possible rollback below — same
+    # expired-instance trap as `conn.id` in record_event.
+    lead_id = lead.id
+
+    # A failure past this point must never look like a failed delivery: the
+    # Lead row is already committed and real. It is marked `processed` either
+    # way; a sync failure is surfaced as a loud `event.error`, not a `failed`
+    # status that would invite a retry that (per the idempotency lookup above)
+    # can never actually retry the sync.
+    cost_sync_error: str | None = None
 
     if mapped.is_refunded:
         # Signature is mark_refunded(db, lead_id, on, actor=..., city_id=...) —
         # `on` is a required positional, not a keyword with a default.
-        await lead_service.mark_refunded(
-            db, lead.id, True, actor="thumbtack_webhook", city_id=conn.city_id
-        )
-
-    # Mirrors a manually entered cost into finance. Idempotent via
-    # lead_cost_finance_transaction_id, so a redelivery adds no second expense.
-    if mapped.lead_cost_cents is not None:
+        # mark_refunded calls sync_lead_cost_expense internally, so this is
+        # also where a refunded lead's cost sync can fail — no separate direct
+        # call follows for a refunded lead (it would just repeat this one).
+        try:
+            await lead_service.mark_refunded(
+                db, lead_id, True, actor="thumbtack_webhook", city_id=conn.city_id
+            )
+        except Exception as exc:
+            logger.exception("thumbtack lead refund sync failed lead=%s", lead_id)
+            await db.rollback()
+            cost_sync_error = str(exc)
+    elif mapped.lead_cost_cents is not None:
+        # Mirrors a manually entered cost into finance. Idempotent via
+        # lead_cost_finance_transaction_id, so a redelivery adds no second expense.
         try:
             await lead_cost_service.sync_lead_cost_expense(db, lead)
             await db.commit()
-        except Exception:
-            logger.exception("thumbtack lead cost sync failed lead=%s", lead.id)
+        except Exception as exc:
+            logger.exception("thumbtack lead cost sync failed lead=%s", lead_id)
+            await db.rollback()
+            cost_sync_error = str(exc)
 
-    event.lead_id = lead.id
+    event.lead_id = lead_id
     event.status = "processed"
+    if cost_sync_error:
+        event.error = f"lead created but lead cost sync failed: {cost_sync_error}"
     event.processed_at = _now()
     await db.commit()
 
-    return lead.id
+    return lead_id
 
 
 async def record_event(

@@ -1005,3 +1005,67 @@ async def test_a_mapping_failure_marks_the_event_and_keeps_the_body(client, db_s
     events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
     assert events[0].status == "failed"
     assert "589129524549820420" in events[0].raw_body
+
+
+# ── Fix round 1: refund path + finance idempotency ───────────────────────────
+
+import copy as _copy
+
+
+@pytest.mark.asyncio
+async def test_a_refunded_delivery_creates_a_lead_and_applies_the_refund(client, db_session):
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    body = _copy.deepcopy(_real_lead_body())
+    body["data"]["chargeState"] = "Refunded"
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+
+    # Reloaded from the DB rather than trusting the in-memory instance — this
+    # is the assertion that would catch mark_refunded's required positional
+    # `on` being dropped by a future refactor.
+    await db_session.refresh(lead)
+    assert lead.lead_refunded_at is not None
+
+
+@pytest.mark.asyncio
+async def test_redelivery_links_exactly_one_finance_transaction(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.finance import FinanceTransaction
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    body = _real_lead_body()
+    for _ in range(2):
+        r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+        assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+
+    assert lead.lead_cost_finance_transaction_id is not None
+
+    count = (await db_session.execute(
+        sa_select(func.count()).select_from(FinanceTransaction)
+        .where(FinanceTransaction.lead_id == lead.id)
+    )).scalar()
+
+    assert count == 1
