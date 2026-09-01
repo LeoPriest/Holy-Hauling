@@ -142,7 +142,9 @@ export interface Lead {
   city_slug: string | null
   source_type: LeadSourceType
   source_reference_id: string | null
-  raw_payload: string | null
+  // Not on the shared response shape (backend's LeadOut carries no
+  // raw_payload field at all — it lives only on the GET /leads/{id} detail
+  // response, which this app does not currently type or fetch separately).
   status: LeadStatus
   urgency_flag: boolean
   // null for ingest stubs not yet confirmed by OCR or the facilitator

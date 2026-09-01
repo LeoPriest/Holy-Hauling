@@ -419,7 +419,10 @@ function EventsFeed() {
             {event.error && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">{event.error}</p>
             )}
-            {(event.status === 'failed' || event.kind === 'unknown' || event.error) && (
+            {(event.status === 'failed' ||
+              event.kind === 'unknown' ||
+              event.error ||
+              (event.kind === 'lead' && !event.lead_id)) && (
               <div className="mt-2">
                 <button
                   onClick={() => handleRetry(event.id)}
