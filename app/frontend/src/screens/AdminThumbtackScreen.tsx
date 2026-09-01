@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { useCities } from '../hooks/useCities'
@@ -338,19 +338,37 @@ function EventsFeed() {
   const { data: events = [] } = useThumbtackEvents()
   const [expanded, setExpanded] = useState<string | null>(null)
   const retry = useRetryThumbtackEvent()
-  // Tracked per event id, not off retry.isPending — a single mutation hook is shared
-  // across every row, so isPending alone would freeze every other row's button while
-  // one retry is in flight.
-  const [retryingId, setRetryingId] = useState<string | null>(null)
-  const [retryError, setRetryError] = useState<{ id: string; message: string } | null>(null)
-  const [retrySuccess, setRetrySuccess] = useState<{ id: string; message: string } | null>(null)
+  // Keyed by event id, not scalar — a single mutation hook is shared across every
+  // row, so any single-value "which row is busy / which row just spoke" state gets
+  // clobbered the moment a second row is retried before the first settles. An
+  // outage that leaves several failed deliveries listed at once is the normal case
+  // this button exists for, so working through them concurrently has to be safe.
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set())
+  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({})
+  const [retrySuccesses, setRetrySuccesses] = useState<Record<string, string>>({})
+  // Synchronous guard against a fast double-tap issuing two POSTs for the same row —
+  // state updates are batched and re-render before the disabled prop can stop a
+  // second click dispatched in the same tick, so the check itself can't rely on state.
+  const inFlight = useRef<Set<string>>(new Set())
 
   if (events.length === 0) return null
 
   function handleRetry(eventId: string) {
-    setRetryingId(eventId)
-    setRetryError(null)
-    setRetrySuccess(null)
+    if (inFlight.current.has(eventId)) return
+    inFlight.current.add(eventId)
+    setRetryingIds(prev => new Set(prev).add(eventId))
+    setRetryErrors(prev => {
+      if (!(eventId in prev)) return prev
+      const next = { ...prev }
+      delete next[eventId]
+      return next
+    })
+    setRetrySuccesses(prev => {
+      if (!(eventId in prev)) return prev
+      const next = { ...prev }
+      delete next[eventId]
+      return next
+    })
     retry.mutate(eventId, {
       onSuccess: result => {
         // Three distinct outcomes on a successful call — a flat "Retried" hides which
@@ -360,14 +378,21 @@ function EventsFeed() {
           : result.lead_id
             ? 'Lead already existed — nothing new created.'
             : 'Nothing needed doing.'
-        setRetrySuccess({ id: eventId, message })
+        setRetrySuccesses(prev => ({ ...prev, [eventId]: message }))
       },
-      onError: err =>
-        setRetryError({
-          id: eventId,
-          message: err instanceof Error ? err.message : 'Retry failed',
-        }),
-      onSettled: () => setRetryingId(null),
+      onError: err => {
+        const message = err instanceof Error ? err.message : 'Retry failed'
+        setRetryErrors(prev => ({ ...prev, [eventId]: message }))
+      },
+      onSettled: () => {
+        inFlight.current.delete(eventId)
+        setRetryingIds(prev => {
+          if (!prev.has(eventId)) return prev
+          const next = new Set(prev)
+          next.delete(eventId)
+          return next
+        })
+      },
     })
   }
 
@@ -394,25 +419,25 @@ function EventsFeed() {
             {event.error && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">{event.error}</p>
             )}
-            {(event.status === 'failed' || event.kind === 'unknown') && (
+            {(event.status === 'failed' || event.kind === 'unknown' || event.error) && (
               <div className="mt-2">
                 <button
                   onClick={() => handleRetry(event.id)}
-                  disabled={retryingId === event.id}
+                  disabled={retryingIds.has(event.id)}
                   className={`${TOUCH} rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white disabled:opacity-40`}
                 >
-                  {retryingId === event.id ? 'Retrying…' : 'Retry'}
+                  {retryingIds.has(event.id) ? 'Retrying…' : 'Retry'}
                 </button>
               </div>
             )}
-            {retryError?.id === event.id && (
+            {retryErrors[event.id] && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {retryError.message}
+                {retryErrors[event.id]}
               </p>
             )}
-            {retrySuccess?.id === event.id && (
+            {retrySuccesses[event.id] && (
               <p className="mt-1 text-xs text-green-600 dark:text-green-400">
-                {retrySuccess.message}
+                {retrySuccesses[event.id]}
               </p>
             )}
             {expanded === event.id && (
