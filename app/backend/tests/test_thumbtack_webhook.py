@@ -1189,6 +1189,7 @@ async def test_retry_maps_a_delivery_that_failed_the_first_time(client, db_sessi
 async def test_retrying_an_already_processed_delivery_creates_no_duplicate(client, db_session):
     from sqlalchemy import func, select as sa_select
 
+    from app.models.finance import FinanceTransaction
     from app.models.lead import Lead
     from app.services import thumbtack_service
 
@@ -1206,8 +1207,132 @@ async def test_retrying_an_already_processed_delivery_creates_no_duplicate(clien
     )).scalar()
     assert count == 1
 
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    # The heal path is idempotent too: a lead whose expense already synced on
+    # first ingest must not pick up a second FinanceTransaction on retry.
+    tx_count = (await db_session.execute(
+        sa_select(func.count()).select_from(FinanceTransaction)
+        .where(FinanceTransaction.lead_id == lead.id)
+    )).scalar()
+    assert tx_count == 1
+
 
 @pytest.mark.asyncio
 async def test_retrying_an_unknown_event_id_is_a_404(client):
     r = await client.post("/admin/thumbtack/events/no-such-event/retry")
     assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_retry_heals_a_lead_whose_cost_sync_failed(client, db_session, monkeypatch):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.finance import FinanceTransaction
+    from app.models.lead import Lead
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import lead_cost_service, thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    async def _boom(db, lead):
+        raise RuntimeError("finance down")
+
+    monkeypatch.setattr(lead_cost_service, "sync_lead_cost_expense", _boom)
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+    monkeypatch.undo()
+
+    assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    assert lead.lead_cost_finance_transaction_id is None
+
+    event = (await db_session.execute(
+        sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.connection_id == conn.id)
+    )).scalar_one()
+    assert event.status == "processed"
+    assert event.error is not None
+    assert "lead cost sync failed" in event.error
+
+    r = await client.post(f"/admin/thumbtack/events/{event.id}/retry")
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["event"]["error"] is None
+
+    await db_session.refresh(lead)
+    assert lead.lead_cost_finance_transaction_id is not None
+
+    tx_count = (await db_session.execute(
+        sa_select(func.count()).select_from(FinanceTransaction)
+        .where(FinanceTransaction.lead_id == lead.id)
+    )).scalar()
+    assert tx_count == 1
+
+    # `event` was already loaded into this session's identity map before the
+    # retry ran on the app's own request-scoped session, so a plain re-select
+    # would hand back the stale cached row rather than what retry committed —
+    # refresh, the same house pattern used for `lead` above.
+    await db_session.refresh(event)
+    assert event.error is None
+    assert event.status == "processed"
+
+
+@pytest.mark.asyncio
+async def test_retry_event_own_failure_leaves_the_body_and_creates_no_lead(
+    client, db_session, monkeypatch
+):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    def _boom_map(_body):
+        raise RuntimeError("transient")
+
+    monkeypatch.setattr(thumbtack_service, "map_lead_payload", _boom_map)
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+    monkeypatch.undo()
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    event_id = events[0].id
+    assert events[0].status == "failed"
+
+    async def _boom_persist(db, conn, event, body):
+        raise RuntimeError("still transient")
+
+    monkeypatch.setattr(thumbtack_service, "_persist_lead", _boom_persist)
+    r = await client.post(f"/admin/thumbtack/events/{event_id}/retry")
+    monkeypatch.undo()
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["event"]["status"] == "failed"
+    assert "still transient" in payload["event"]["error"]
+    assert payload["created"] is False
+
+    # `events[0]` was loaded into this session's identity map before retry ran
+    # on the app's own request-scoped session — refresh rather than re-select,
+    # same house pattern used elsewhere for `lead`.
+    stored = events[0]
+    await db_session.refresh(stored)
+    assert stored.status == "failed"
+    assert stored.error is not None
+    assert "still transient" in stored.error
+    # The raw body — the whole point of retry — survives an in-retry failure.
+    assert "589129524549820420" in stored.raw_body
+
+    lead_count = (await db_session.execute(
+        sa_select(func.count()).select_from(Lead)
+        .where(Lead.source_reference_id == "589129524549820420")
+    )).scalar()
+    assert lead_count == 0

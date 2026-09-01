@@ -381,13 +381,44 @@ async def retry_event(db: AsyncSession, event_id: str) -> Optional[ThumbtackWebh
         return event
 
     try:
-        await _persist_lead(db, conn, event, parsed)
+        lead_id = await _persist_lead(db, conn, event, parsed)
     except Exception as exc:
         await db.rollback()
         event.status = "failed"
         event.error = f"Mapping failed: {exc}"
         await db.commit()
         logger.exception("thumbtack retry failed event=%s", event.id)
+    else:
+        # _persist_lead's own idempotency lookup means a retry of an
+        # already-persisted delivery returns the existing lead id without
+        # touching cost sync or push — so a `processed` event that still
+        # carries Task 3's "lead created but lead cost sync failed" error
+        # would otherwise never heal. Do that here, on the retry path only:
+        # load the lead and, if it has a known cost but no linked expense yet
+        # and was never refunded (mark_refunded owns that lead's expense),
+        # run the same idempotent sync_lead_cost_expense the original
+        # delivery would have run.
+        if lead_id is not None:
+            lead_result = await db.execute(select(Lead).where(Lead.id == lead_id).limit(1))
+            lead = lead_result.scalar_one_or_none()
+            if (
+                lead is not None
+                and lead.lead_cost_cents is not None
+                and lead.lead_cost_finance_transaction_id is None
+                and lead.lead_refunded_at is None
+            ):
+                try:
+                    await lead_cost_service.sync_lead_cost_expense(db, lead)
+                    # The stale "cost sync failed" string is now false.
+                    event.error = None
+                    await db.commit()
+                except Exception as exc:
+                    await db.rollback()
+                    logger.exception(
+                        "thumbtack retry cost sync heal failed lead=%s", lead_id
+                    )
+                    event.error = f"lead created but lead cost sync failed: {exc}"
+                    await db.commit()
 
     await db.refresh(event)
     return event
