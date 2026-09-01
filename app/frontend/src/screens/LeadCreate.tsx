@@ -18,15 +18,28 @@ interface Props {
   onClose: () => void
 }
 
-function parseAllFields(extraction: IngestResult['extraction']): Record<string, string> {
-  if (!extraction?.extracted_fields) return {}
-  try {
-    const fields: OcrField[] = JSON.parse(extraction.extracted_fields)
-    return Object.fromEntries(fields.map(f => [f.field, f.value]))
-  } catch {
-    return {}
+function parseAllFields(extractions: IngestResult['extractions']): Record<string, string> {
+  if (!extractions?.length) return {}
+  // Several shots of one lead each contribute fields. Where two shots offer
+  // different values for the same field, suggest neither — the same rule the
+  // backend applies to auto-writes, so the form never quietly picks a winner.
+  const seen: Record<string, Set<string>> = {}
+  for (const extraction of extractions) {
+    if (!extraction?.extracted_fields) continue
+    try {
+      const fields: OcrField[] = JSON.parse(extraction.extracted_fields)
+      for (const f of fields) (seen[f.field] ??= new Set()).add(f.value)
+    } catch {
+      continue
+    }
   }
+  return Object.fromEntries(
+    Object.entries(seen)
+      .filter(([, values]) => values.size === 1)
+      .map(([field, values]) => [field, [...values][0]]),
+  )
 }
+
 
 export function LeadCreate({ onClose }: Props) {
   const { cities, requiredCityId } = useCity()
@@ -71,7 +84,7 @@ export function LeadCreate({ onClose }: Props) {
 
   // ── screenshot path ──────────────────────────────────────────────────────
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = (file: File | File[]) => {
     setIngestError(null)
     setStage('processing')
     ingest.mutate(
@@ -79,7 +92,7 @@ export function LeadCreate({ onClose }: Props) {
       {
         onSuccess: (result) => {
           setIngestResult(result)
-          const extracted = parseAllFields(result.extraction)
+          const extracted = parseAllFields(result.extractions)
           const requestedDates = mergeDateOptions(
             result.lead.move_date_options ?? [],
             extracted['move_date_options'],
@@ -227,23 +240,24 @@ export function LeadCreate({ onClose }: Props) {
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => {
                   e.preventDefault()
-                  const f = e.dataTransfer.files[0]
-                  if (f) handleFileSelect(f)
+                  const fs = Array.from(e.dataTransfer.files)
+                  if (fs.length) handleFileSelect(fs)
                 }}
                 onClick={() => fileRef.current?.click()}
                 className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
               >
                 <p className="text-3xl mb-2">📂</p>
-                <p className="text-sm font-medium text-gray-700">Drop screenshot here, or tap to select</p>
-                <p className="text-xs text-gray-400 mt-1">JPEG, PNG, or WebP</p>
+                <p className="text-sm font-medium text-gray-700">Drop screenshot(s) here, or tap to select</p>
+                <p className="text-xs text-gray-400 mt-1">JPEG, PNG, or WebP · several shots of one lead become one lead</p>
                 <input
                   ref={fileRef}
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
+                  multiple
                   onChange={e => {
-                    const f = e.target.files?.[0]
-                    if (f) handleFileSelect(f)
+                    const fs = Array.from(e.target.files ?? [])
+                    if (fs.length) handleFileSelect(fs)
                   }}
                 />
               </div>

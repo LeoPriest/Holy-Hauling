@@ -68,7 +68,7 @@ def _jpg() -> bytes:
 async def test_ingest_screenshot_creates_lead(client):
     r = await client.post(
         "/ingest/screenshot",
-        files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+        files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
         data={"source_type": "thumbtack_screenshot"},
     )
     assert r.status_code == 201
@@ -88,7 +88,7 @@ async def test_ingest_screenshot_by_facilitator_auto_acknowledges(client):
     try:
         r = await client.post(
             "/ingest/screenshot",
-            files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+            files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
             data={"source_type": "thumbtack_screenshot"},
         )
     finally:
@@ -106,7 +106,7 @@ async def test_ingest_screenshot_customer_name_is_null_without_ocr(client, monke
 
     r = await client.post(
         "/ingest/screenshot",
-        files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+        files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
         data={"source_type": "thumbtack_screenshot"},
     )
     assert r.status_code == 201
@@ -119,12 +119,14 @@ async def test_ingest_screenshot_skips_ocr_when_unconfigured(client, monkeypatch
 
     r = await client.post(
         "/ingest/screenshot",
-        files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+        files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
         data={"source_type": "yelp_screenshot"},
     )
     assert r.status_code == 201
     body = r.json()
-    assert body["extraction"] is None
+    # `extractions` is plural now — one entry per shot that OCR read. With OCR
+    # unconfigured, nothing is read and the list is empty.
+    assert body["extractions"] == []
     assert body["auto_applied_fields"] == []
 
 
@@ -135,7 +137,7 @@ async def test_ingest_screenshot_runs_ocr_and_auto_applies_high_confidence(clien
     with patch("app.services.ocr_service._make_client", return_value=_ocr_mock()):
         r = await client.post(
             "/ingest/screenshot",
-            files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+            files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
             data={"source_type": "thumbtack_screenshot"},
         )
 
@@ -161,7 +163,7 @@ async def test_ingest_screenshot_medium_confidence_not_auto_applied(client, monk
     with patch("app.services.ocr_service._make_client", return_value=_ocr_mock(ocr_payload)):
         r = await client.post(
             "/ingest/screenshot",
-            files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+            files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
             data={"source_type": "thumbtack_screenshot"},
         )
 
@@ -174,7 +176,7 @@ async def test_ingest_screenshot_medium_confidence_not_auto_applied(client, monk
 async def test_ingest_screenshot_lead_appears_in_queue(client):
     r = await client.post(
         "/ingest/screenshot",
-        files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+        files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
         data={"source_type": "google_screenshot"},
     )
     lead_id = r.json()["lead"]["id"]
@@ -186,7 +188,7 @@ async def test_ingest_screenshot_lead_appears_in_queue(client):
 async def test_ingest_screenshot_invalid_file_type(client):
     r = await client.post(
         "/ingest/screenshot",
-        files={"file": ("doc.pdf", b"%PDF-1.4", "application/pdf")},
+        files=[("files", ("doc.pdf", b"%PDF-1.4", "application/pdf"))],
         data={"source_type": "thumbtack_screenshot"},
     )
     assert r.status_code == 400
@@ -195,7 +197,7 @@ async def test_ingest_screenshot_invalid_file_type(client):
 async def test_ingest_screenshot_invalid_source_type(client):
     r = await client.post(
         "/ingest/screenshot",
-        files={"file": ("test.jpg", _jpg(), "image/jpeg")},
+        files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
         data={"source_type": "manual"},  # not a screenshot source
     )
     assert r.status_code == 400
@@ -273,3 +275,199 @@ async def test_ingest_webhook_different_lead_ids_create_separate_leads(client):
     assert r1.json()["lead"]["id"] != r2.json()["lead"]["id"]
     assert r1.json()["was_duplicate"] is False
     assert r2.json()["was_duplicate"] is False
+
+
+# ---------------------------------------------------------------------------
+# Multi-screenshot intake (2026-09-01)
+#
+# A Thumbtack lead often spans several screenshots — the details at the top,
+# the cost at the bottom. These land as one lead with every shot attached and
+# the extracted fields merged. Where shots DISAGREE about a field, nothing is
+# written and the conflict is reported: a silently-wrong lead cost is worse
+# than a blank one the operator fills in.
+# ---------------------------------------------------------------------------
+
+def _seq_ocr_mock(payloads: list[dict]) -> AsyncMock:
+    """An OCR client that returns a different payload per call, in order."""
+    msgs = []
+    for p in payloads:
+        m = MagicMock()
+        m.content = [MagicMock(text=json.dumps(p))]
+        msgs.append(m)
+    client = AsyncMock()
+    client.messages.create = AsyncMock(side_effect=msgs)
+    return client
+
+
+async def test_ingest_accepts_several_screenshots_as_one_lead(client):
+    r = await client.post(
+        "/ingest/screenshot",
+        files=[
+            ("files", ("a.jpg", _jpg(), "image/jpeg")),
+            ("files", ("b.jpg", _jpg(), "image/jpeg")),
+            ("files", ("c.jpg", _jpg(), "image/jpeg")),
+        ],
+        data={"source_type": "thumbtack_screenshot"},
+    )
+
+    assert r.status_code == 201
+    body = r.json()
+    # One lead, not three.
+    assert body["lead"]["id"]
+    assert len(body["lead"]["screenshots"]) == 3
+
+
+async def test_ingest_still_accepts_a_single_screenshot(client):
+    # The one-file path is what the app has always done; it must keep working.
+    r = await client.post(
+        "/ingest/screenshot",
+        files=[("files", ("only.jpg", _jpg(), "image/jpeg"))],
+        data={"source_type": "thumbtack_screenshot"},
+    )
+
+    assert r.status_code == 201
+    assert len(r.json()["lead"]["screenshots"]) == 1
+
+
+async def test_ingest_merges_non_conflicting_fields_across_screenshots(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("OCR_MODEL", "test-model")
+
+    details = {
+        "raw_text": "details shot",
+        "fields": [{"field": "customer_name", "value": "Jane Smith", "confidence": "high"}],
+    }
+    cost = {
+        "raw_text": "cost shot",
+        "fields": [{"field": "job_location", "value": "Los Angeles, CA", "confidence": "high"}],
+    }
+
+    with patch("app.services.ocr_service._make_client", return_value=_seq_ocr_mock([details, cost])):
+        r = await client.post(
+            "/ingest/screenshot",
+            files=[
+                ("files", ("a.jpg", _jpg(), "image/jpeg")),
+                ("files", ("b.jpg", _jpg(), "image/jpeg")),
+            ],
+            data={"source_type": "thumbtack_screenshot"},
+        )
+
+    body = r.json()
+    # Each shot contributed its own field to one lead.
+    assert body["lead"]["customer_name"] == "Jane Smith"
+    assert body["lead"]["job_location"] == "Los Angeles, CA"
+    assert set(body["auto_applied_fields"]) >= {"customer_name", "job_location"}
+    assert body["conflicts"] == []
+    assert len(body["extractions"]) == 2
+
+
+async def test_ingest_leaves_a_conflicting_field_blank_and_reports_it(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("OCR_MODEL", "test-model")
+
+    first = {
+        "raw_text": "shot one",
+        "fields": [{"field": "customer_name", "value": "Jane Smith", "confidence": "high"}],
+    }
+    second = {
+        "raw_text": "shot two",
+        "fields": [{"field": "customer_name", "value": "Jane Smyth", "confidence": "high"}],
+    }
+
+    with patch("app.services.ocr_service._make_client", return_value=_seq_ocr_mock([first, second])):
+        r = await client.post(
+            "/ingest/screenshot",
+            files=[
+                ("files", ("a.jpg", _jpg(), "image/jpeg")),
+                ("files", ("b.jpg", _jpg(), "image/jpeg")),
+            ],
+            data={"source_type": "thumbtack_screenshot"},
+        )
+
+    body = r.json()
+    # Neither value wins. The operator is told to set it.
+    assert body["lead"]["customer_name"] is None
+    assert "customer_name" not in body["auto_applied_fields"]
+    assert "customer_name" in body["conflicts"]
+
+
+async def test_ingest_same_money_written_differently_is_not_a_conflict(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("OCR_MODEL", "test-model")
+
+    # "$36.24" and "36.24" are the same number. Treating them as a conflict
+    # would fire the warning constantly and teach the operator to ignore it.
+    dollar = {
+        "raw_text": "shot one",
+        "fields": [{"field": "lead_cost_total", "value": "$36.24", "confidence": "high"}],
+    }
+    bare = {
+        "raw_text": "shot two",
+        "fields": [{"field": "lead_cost_total", "value": "36.24", "confidence": "high"}],
+    }
+
+    with patch("app.services.ocr_service._make_client", return_value=_seq_ocr_mock([dollar, bare])):
+        r = await client.post(
+            "/ingest/screenshot",
+            files=[
+                ("files", ("a.jpg", _jpg(), "image/jpeg")),
+                ("files", ("b.jpg", _jpg(), "image/jpeg")),
+            ],
+            data={"source_type": "thumbtack_screenshot"},
+        )
+
+    body = r.json()
+    assert body["conflicts"] == []
+    assert body["lead"]["lead_cost_cents"] == 3624
+
+
+async def test_ingest_survives_one_screenshot_failing_ocr(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("OCR_MODEL", "test-model")
+
+    good = MagicMock()
+    good.content = [MagicMock(text=json.dumps(_OCR_WITH_NAME))]
+    failing_client = AsyncMock()
+    failing_client.messages.create = AsyncMock(side_effect=[RuntimeError("vision down"), good])
+
+    with patch("app.services.ocr_service._make_client", return_value=failing_client):
+        r = await client.post(
+            "/ingest/screenshot",
+            files=[
+                ("files", ("a.jpg", _jpg(), "image/jpeg")),
+                ("files", ("b.jpg", _jpg(), "image/jpeg")),
+            ],
+            data={"source_type": "thumbtack_screenshot"},
+        )
+
+    assert r.status_code == 201
+    body = r.json()
+    # Both images are kept, and the shot that DID read still contributes.
+    assert len(body["lead"]["screenshots"]) == 2
+    assert body["lead"]["customer_name"] == "Jane Smith"
+
+
+async def test_ingest_refuses_more_screenshots_than_the_cap(client):
+    from app.services.ingest_service import MAX_INTAKE_SCREENSHOTS
+
+    too_many = [
+        ("files", (f"{i}.jpg", _jpg(), "image/jpeg"))
+        for i in range(MAX_INTAKE_SCREENSHOTS + 1)
+    ]
+    r = await client.post(
+        "/ingest/screenshot",
+        files=too_many,
+        data={"source_type": "thumbtack_screenshot"},
+    )
+
+    # Refuses outright rather than silently dropping the extras.
+    assert r.status_code == 400
+    assert str(MAX_INTAKE_SCREENSHOTS) in r.json()["detail"]
+
+
+async def test_ingest_refuses_zero_screenshots(client):
+    r = await client.post(
+        "/ingest/screenshot",
+        data={"source_type": "thumbtack_screenshot"},
+    )
+    assert r.status_code == 422

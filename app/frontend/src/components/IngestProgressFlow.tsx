@@ -3,14 +3,28 @@ import { useNavigate } from 'react-router-dom'
 import { useCity } from '../context/CityContext'
 import { ingestScreenshot, triggerAiReview } from '../services/api'
 
-type Step = 'idle' | 'uploading' | 'reviewing' | 'done' | 'error'
+type Step = 'idle' | 'uploading' | 'reviewing' | 'done' | 'conflicts' | 'error'
 
 const STEP_LABELS: Record<Step, string> = {
   idle:      '',
   uploading: 'Uploading screenshot…',
   reviewing: 'Running AI review…',
   done:      'Done!',
+  conflicts: 'Read them, but some fields disagreed.',
   error:     'Something went wrong.',
+}
+
+/** Turn an OCR field key into something worth reading on a phone. */
+const FIELD_LABELS: Record<string, string> = {
+  customer_name:   'Customer name',
+  customer_phone:  'Phone',
+  job_location:    'Location',
+  service_type:    'Service',
+  lead_cost_total: 'Lead cost',
+  lead_cost_gross: 'Direct lead cost',
+  lead_cost_bonus: 'Bonus',
+  pros_contacted:  'Pros contacted',
+  pros_responded:  'Pros responded',
 }
 
 interface Props {
@@ -24,24 +38,39 @@ export function IngestProgressFlow({ onClose }: Props) {
   const [step, setStep] = useState<Step>('idle')
   const [selectedCityId, setSelectedCityId] = useState(requiredCityId)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const canDismiss = step === 'idle' || step === 'error'
+  const [shotCount, setShotCount] = useState(0)
+  const [conflicts, setConflicts] = useState<string[]>([])
+  const [conflictLeadId, setConflictLeadId] = useState<string | null>(null)
+  const canDismiss = step === 'idle' || step === 'error' || step === 'conflicts'
 
   useEffect(() => {
     if (!selectedCityId && requiredCityId) setSelectedCityId(requiredCityId)
   }, [requiredCityId, selectedCityId])
 
-  const handleFile = async (file: File) => {
+  const handleFiles = async (files: File[]) => {
     setErrorMsg(null)
+    setConflicts([])
+    setShotCount(files.length)
     try {
       setStep('uploading')
-      const result = await ingestScreenshot(file, 'thumbtack_screenshot', selectedCityId || requiredCityId)
+      const result = await ingestScreenshot(files, 'thumbtack_screenshot', selectedCityId || requiredCityId)
       const leadId = result.lead.id
 
       setStep('reviewing')
       try {
         await triggerAiReview(leadId)
       } catch {
-        // AI review failed — navigate anyway; facilitator can re-run from the command center
+        // AI review failed — continue anyway; it can be re-run from the lead window
+      }
+
+      // Where the shots disagreed, nothing was written. Stop here and say so —
+      // navigating straight through would flash the warning past him. The
+      // disagreement is also on the lead's timeline, so it survives this screen.
+      if (result.conflicts.length > 0) {
+        setConflicts(result.conflicts)
+        setConflictLeadId(leadId)
+        setStep('conflicts')
+        return
       }
 
       setStep('done')
@@ -53,8 +82,8 @@ export function IngestProgressFlow({ onClose }: Props) {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleFile(file)
+    const files = Array.from(e.target.files ?? [])
+    if (files.length) handleFiles(files)
     e.target.value = ''
   }
 
@@ -95,19 +124,24 @@ export function IngestProgressFlow({ onClose }: Props) {
               className="w-full bg-indigo-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-indigo-700 flex items-center justify-center gap-2"
             >
               <span aria-hidden="true">📷</span>
-              <span>Choose Screenshot</span>
+              <span>Choose Screenshot(s)</span>
             </button>
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
               onChange={handleChange}
             />
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Pick several if the lead spans more than one screenshot — they
+              become one lead.
+            </p>
           </>
         )}
 
-        {step !== 'idle' && step !== 'error' && (
+        {step !== 'idle' && step !== 'error' && step !== 'conflicts' && (
           <div className="space-y-3">
             {steps.map((s, i) => {
               const done = i < currentIdx || step === 'done'
@@ -122,11 +156,40 @@ export function IngestProgressFlow({ onClose }: Props) {
                     {done ? '✓' : i + 1}
                   </div>
                   <span className={`text-sm ${active ? 'text-gray-900 font-medium' : done ? 'text-green-700' : 'text-gray-400'}`}>
-                    {STEP_LABELS[s]}
+                    {s === 'uploading' && shotCount > 1
+                      ? `Reading ${shotCount} screenshots…`
+                      : STEP_LABELS[s]}
                   </span>
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {step === 'conflicts' && (
+          <div className="space-y-3">
+            <div className="rounded-xl border-l-[3px] border-amber-500 bg-amber-50 p-3 dark:bg-amber-900/20">
+              <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                The screenshots disagreed on {conflicts.length === 1 ? 'a field' : `${conflicts.length} fields`}.
+              </p>
+              <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                Nothing was filled in for {conflicts.length === 1 ? 'it' : 'them'} — set{' '}
+                {conflicts.length === 1 ? 'it' : 'them'} yourself so a wrong number never lands silently.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {conflicts.map(f => (
+                  <li key={f} className="text-sm font-medium text-gray-900 dark:text-white">
+                    · {FIELD_LABELS[f] ?? f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <button
+              onClick={() => conflictLeadId && navigate(`/leads/${conflictLeadId}`)}
+              className="min-h-[44px] w-full rounded-xl bg-indigo-600 px-4 font-medium text-white active:bg-indigo-700"
+            >
+              Open the lead
+            </button>
           </div>
         )}
 

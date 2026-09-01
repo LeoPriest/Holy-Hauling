@@ -170,7 +170,7 @@ export function useIngestScreenshot() {
   const qc = useQueryClient()
   const { requiredCityId } = useCity()
   return useMutation({
-    mutationFn: ({ file, sourceType, cityId }: { file: File; sourceType: string; cityId?: string }) =>
+    mutationFn: ({ file, sourceType, cityId }: { file: File | File[]; sourceType: string; cityId?: string }) =>
       ingestScreenshot(file, sourceType, cityId ?? requiredCityId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leads'] })

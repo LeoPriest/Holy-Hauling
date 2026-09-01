@@ -143,12 +143,13 @@ export async function getExtractionResult(leadId: string, screenshotId: string):
 }
 
 export async function ingestScreenshot(
-  file: File,
+  files: File | File[],
   sourceType: string,
   cityId?: string,
 ): Promise<IngestResult> {
   const form = new FormData()
-  form.append('file', file)
+  // Several shots of the SAME lead land as one lead with the fields merged.
+  for (const f of Array.isArray(files) ? files : [files]) form.append('files', f)
   form.append('source_type', sourceType)
   if (cityId) form.append('city_id', cityId)
   const r = await apiFetch('/ingest/screenshot', { method: 'POST', body: form })

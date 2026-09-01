@@ -9,11 +9,16 @@ from app.schemas.ocr import OcrResultOut
 
 
 class IngestResult(BaseModel):
-    """Response for POST /ingest/screenshot — lead created + OCR result if extraction ran."""
+    """Response for POST /ingest/screenshot — lead created + OCR results if extraction ran."""
     lead: LeadDetailOut
-    extraction: Optional[OcrResultOut] = None
+    # One entry per screenshot that OCR successfully read. A shot whose
+    # extraction failed simply has no entry; the lead and image are still kept.
+    extractions: list[OcrResultOut] = []
     # Fields auto-applied to the lead from high-confidence OCR results
     auto_applied_fields: list[str] = []
+    # Fields where the screenshots disagreed. Nothing is written for these —
+    # a silently-wrong lead cost is worse than a blank one the operator fills in.
+    conflicts: list[str] = []
 
 
 class WebhookIngestResult(BaseModel):

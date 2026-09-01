@@ -71,21 +71,86 @@ def _coerce_field(field: str, raw: str):
     return raw  # customer_name, customer_phone, job_location → plain str
 
 
+# A phone's photo picker will happily let you select thirty images by accident,
+# and every one is a separate paid vision call. Refuse rather than truncate.
+MAX_INTAKE_SCREENSHOTS = 5
+
+
+def _resolved_value(field: str, raw: str):
+    """The value a field would actually be written as, or None if uncoercible.
+
+    Conflict detection compares THIS, not the raw text. "$36.24" and "36.24"
+    are the same number; treating them as a disagreement would fire the warning
+    constantly and teach the operator to ignore it.
+    """
+    coerced = ocr_service.coerce_extracted_field(field, raw)
+    if coerced is not None:
+        return coerced          # (column_name, value)
+    value = _coerce_field(field, raw)
+    if value is not None:
+        return (field, value)
+    return None
+
+
+def _merge_high_confidence(
+    extractions: list[OcrResultOut],
+) -> tuple[dict[str, tuple[str, object]], list[str]]:
+    """Fold every extraction's high-confidence fields into one set of writes.
+
+    Returns (writes, conflicts). `writes` maps the OCR field name to the
+    (column, value) pair to set. `conflicts` lists fields where the screenshots
+    resolved to different values — those are deliberately NOT written.
+    """
+    seen: dict[str, list[tuple[str, object]]] = {}
+
+    for extraction in extractions:
+        if not extraction.extracted_fields:
+            continue
+        for entry in json.loads(extraction.extracted_fields):
+            field = entry.get("field")
+            if entry.get("confidence") != "high" or field not in _AUTO_APPLY_FIELDS:
+                continue
+            resolved = _resolved_value(field, entry.get("value", ""))
+            if resolved is None:
+                continue
+            seen.setdefault(field, []).append(resolved)
+
+    writes: dict[str, tuple[str, object]] = {}
+    conflicts: list[str] = []
+    for field, resolved_values in seen.items():
+        distinct = {v for v in resolved_values}
+        if len(distinct) > 1:
+            conflicts.append(field)
+            continue
+        writes[field] = resolved_values[0]
+
+    return writes, conflicts
+
+
 async def ingest_screenshot(
     db: AsyncSession,
-    file: UploadFile,
+    files: list[UploadFile],
     source_type: LeadSourceType,
     actor: Optional[str] = None,
     actor_role: Optional[str] = None,
     city_id: str | None = None,
 ) -> IngestResult:
     """
-    Create a lead stub from a screenshot, run OCR, and auto-apply high-confidence fields.
+    Create one lead stub from one or more screenshots of the SAME lead, run OCR
+    on each, and auto-apply high-confidence fields the screenshots agree on.
+
     The stub has customer_name=None — the facilitator fills it in the review step.
-    OCR failure is silent: the lead is still created, extraction=None in the response.
+    OCR failure is silent per screenshot: the lead and every image are still
+    created, and any shot that did read still contributes its fields.
     """
     if source_type not in _SCREENSHOT_SOURCE_TYPES:
         raise HTTPException(400, f"source_type must be a screenshot source, got: {source_type}")
+    if len(files) > MAX_INTAKE_SCREENSHOTS:
+        raise HTTPException(
+            400,
+            f"Too many screenshots: {len(files)}. "
+            f"At most {MAX_INTAKE_SCREENSHOTS} can be ingested as one lead.",
+        )
 
     # 1. Create lead stub — no customer name yet
     stub = Lead(
@@ -109,57 +174,65 @@ async def ingest_screenshot(
     await db.commit()
     await db.refresh(stub)
 
-    # 2. Save image file (reuses lead_service validation + storage)
-    screenshot = await lead_service.upload_screenshot(db, stub.id, file, city_id=city_id)
+    # 2. Save every image (reuses lead_service validation + storage), then OCR each.
+    #    A failed extraction loses only that shot's fields, never the lead.
+    extractions: list[OcrResultOut] = []
+    ocr_enabled = bool(os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("OCR_MODEL"))
 
-    # 3. Run OCR if configured — silent failure, lead already created
-    extraction: Optional[OcrResultOut] = None
-    auto_applied: list[str] = []
-    if os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("OCR_MODEL"):
+    for upload in files:
+        screenshot = await lead_service.upload_screenshot(db, stub.id, upload, city_id=city_id)
+        if not ocr_enabled:
+            continue
         try:
             ocr_orm = await ocr_service.trigger_extraction(db, stub.id, screenshot.id)
-            extraction = OcrResultOut.model_validate(ocr_orm)
-
-            # 4. Auto-apply high-confidence fields
-            if extraction.extracted_fields:
-                for entry in json.loads(extraction.extracted_fields):
-                    field = entry.get("field")
-                    if entry.get("confidence") != "high" or field not in _AUTO_APPLY_FIELDS:
-                        continue
-                    coerced = ocr_service.coerce_extracted_field(field, entry.get("value", ""))
-                    if coerced is not None:
-                        col, coerced_val = coerced
-                        setattr(stub, col, coerced_val)
-                        auto_applied.append(col)
-                        continue
-                    value = _coerce_field(field, entry.get("value", ""))
-                    if value is not None:
-                        setattr(stub, field, value)
-                        auto_applied.append(field)
-
-                if auto_applied:
-                    stub.updated_at = lead_service._now()
-                    db.add(LeadEvent(
-                        id=lead_service._id(), lead_id=stub.id,
-                        event_type="field_updated",
-                        note=", ".join(auto_applied),
-                        actor="ocr_ingest",
-                    ))
-                    await db.commit()
-                    await db.refresh(stub)
+            extractions.append(OcrResultOut.model_validate(ocr_orm))
         except Exception:
-            pass  # OCR failed — lead and screenshot are already persisted, continue
+            continue  # this shot did not read; the others still count
+
+    # 3. Apply only what the screenshots agree on
+    writes, conflicts = _merge_high_confidence(extractions)
+    auto_applied: list[str] = []
+    for column, value in writes.values():
+        setattr(stub, column, value)
+        auto_applied.append(column)
+
+    if auto_applied:
+        stub.updated_at = lead_service._now()
+        db.add(LeadEvent(
+            id=lead_service._id(), lead_id=stub.id,
+            event_type="field_updated",
+            note=", ".join(auto_applied),
+            actor="ocr_ingest",
+        ))
+        await db.commit()
+        await db.refresh(stub)
+
+    if conflicts:
+        # Recorded on the lead's timeline so the disagreement survives the
+        # response being dismissed.
+        db.add(LeadEvent(
+            id=lead_service._id(), lead_id=stub.id,
+            event_type="field_conflict",
+            note="screenshots disagreed: " + ", ".join(sorted(conflicts)),
+            actor="ocr_ingest",
+        ))
+        await db.commit()
 
     if actor_role == "facilitator" and stub.acknowledged_at is None:
         db.add(lead_service._apply_acknowledgement(stub, actor=actor))
         await db.commit()
         await db.refresh(stub)
 
-    # 5. Load detailed lead (includes screenshot + events) for response
+    # 4. Load detailed lead (includes screenshots + events) for response
     detailed_orm = await lead_service.get_lead(db, stub.id, detailed=True)
     detailed = LeadDetailOut.model_validate(detailed_orm)
 
-    return IngestResult(lead=detailed, extraction=extraction, auto_applied_fields=auto_applied)
+    return IngestResult(
+        lead=detailed,
+        extractions=extractions,
+        auto_applied_fields=auto_applied,
+        conflicts=sorted(conflicts),
+    )
 
 
 def _normalize_thumbtack(tt: ThumbTackLead) -> dict:

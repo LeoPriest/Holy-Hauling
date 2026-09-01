@@ -17,7 +17,7 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 @router.post("/screenshot", response_model=IngestResult, status_code=201)
 async def ingest_screenshot(
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     source_type: str = Form("thumbtack_screenshot"),
     city_id: Optional[str] = Form(None),
     actor: Optional[str] = Form(None),
@@ -32,7 +32,7 @@ async def ingest_screenshot(
     await require_active_city(db, resolved_city_id)
     return await ingest_service.ingest_screenshot(
         db,
-        file,
+        files,
         src,
         actor=actor or current_user.username,
         actor_role=current_user.role,

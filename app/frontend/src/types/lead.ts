@@ -121,8 +121,11 @@ export interface AiReview {
 
 export interface IngestResult {
   lead: Lead
-  extraction: OcrResult | null
+  /** One entry per screenshot OCR could read. A shot that failed has no entry. */
+  extractions: OcrResult[]
   auto_applied_fields: string[]
+  /** Fields the screenshots disagreed on. Nothing was written for these. */
+  conflicts: string[]
 }
 
 export interface WebhookIngestResult {
