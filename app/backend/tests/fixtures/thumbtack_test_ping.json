@@ -1,0 +1,38 @@
+{
+  "event": {
+    "eventType": "NegotiationCreatedV4",
+    "description": "",
+    "webhookID": "588474365069058060",
+    "triggeredAt": "2026-08-25T12:00:00Z"
+  },
+  "data": {
+    "request": {
+      "description": "Test request",
+      "details": [
+        { "question": "Frequency", "answer": "One time only" },
+        { "question": "Zip code", "answer": "95010, 78901" },
+        { "question": "Travel Preferences", "answer": "The lawn professional travels to me" }
+      ],
+      "attachments": [
+        {
+          "fileName": "test_request_attachment.jpg",
+          "fileSize": 20,
+          "mimeType": "image/jpeg",
+          "url": "https://www.thumbtack.com/attachment/b180b7d3bf981dd2896732f979f44fbf45fc4224/test_request_attachment.jpg",
+          "description": "test request attachment"
+        }
+      ]
+    },
+    "estimate": {
+      "type": "Fixed",
+      "pricePerUnit": "150.00",
+      "unitQuantity": 1,
+      "unitName": "service",
+      "total": "$150.00"
+    },
+    "status": "Open",
+    "leadPrice": "$25.00",
+    "leadPriceBreakdown": { "subtotal": "$23.15", "salesTax": "$1.85" },
+    "chargeState": "Created"
+  }
+}
