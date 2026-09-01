@@ -105,6 +105,51 @@ All meaningful development changes for the Holy Hauling app are logged here.
   which is what makes the "no backfill script, use the Retry button instead" note
   below actually true rather than aspirational.
 
+### Fixed — final review pass before merge (`228cbb4`)
+- **The retry button's `unknown`-kind disjunct was dead weight, not a working
+  path.** Every `unknown`-kind body seen in practice (Thumbtack's synthetic test
+  ping) carries no `negotiationID` anywhere the classifier looks, and
+  `retry_event` already refused anything whose `kind != "lead"` — so the button
+  rendered on `unknown` and then always no-op'd. Dropped the disjunct; the button
+  now renders on three conditions (`failed` status, non-null `event.error`, or a
+  backlog `kind === 'lead' && !lead_id`), not four, and never on a kind it can't
+  act on.
+- **A refused retry stopped reporting a misleading clean success.** Retrying an
+  oversize-truncated body or a non-`lead` event returns the event unchanged — no
+  lead, its own error still attached — and the UI used to read that as "Nothing
+  needed doing." next to the row's own red text. It now detects exactly this shape
+  (`!result.lead_id && result.event.error`) and shows "Retry did not process this
+  delivery — see the error above." in the failure slot instead.
+- **The idempotency-hit path now clears a stale error too, when it's actually
+  safe to.** A retry resolving through the idempotency lookup (its `negotiationID`
+  already has a lead, from a sibling delivery) now clears `event.error` when that
+  found lead is healthy — has its expense booked, or is legitimately refunded —
+  where it previously left a transient failure's red line and a permanently
+  no-op Retry button in place forever. Left untouched when the found lead still has
+  a real unresolved problem; that early-return path still cannot fix one.
+- **An unparseable `leadPrice` became genuinely repairable, not just flagged.**
+  The flag itself is unchanged (cost left unset, never guessed, never `0`, event
+  carries an explicit error) — what's new is that `retry_event` re-derives the
+  price from the same stored raw body on every retry, so a later `parse_cents` fix
+  can turn a real retry into a filled `lead_cost_cents`, a synced expense, and a
+  cleared flag. Still unparseable stays flagged, correctly.
+- **`POST /ingest/screenshot` picked up the same `raw_payload` redaction
+  `GET /leads/{id}` already had**, via one new shared constructor,
+  `lead_service.to_lead_detail_out(lead, role)` — the only sanctioned way to build
+  a `LeadDetailOut` now, so a future caller gets the redaction by construction
+  instead of needing to remember `visible_raw_payload`. Not a real prior leak
+  (screenshot-sourced leads are never `source_type: thumbtack_api`), but an
+  incidental rather than structural guarantee before this.
+- Corrected two stale `CAPABILITIES.md` bullets that had drifted from the shipped
+  code and, in one case, from each other: the Replay description still implied
+  `unknown`-kind retries worked, and a "clears `event.error` unconditionally" line
+  contradicted the idempotency-lookup bullet a few lines above it stating the
+  error is deliberately left untouched there. Both are now path-specific and
+  consistent with each other and the code.
+- **Added an open item:** `_safe_exc_summary`'s truncation logic has no dedicated
+  unit test — carried deliberately, low risk (exercised indirectly by every
+  failure-path test that checks `event.error`'s shape).
+
 ### Notes
 - See spec: `docs/superpowers/specs/2026-09-01-thumbtack-phase-2-design.md`
 - See plan: `docs/superpowers/plans/2026-09-01-thumbtack-phase-2.md`
@@ -134,8 +179,8 @@ All meaningful development changes for the Holy Hauling app are logged here.
   this is an inherited spec question rather than a coding slip.
 
 ### Verified
-- Backend suite: 523 passed, 0 failed (full suite, 2026-09-01, `e085e23`)
-- Frontend: `tsc --noEmit` and `npm run build` both pass (2026-09-01, `e085e23`)
+- Backend suite: 527 passed, 0 failed (full suite, 2026-09-01, `228cbb4`)
+- Frontend: `tsc --noEmit` and `npm run build` both pass (2026-09-01, `228cbb4`)
 
 ---
 
