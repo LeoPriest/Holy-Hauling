@@ -235,11 +235,11 @@ async def retry_event(
     current_user: User = Depends(require_role("admin")),
     db: AsyncSession = Depends(get_db),
 ):
-    event = await thumbtack_service.retry_event(db, event_id)
+    event, created = await thumbtack_service.retry_event(db, event_id)
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
     return RetryResult(
         event=EventOut.model_validate(event),
-        created=event.lead_id is not None,
+        created=created,
         lead_id=event.lead_id,
     )

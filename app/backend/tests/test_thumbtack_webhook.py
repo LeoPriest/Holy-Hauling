@@ -1199,7 +1199,16 @@ async def test_retrying_an_already_processed_delivery_creates_no_duplicate(clien
     await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
     events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
 
-    await client.post(f"/admin/thumbtack/events/{events[0].id}/retry")
+    r = await client.post(f"/admin/thumbtack/events/{events[0].id}/retry")
+
+    # The assertion that would have caught the "created means lead_id is not
+    # None" bug: a retry that only found an existing lead via the
+    # idempotency lookup must report created=False, even though it still
+    # carries that lead's id.
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["created"] is False
+    assert payload["lead_id"] is not None
 
     count = (await db_session.execute(
         sa_select(func.count()).select_from(Lead)
@@ -1264,6 +1273,10 @@ async def test_retry_heals_a_lead_whose_cost_sync_failed(client, db_session, mon
     assert r.status_code == 200
     payload = r.json()
     assert payload["event"]["error"] is None
+    # Healing an existing lead's expense is not creating a lead — this retry
+    # must not report created=True.
+    assert payload["created"] is False
+    assert payload["lead_id"] is not None
 
     await db_session.refresh(lead)
     assert lead.lead_cost_finance_transaction_id is not None

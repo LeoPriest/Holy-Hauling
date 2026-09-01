@@ -224,8 +224,14 @@ async def _persist_lead(
     conn: ThumbtackConnection,
     event: ThumbtackWebhookEvent,
     body: dict,
-) -> Optional[str]:
-    """Create a Lead from a captured delivery. Returns the lead id, or None.
+) -> tuple[Optional[str], bool]:
+    """Create a Lead from a captured delivery. Returns (lead_id, created).
+
+    `created` is True only for a genuine insert on this call — never for the
+    idempotency early-return below, and never for the "not a lead" no-op.
+    Callers that need to tell a real creation from a found-existing lead (the
+    retry endpoint's response, notably) rely on this rather than inferring it
+    from a non-null lead_id.
 
     Runs AFTER the raw body is committed, so a failure here marks the event and
     leaves the body intact for retry. A delivery is never lost because mapping
@@ -233,7 +239,7 @@ async def _persist_lead(
     """
     mapped = map_lead_payload(body)
     if mapped is None:
-        return None   # test ping, or a body carrying no negotiationID
+        return None, False   # test ping, or a body carrying no negotiationID
 
     existing = await db.execute(
         select(Lead).where(
@@ -243,7 +249,7 @@ async def _persist_lead(
     )
     already = existing.scalar_one_or_none()
     if already is not None:
-        return already.id   # Thumbtack retries; one delivery, one lead
+        return already.id, False   # Thumbtack retries; one delivery, one lead
 
     quote_context = mapped.quote_context
     if mapped.location_mismatch:
@@ -348,29 +354,34 @@ async def _persist_lead(
     event.processed_at = _now()
     await db.commit()
 
-    return lead_id
+    return lead_id, True
 
 
-async def retry_event(db: AsyncSession, event_id: str) -> Optional[ThumbtackWebhookEvent]:
-    """Re-run mapping over a stored delivery. None when the event does not exist.
+async def retry_event(
+    db: AsyncSession, event_id: str
+) -> tuple[Optional[ThumbtackWebhookEvent], bool]:
+    """Re-run mapping over a stored delivery. Returns (event, created).
 
-    Idempotent by way of _persist_lead's own lookup on source_reference_id —
-    retrying a delivery that already produced a lead returns that lead rather
-    than making a second one.
+    `event` is None when the event does not exist. `created` is True only
+    when this call actually inserted a new Lead — never for a retry that
+    found an existing one via _persist_lead's idempotency lookup, and never
+    for the cost-sync heal below, which repairs an existing lead rather than
+    making one. Callers must not infer "created" from a non-null lead_id;
+    a found-existing retry has one too.
     """
     result = await db.execute(
         select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.id == event_id).limit(1)
     )
     event = result.scalar_one_or_none()
     if event is None:
-        return None
+        return None, False
 
     conn = await get_by_id(db, event.connection_id)
     if conn is None:
         event.status = "failed"
         event.error = "Connection no longer exists"
         await db.commit()
-        return event
+        return event, False
 
     try:
         parsed = json.loads(event.raw_body)
@@ -378,10 +389,11 @@ async def retry_event(db: AsyncSession, event_id: str) -> Optional[ThumbtackWebh
         event.status = "failed"
         event.error = f"Body is not valid JSON: {exc}"
         await db.commit()
-        return event
+        return event, False
 
+    created = False
     try:
-        lead_id = await _persist_lead(db, conn, event, parsed)
+        lead_id, created = await _persist_lead(db, conn, event, parsed)
     except Exception as exc:
         await db.rollback()
         event.status = "failed"
@@ -397,7 +409,8 @@ async def retry_event(db: AsyncSession, event_id: str) -> Optional[ThumbtackWebh
         # load the lead and, if it has a known cost but no linked expense yet
         # and was never refunded (mark_refunded owns that lead's expense),
         # run the same idempotent sync_lead_cost_expense the original
-        # delivery would have run.
+        # delivery would have run. This heals an existing lead — it must
+        # never flip `created` to True.
         if lead_id is not None:
             lead_result = await db.execute(select(Lead).where(Lead.id == lead_id).limit(1))
             lead = lead_result.scalar_one_or_none()
@@ -421,7 +434,7 @@ async def retry_event(db: AsyncSession, event_id: str) -> Optional[ThumbtackWebh
                     await db.commit()
 
     await db.refresh(event)
-    return event
+    return event, created
 
 
 async def record_event(
