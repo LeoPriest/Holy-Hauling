@@ -471,3 +471,75 @@ async def test_ingest_refuses_zero_screenshots(client):
         data={"source_type": "thumbtack_screenshot"},
     )
     assert r.status_code == 422
+
+
+async def test_ingest_does_not_claim_a_cost_it_could_not_parse(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("OCR_MODEL", "test-model")
+
+    # `lead_cost_total` is an OCR field name, not a Lead column — the column is
+    # `lead_cost_cents`. If the value cannot be parsed to cents, the field must
+    # be dropped entirely. Reporting it as auto-applied while writing nothing is
+    # the silent money failure this whole feature exists to prevent.
+    unreadable = {
+        "raw_text": "cost shot",
+        "fields": [{"field": "lead_cost_total", "value": "unclear", "confidence": "high"}],
+    }
+
+    with patch("app.services.ocr_service._make_client", return_value=_ocr_mock(unreadable)):
+        r = await client.post(
+            "/ingest/screenshot",
+            files=[("files", ("a.jpg", _jpg(), "image/jpeg"))],
+            data={"source_type": "thumbtack_screenshot"},
+        )
+
+    body = r.json()
+    assert body["lead"]["lead_cost_cents"] is None
+    assert body["auto_applied_fields"] == []
+    assert "lead_cost_total" not in body["auto_applied_fields"]
+
+
+async def test_ingest_does_not_claim_a_count_it_could_not_parse(client, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("OCR_MODEL", "test-model")
+
+    # pros_contacted IS a real Integer column, so an unparsed raw string here
+    # would be written into a typed column rather than merely lost.
+    unreadable = {
+        "raw_text": "shot",
+        "fields": [{"field": "pros_contacted", "value": "a few", "confidence": "high"}],
+    }
+
+    with patch("app.services.ocr_service._make_client", return_value=_ocr_mock(unreadable)):
+        r = await client.post(
+            "/ingest/screenshot",
+            files=[("files", ("a.jpg", _jpg(), "image/jpeg"))],
+            data={"source_type": "thumbtack_screenshot"},
+        )
+
+    body = r.json()
+    assert body["lead"]["pros_contacted"] is None
+    assert body["auto_applied_fields"] == []
+
+
+async def test_ingest_rejects_a_bad_file_without_leaving_a_partial_lead(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.lead import Lead
+
+    before = (await db_session.execute(sa_select(func.count()).select_from(Lead))).scalar()
+
+    # Second file is not an image. Nothing may be committed — a half-populated
+    # lead sitting in the queue after a 400 is worse than a clean refusal.
+    r = await client.post(
+        "/ingest/screenshot",
+        files=[
+            ("files", ("good.jpg", _jpg(), "image/jpeg")),
+            ("files", ("bad.txt", b"not an image", "text/plain")),
+        ],
+        data={"source_type": "thumbtack_screenshot"},
+    )
+
+    assert r.status_code == 400
+    after = (await db_session.execute(sa_select(func.count()).select_from(Lead))).scalar()
+    assert after == before

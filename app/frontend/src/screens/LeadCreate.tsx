@@ -296,6 +296,22 @@ export function LeadCreate({ onClose }: Props) {
                 </div>
               )}
 
+              {ingestResult.conflicts.length > 0 && (
+                <div className="rounded-lg border-l-[3px] border-amber-500 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-medium text-amber-900">
+                    The screenshots disagreed on:{' '}
+                    <span className="font-semibold">
+                      {ingestResult.conflicts.join(', ').replace(/_/g, ' ')}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-amber-800">
+                    Left blank on purpose — set{' '}
+                    {ingestResult.conflicts.length === 1 ? 'it' : 'them'} below rather than
+                    trusting a number the shots did not agree on.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Customer Name <span className="text-red-500">*</span>

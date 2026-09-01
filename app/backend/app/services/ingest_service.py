@@ -76,6 +76,15 @@ def _coerce_field(field: str, raw: str):
 MAX_INTAKE_SCREENSHOTS = 5
 
 
+# OCR field names that map to a DIFFERENT Lead column, or to a typed column.
+# For these, `coerce_extracted_field` returning None means "I could not parse
+# this", NOT "this is a plain string field" — falling through to the string
+# handler would write raw OCR text under a name like `lead_cost_total`, which
+# is not a column at all. The attribute would silently not persist while the
+# field was still reported as auto-applied: money shown as filled, nothing saved.
+_TYPED_OCR_FIELDS = set(ocr_service._OCR_COST_COLUMN) | set(ocr_service._OCR_COUNT_FIELDS)
+
+
 def _resolved_value(field: str, raw: str):
     """The value a field would actually be written as, or None if uncoercible.
 
@@ -86,6 +95,8 @@ def _resolved_value(field: str, raw: str):
     coerced = ocr_service.coerce_extracted_field(field, raw)
     if coerced is not None:
         return coerced          # (column_name, value)
+    if field in _TYPED_OCR_FIELDS:
+        return None             # unparseable money or count — drop it, never guess
     value = _coerce_field(field, raw)
     if value is not None:
         return (field, value)
@@ -151,6 +162,16 @@ async def ingest_screenshot(
             f"Too many screenshots: {len(files)}. "
             f"At most {MAX_INTAKE_SCREENSHOTS} can be ingested as one lead.",
         )
+
+    # Validate every file BEFORE creating anything. Otherwise a bad second file
+    # 400s the request after the lead and the first image are already committed,
+    # leaving a half-populated lead in the queue that nobody knows about.
+    for upload in files:
+        if upload.content_type not in lead_service._ALLOWED_IMAGE_TYPES:
+            raise HTTPException(
+                400,
+                f"File must be JPEG, PNG, or WebP: {upload.filename or 'unnamed'}",
+            )
 
     # 1. Create lead stub — no customer name yet
     stub = Lead(
