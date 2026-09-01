@@ -7,12 +7,15 @@ import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.lead import Lead, LeadSourceType, LeadStatus
 from app.models.thumbtack import ThumbtackConnection, ThumbtackWebhookEvent
-from app.services import auth_service
+from app.services import auth_service, lead_cost_service, lead_service, push_service
+from app.services.thumbtack_mapper import map_lead_payload
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +219,89 @@ def classify(body: object) -> tuple[str, str | None]:
     return "unknown", None
 
 
+async def _persist_lead(
+    db: AsyncSession,
+    conn: ThumbtackConnection,
+    event: ThumbtackWebhookEvent,
+    body: dict,
+) -> Optional[str]:
+    """Create a Lead from a captured delivery. Returns the lead id, or None.
+
+    Runs AFTER the raw body is committed, so a failure here marks the event and
+    leaves the body intact for retry. A delivery is never lost because mapping
+    broke.
+    """
+    mapped = map_lead_payload(body)
+    if mapped is None:
+        return None   # test ping, or a body carrying no negotiationID
+
+    existing = await db.execute(
+        select(Lead).where(Lead.source_reference_id == mapped.source_reference_id).limit(1)
+    )
+    already = existing.scalar_one_or_none()
+    if already is not None:
+        return already.id   # Thumbtack retries; one delivery, one lead
+
+    quote_context = mapped.quote_context
+    if mapped.location_mismatch:
+        # Stored here rather than a new column: the spec forbids a migration,
+        # and quote_context is carried into the AI review, which is where a
+        # "this may be elsewhere" warning is most useful.
+        quote_context = "\n\n".join(
+            p for p in (quote_context, f"[WARNING] {mapped.location_mismatch}") if p
+        )
+
+    lead = Lead(
+        id=lead_service._id(),
+        city_id=conn.city_id,
+        source_type=LeadSourceType.thumbtack_api,
+        source_reference_id=mapped.source_reference_id,
+        customer_name=mapped.customer_name,
+        customer_phone=mapped.customer_phone,
+        # A Thumbtack number routes to the customer and is not theirs.
+        customer_phone_is_proxy=bool(mapped.customer_phone),
+        service_type=mapped.service_type,
+        job_location=mapped.job_location,
+        scope_notes=mapped.scope_notes,
+        quote_context=quote_context,
+        move_date_options=json.dumps(mapped.move_date_options) if mapped.move_date_options else None,
+        lead_cost_cents=mapped.lead_cost_cents,
+        lead_cost_gross_cents=mapped.lead_cost_gross_cents,
+        raw_payload=event.raw_body,
+        status=LeadStatus.new,
+        urgency_flag=False,
+        ingested_by="thumbtack_webhook",
+        created_at=lead_service._now(),
+        updated_at=lead_service._now(),
+    )
+    db.add(lead)
+    await db.commit()
+    await db.refresh(lead)
+
+    if mapped.is_refunded:
+        # Signature is mark_refunded(db, lead_id, on, actor=..., city_id=...) —
+        # `on` is a required positional, not a keyword with a default.
+        await lead_service.mark_refunded(
+            db, lead.id, True, actor="thumbtack_webhook", city_id=conn.city_id
+        )
+
+    # Mirrors a manually entered cost into finance. Idempotent via
+    # lead_cost_finance_transaction_id, so a redelivery adds no second expense.
+    if mapped.lead_cost_cents is not None:
+        try:
+            await lead_cost_service.sync_lead_cost_expense(db, lead)
+            await db.commit()
+        except Exception:
+            logger.exception("thumbtack lead cost sync failed lead=%s", lead.id)
+
+    event.lead_id = lead.id
+    event.status = "processed"
+    event.processed_at = _now()
+    await db.commit()
+
+    return lead.id
+
+
 async def record_event(
     db: AsyncSession, conn: ThumbtackConnection, raw_body: bytes
 ) -> ThumbtackWebhookEvent:
@@ -240,8 +326,15 @@ async def record_event(
         status = "failed"
         error = f"Body is not valid JSON: {exc}"
 
+    # Captured now, not read off `conn` after the block below: a mapping
+    # failure rolls back the session, which expires `conn` (expire_on_rollback
+    # defaults to True even though this app runs with expire_on_commit=False),
+    # and a plain attribute access on an expired ORM instance outside an
+    # awaited SQLAlchemy call raises MissingGreenlet.
+    conn_id = conn.id
+
     event = ThumbtackWebhookEvent(
-        connection_id=conn.id,
+        connection_id=conn_id,
         kind=kind,
         external_id=external_id,
         raw_body=text,
@@ -257,10 +350,23 @@ async def record_event(
 
     await db.commit()
     await db.refresh(event)
+
+    # Everything past this point is best-effort. The body is already committed,
+    # so a mapping failure marks the event and can never lose the delivery.
+    if kind == "lead" and status == "received":
+        try:
+            await _persist_lead(db, conn, event, parsed)
+        except Exception as exc:
+            await db.rollback()
+            event.status = "failed"
+            event.error = f"Mapping failed: {exc}"
+            await db.commit()
+            logger.exception("thumbtack lead mapping failed event=%s", event.id)
+
     # Deliberately not logging the body: it carries customer name, phone, and address.
     logger.info(
         "thumbtack webhook recorded connection=%s kind=%s status=%s",
-        conn.id, kind, status,
+        conn_id, kind, status,
     )
     return event
 

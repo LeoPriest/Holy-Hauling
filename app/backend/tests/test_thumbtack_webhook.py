@@ -859,3 +859,149 @@ def test_classify_still_returns_unknown_for_unrecognised_bodies():
     assert thumbtack_service.classify({"hello": "world"}) == ("unknown", None)
     assert thumbtack_service.classify({"eventType": "SomethingElseV9"}) == ("unknown", None)
     assert thumbtack_service.classify({"data": {"nope": 1}}) == ("unknown", None)
+
+
+# ── Phase 2: a delivery becomes a lead ───────────────────────────────────────
+
+from pathlib import Path as _Path
+
+_FIXTURE_DIR = _Path(__file__).parent / "fixtures"
+
+
+def _real_lead_body() -> dict:
+    return json.loads((_FIXTURE_DIR / "thumbtack_lead_v4.json").read_text(encoding="utf-8"))
+
+
+def _real_ping_body() -> dict:
+    return json.loads((_FIXTURE_DIR / "thumbtack_test_ping.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.asyncio
+async def test_a_real_delivery_creates_a_lead_in_the_queue(client, db_session):
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body()
+    )
+    assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+
+    assert lead.city_id == "st-louis"             # pinned by the connection
+    assert lead.customer_name == "Handyman Amenify"
+    assert lead.job_location == "Saint Louis, MO 63144"
+    assert lead.lead_cost_cents == 1588
+
+
+@pytest.mark.asyncio
+async def test_the_phone_is_recorded_as_a_thumbtack_proxy(client, db_session):
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+
+    # A Thumbtack number routes to the customer; it is not theirs. Saving it as
+    # their real number is the misrepresentation the Numbers work prevented.
+    assert lead.customer_phone_is_proxy is True
+
+
+@pytest.mark.asyncio
+async def test_redelivery_creates_no_second_lead(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    body = _real_lead_body()
+    for _ in range(3):
+        await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+
+    count = (await db_session.execute(
+        sa_select(func.count()).select_from(Lead)
+        .where(Lead.source_reference_id == "589129524549820420")
+    )).scalar()
+
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_the_test_ping_creates_no_lead(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    before = (await db_session.execute(sa_select(func.count()).select_from(Lead))).scalar()
+
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_ping_body())
+
+    after = (await db_session.execute(sa_select(func.count()).select_from(Lead))).scalar()
+    assert after == before
+
+
+@pytest.mark.asyncio
+async def test_the_location_mismatch_reaches_the_lead(client, db_session):
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+
+    assert lead.quote_context is not None
+    assert "service area" in lead.quote_context
+
+
+@pytest.mark.asyncio
+async def test_a_mapping_failure_marks_the_event_and_keeps_the_body(client, db_session, monkeypatch):
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    def _boom(_body):
+        raise RuntimeError("mapper exploded")
+
+    monkeypatch.setattr(thumbtack_service, "map_lead_payload", _boom)
+
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body()
+    )
+
+    # Thumbtack still sees 200 — the body is safely stored and can be retried.
+    assert r.status_code == 200
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert events[0].status == "failed"
+    assert "589129524549820420" in events[0].raw_body
