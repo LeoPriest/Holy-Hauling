@@ -208,7 +208,15 @@ def test_classify_unknown_shapes():
 
 
 @pytest.mark.asyncio
-async def test_record_event_stores_lead_and_marks_received(client, db_session):
+async def test_record_event_flags_a_lead_shaped_body_the_mapper_cannot_map(client, db_session):
+    """LEAD_BODY is the old pro-api shape (leadID + request, no `data` key).
+    classify() still sniffs it as `kind="lead"` — Thumbtack's form sends every
+    checked event type to one URL, and shape is all we have to go on — but
+    Phase 2's stricter map_lead_payload requires data.negotiationID and
+    declines it. Landing that as `status="received"` with `error=None` would
+    be indistinguishable from a delivery nobody has looked at yet, with
+    nothing anywhere acting on it — this is exactly the case a `failed`
+    status with an explicit error exists to surface."""
     from app.services import thumbtack_service
 
     conn, _ = await thumbtack_service.create_connection(
@@ -220,8 +228,9 @@ async def test_record_event_stores_lead_and_marks_received(client, db_session):
 
     assert event.kind == "lead"
     assert event.external_id == "lead-123"
-    assert event.status == "received"
-    assert event.error is None
+    assert event.status == "failed"
+    assert event.error is not None
+    assert "negotiationID" in event.error
     assert json.loads(event.raw_body) == LEAD_BODY
 
     await db_session.refresh(conn)
@@ -673,7 +682,12 @@ async def test_admin_events_endpoint_shows_captured_bodies(client):
     events = r.json()
     assert len(events) == 1
     assert events[0]["kind"] == "lead"
-    assert events[0]["status"] == "received"
+    # LEAD_BODY is the old pro-api shape (no `data` key) — classify() still
+    # sniffs "lead" from shape, but map_lead_payload can't map it, and a
+    # mapper-declined lead-shaped body is flagged `failed` rather than left
+    # `received` and unactionable.
+    assert events[0]["status"] == "failed"
+    assert events[0]["error"] is not None
     assert json.loads(events[0]["raw_body"])["leadID"] == "lead-123"
 
 
@@ -1178,7 +1192,12 @@ async def test_retry_maps_a_delivery_that_failed_the_first_time(client, db_sessi
     r = await client.post(f"/admin/thumbtack/events/{events[0].id}/retry")
 
     assert r.status_code == 200
-    assert r.json()["created"] is True
+    payload = r.json()
+    assert payload["created"] is True
+    # The feature's primary happy path: a delivery that failed mapping, then
+    # succeeded on retry, must not keep the stale "Mapping failed: ..." error
+    # forever — or the row (and its Retry button) never look done.
+    assert payload["event"]["error"] is None
     lead = (await db_session.execute(
         sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
     )).scalar_one_or_none()
@@ -1349,3 +1368,250 @@ async def test_retry_event_own_failure_leaves_the_body_and_creates_no_lead(
         .where(Lead.source_reference_id == "589129524549820420")
     )).scalar()
     assert lead_count == 0
+
+
+# ── Final backend fixes: idempotency limbo, cost flags, refund heal, retry
+# guards, message timeline ────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_redelivery_marks_the_second_event_row_processed(client, db_session):
+    """Two Thumbtack deliveries of the same negotiationID land as two event
+    rows. The first creates the lead; the second, previously, stayed
+    status=received/lead_id=NULL forever, indistinguishable from a delivery
+    nobody had looked at, with nothing anywhere acting on it."""
+    from sqlalchemy import select as sa_select
+
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    body = _real_lead_body()
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 2
+
+    for e in events:
+        row = (await db_session.execute(
+            sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.id == e.id)
+        )).scalar_one()
+        assert row.status == "processed"
+        assert row.lead_id is not None
+
+
+@pytest.mark.asyncio
+async def test_an_unparseable_lead_price_keeps_the_lead_and_flags_the_event(
+    client, db_session
+):
+    """The spec is explicit: a malformed leadPrice leaves cost unset AND
+    flags the event. Only the mapper half (cost stays None, never 0) shipped
+    before this fix; nothing wrote to event.error, so a lead with a NULL
+    cost looked perfectly healthy."""
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    body = _copy.deepcopy(_real_lead_body())
+    body["data"]["leadPrice"] = "Free"
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    # Never substitute 0 for an unknown cost.
+    assert lead.lead_cost_cents is None
+
+    event = (await db_session.execute(
+        sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.connection_id == conn.id)
+    )).scalar_one()
+    assert event.status == "processed"
+    assert event.error is not None
+    assert "could not be parsed" in event.error
+
+
+@pytest.mark.asyncio
+async def test_retry_does_not_book_an_expense_for_a_refund_the_db_never_recorded(
+    client, db_session, monkeypatch
+):
+    """chargeState is Refunded, mark_refunded throws, rollback leaves
+    lead_refunded_at NULL while lead_cost_cents was already committed. The
+    heal must gate on the payload's own chargeState, not that column (which
+    is NULL precisely because the refund failed), or a retry books a
+    full-price expense for a lead Thumbtack refunded, clears the error, and
+    reports success."""
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.finance import FinanceTransaction
+    from app.models.lead import Lead
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import lead_service, thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    body = _copy.deepcopy(_real_lead_body())
+    body["data"]["chargeState"] = "Refunded"
+
+    async def _boom(*args, **kwargs):
+        raise RuntimeError("refund sync down")
+
+    monkeypatch.setattr(lead_service, "mark_refunded", _boom)
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    monkeypatch.undo()
+
+    assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    assert lead.lead_refunded_at is None                    # the failure this hinges on
+    assert lead.lead_cost_finance_transaction_id is None
+    assert lead.lead_cost_cents is not None                 # committed before the refund attempt
+
+    event = (await db_session.execute(
+        sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.connection_id == conn.id)
+    )).scalar_one()
+    assert event.status == "processed"
+    assert event.error is not None
+
+    r = await client.post(f"/admin/thumbtack/events/{event.id}/retry")
+    assert r.status_code == 200
+
+    await db_session.refresh(lead)
+    # The heal must have refused: no expense booked for a refunded lead.
+    assert lead.lead_cost_finance_transaction_id is None
+
+    tx_count = (await db_session.execute(
+        sa_select(func.count()).select_from(FinanceTransaction)
+        .where(FinanceTransaction.lead_id == lead.id)
+    )).scalar()
+    assert tx_count == 0
+
+
+@pytest.mark.asyncio
+async def test_retrying_an_oversize_rejection_preserves_the_size_diagnostic(
+    client, db_session
+):
+    """record_oversize stores a 2KB truncated prefix with a body-exceeds-limit
+    error. That prefix is never valid JSON; retrying it must refuse, not
+    overwrite the one thing the row can tell the operator with a generic
+    Body-is-not-valid-JSON message."""
+    from sqlalchemy import select as sa_select
+
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    huge = b'{"leadID":"big","padding":"' + b"x" * (thumbtack_service.MAX_BODY_BYTES + 10) + b'"}'
+    r = await client.post(
+        f"/ingest/webhook/thumbtack/{conn.url_token}",
+        content=huge,
+        headers={"content-type": "application/json"},
+    )
+    assert r.status_code == 413
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 1
+    original_error = events[0].error
+    assert original_error is not None
+    assert original_error.startswith("Delivery rejected: body exceeds")
+
+    retry_r = await client.post(f"/admin/thumbtack/events/{events[0].id}/retry")
+    assert retry_r.status_code == 200
+    assert retry_r.json()["event"]["error"] == original_error
+
+    stored = (await db_session.execute(
+        sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.id == events[0].id)
+    )).scalar_one()
+    assert stored.error == original_error
+    assert "not valid JSON" not in stored.error
+
+
+@pytest.mark.asyncio
+async def test_retrying_a_message_event_does_not_create_a_hollow_lead(client, db_session):
+    """MessageCreatedV4 bodies carry data.negotiationID too. record_event
+    gates on kind=="lead" before calling _persist_lead; retry_event must
+    too, or retrying a message maps it into a hollow Lead with no name,
+    phone, or cost, which then wins the idempotency lookup and blocks the
+    real lead from ever landing."""
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    message_body = {
+        "data": {
+            "negotiationID": "589129524549820420",
+            "messageID": "msg-9",
+            "text": "Can you come Saturday?",
+        }
+    }
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=message_body)
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert len(events) == 1
+    assert events[0].kind == "message"
+
+    r = await client.post(f"/admin/thumbtack/events/{events[0].id}/retry")
+    assert r.status_code == 200
+    assert r.json()["created"] is False
+
+    count = (await db_session.execute(
+        sa_select(func.count()).select_from(Lead)
+        .where(Lead.source_reference_id == "589129524549820420")
+    )).scalar()
+    assert count == 0
+
+    # The real lead can still land afterward; the message retry must not
+    # have poisoned the idempotency lookup with a hollow row.
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    assert lead.customer_name is not None
+
+
+@pytest.mark.asyncio
+async def test_a_webhook_lead_opens_with_a_created_timeline_event(client, db_session):
+    """_persist_lead constructs Lead(...) directly rather than via
+    lead_service.create_lead, which is correct here, but it means
+    create_lead's own created LeadEvent has to be replicated by hand, or a
+    webhook lead opens with an empty timeline unlike every other lead."""
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.models.lead_event import LeadEvent
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+
+    events = (await db_session.execute(
+        sa_select(LeadEvent).where(LeadEvent.lead_id == lead.id)
+    )).scalars().all()
+    assert any(e.event_type == "created" for e in events)

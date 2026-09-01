@@ -114,7 +114,18 @@ async def list_leads(
         assigned_to=assigned_to,
         city_id=city_scope(current_user, city_id),
     )
-    return await _enrich(db, leads)
+    await _enrich(db, leads)
+    # Redact on the serialized copy, not the live ORM row: raw_payload is a
+    # real mapped column, and setting it on the tracked instance would mark
+    # it dirty for the *database*, risking a real data-loss flush on any
+    # later autoflush in this request. Build the response model, then
+    # redact the field on that disconnected copy.
+    out = [LeadOut.model_validate(lead) for lead in leads]
+    for dto, lead in zip(out, leads):
+        dto.raw_payload = lead_service.visible_raw_payload(
+            dto.raw_payload, lead.source_type, current_user.role
+        )
+    return out
 
 
 @router.get("/{lead_id}", response_model=LeadDetailOut)
@@ -124,7 +135,12 @@ async def get_lead(
     db: AsyncSession = Depends(get_db),
 ):
     lead = await lead_service.get_lead(db, lead_id, detailed=True, city_id=city_scope(current_user))
-    return await _enrich(db, lead)
+    await _enrich(db, lead)
+    dto = LeadDetailOut.model_validate(lead)
+    dto.raw_payload = lead_service.visible_raw_payload(
+        dto.raw_payload, lead.source_type, current_user.role
+    )
+    return dto
 
 
 @router.delete("/{lead_id}", status_code=204)

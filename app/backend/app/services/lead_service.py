@@ -97,6 +97,27 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def visible_raw_payload(
+    raw_payload: Optional[str], source_type: LeadSourceType, role: str
+) -> Optional[str]:
+    """Redact a Thumbtack-captured webhook body from every role but admin.
+
+    customer_name, customer_phone, and scope_notes (which carries the street
+    address) already surface as first-class columns to every authenticated
+    role — raw_payload is not their only path to that data. But Thumbtack's
+    stored body carries more than those: business.accessCode, a working
+    refundRequestLink into Thumbtack's own refund flow, customerID, and
+    requestID. That is a real privilege step-up Phase 1 deliberately kept
+    behind require_role("admin") on the Thumbtack admin surface — a plain
+    GET /leads or GET /leads/{id} must not hand it to supervisor or crew.
+    Every other source's raw_payload (an OCR screenshot capture, or a
+    manually-created lead) carries no comparable step-up and is unaffected.
+    """
+    if source_type == LeadSourceType.thumbtack_api and role != "admin":
+        return None
+    return raw_payload
+
+
 def _apply_acknowledgement(
     lead: Lead,
     *,
