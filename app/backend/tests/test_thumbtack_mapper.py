@@ -10,8 +10,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 _FIXTURES = Path(__file__).parent / "fixtures"
 
 
@@ -152,6 +150,29 @@ def test_does_not_flag_a_description_with_no_location_at_all():
 
     body = _lead_body()
     body["data"]["request"]["description"] = "Couch and a dresser, ground floor"
+
+    assert map_lead_payload(body).location_mismatch is None
+
+
+def test_flags_an_oklahoma_address_the_old_denylist_silently_missed():
+    from app.services.thumbtack_mapper import map_lead_payload
+
+    # OK is Oklahoma, a real USPS code — the old denylist excluded it as
+    # "prose word" and would never fire on it. This is the case that costs
+    # a lead fee and a wasted call when it goes unflagged.
+    body = _lead_body()
+    body["data"]["request"]["description"] = "Job at 123 Main St, Tulsa, OK 74103"
+
+    assert map_lead_payload(body).location_mismatch is not None
+
+
+def test_does_not_flag_a_po_box_in_the_description():
+    from app.services.thumbtack_mapper import map_lead_payload
+
+    # "PO Box" is ordinary address prose, not a state code, and must not fire
+    # on the allow-list.
+    body = _lead_body()
+    body["data"]["request"]["description"] = "PO Box 4410, deliver to lobby"
 
     assert map_lead_payload(body).location_mismatch is None
 

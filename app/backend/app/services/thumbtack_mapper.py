@@ -7,7 +7,6 @@ documentation was wrong about seven fields, so the fixture is the authority.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -32,8 +31,18 @@ CATEGORY_TO_SERVICE: dict[str, ServiceType] = {
 _ZIP = re.compile(r"\b(\d{5})\b")
 _STATE = re.compile(r"\b([A-Z]{2})\b")
 
-# Two-letter tokens that appear in ordinary prose and are not state codes.
-_NOT_STATES = {"AM", "PM", "OK", "TV", "AC", "ID", "IT", "NO", "SO", "US", "USA"}
+# Real USPS state codes. An ALLOW-list, not a denylist: the previous denylist
+# both missed real states (OK, ID were excluded as "prose words" — they are
+# Oklahoma and Idaho) and could never cover ordinary address tokens like
+# "PO Box", "NW", "SE". Matching only real codes closes both holes at once.
+_STATE_CODES = frozenset({
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "DC",
+})
 
 
 @dataclass
@@ -123,7 +132,7 @@ def _location_mismatch(description: str | None, location: dict) -> str | None:
 
     if home_state:
         for state in _STATE.findall(description):
-            if state in _NOT_STATES or state == home_state:
+            if state not in _STATE_CODES or state == home_state:
                 continue
             found.append(state)
             break
