@@ -371,8 +371,24 @@ function EventsFeed() {
     })
     retry.mutate(eventId, {
       onSuccess: result => {
-        // Three distinct outcomes on a successful call — a flat "Retried" hides which
-        // one happened, and the operator needs to know whether a new lead now exists.
+        // A 200 response is not the same as a delivery that was actually
+        // processed: the backend refuses to touch a truncated oversize-rejection
+        // body or a non-lead-kind event, and returns the event unchanged — no
+        // lead, and the error that explains the refusal still sitting on the
+        // row. Reporting that as "Nothing needed doing." reads as a clean
+        // no-op right next to the row's own red error, which is exactly the
+        // misleading-success shape this screen keeps getting sent back for.
+        // Route it into the failure line instead, pointing at that error.
+        if (!result.lead_id && result.event.error) {
+          setRetryErrors(prev => ({
+            ...prev,
+            [eventId]: 'Retry did not process this delivery — see the error above.',
+          }))
+          return
+        }
+        // Three distinct outcomes on a genuinely successful call — a flat
+        // "Retried" hides which one happened, and the operator needs to know
+        // whether a new lead now exists.
         const message = result.created
           ? 'Lead created.'
           : result.lead_id
@@ -420,7 +436,6 @@ function EventsFeed() {
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">{event.error}</p>
             )}
             {(event.status === 'failed' ||
-              event.kind === 'unknown' ||
               event.error ||
               (event.kind === 'lead' && !event.lead_id)) && (
               <div className="mt-2">
