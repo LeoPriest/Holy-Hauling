@@ -281,15 +281,22 @@ async def _persist_lead(
     already = existing.scalar_one_or_none()
     if already is not None:
         # A second delivery for a lead we already have (a Thumbtack
-        # redelivery lands as its own event row). Recorded as processed and
-        # linked to the lead it maps to — not left `received` forever,
-        # indistinguishable from a delivery nobody looked at. `error` is
-        # deliberately untouched: an unresolved problem from the delivery
-        # that actually created the lead is not fixed by this early return,
-        # and must not be reported as if it were — the heal gate in
-        # retry_event is what decides that, from the payload's own state.
+        # redelivery lands as its own event row, and so does a retry of a
+        # delivery that failed before the lead existed and maps fine now).
+        # Recorded as processed and linked to the lead it maps to — not left
+        # `received` forever, indistinguishable from a delivery nobody
+        # looked at.
         event.lead_id = already.id
         event.status = "processed"
+        # Only cleared when the lead this delivery maps to is genuinely
+        # healthy — has its expense booked, or is refunded and legitimately
+        # carries none. A real unresolved problem (known cost with no
+        # transaction yet; an unparseable price) is left exactly as it was:
+        # this early return does not fix it, and must not report it as
+        # fixed. retry_event's heal gate is what actually attempts a repair,
+        # from the payload, when there is one to attempt.
+        if already.lead_cost_finance_transaction_id is not None or already.lead_refunded_at is not None:
+            event.error = None
         event.processed_at = _now()
         await db.commit()
         return already.id, False   # Thumbtack retries; one delivery, one lead
@@ -373,9 +380,16 @@ async def _persist_lead(
                 db, lead_id, True, actor="thumbtack_webhook", city_id=conn.city_id
             )
         except Exception as exc:
-            logger.exception("thumbtack lead refund sync failed lead=%s", lead_id)
             await db.rollback()
-            event_error = f"lead created but lead cost sync failed: {exc}"
+            # logger.error, not logger.exception: see the same rationale on
+            # the "Mapping failed" sites above — a DBAPI error's traceback
+            # dump would carry the very bound-parameter text
+            # _safe_exc_summary exists to keep out of event.error.
+            logger.error(
+                "thumbtack lead refund sync failed lead=%s error=%s",
+                lead_id, _safe_exc_summary(exc),
+            )
+            event_error = f"lead created but lead cost sync failed: {_safe_exc_summary(exc)}"
     elif mapped.lead_cost_cents is not None:
         # Mirrors a manually entered cost into finance. Idempotent via
         # lead_cost_finance_transaction_id, so a redelivery adds no second expense.
@@ -383,9 +397,12 @@ async def _persist_lead(
             await lead_cost_service.sync_lead_cost_expense(db, lead)
             await db.commit()
         except Exception as exc:
-            logger.exception("thumbtack lead cost sync failed lead=%s", lead_id)
             await db.rollback()
-            event_error = f"lead created but lead cost sync failed: {exc}"
+            logger.error(
+                "thumbtack lead cost sync failed lead=%s error=%s",
+                lead_id, _safe_exc_summary(exc),
+            )
+            event_error = f"lead created but lead cost sync failed: {_safe_exc_summary(exc)}"
     else:
         # parse_cents returned None for a lead the mapper judged real: a
         # missing leadPrice, "Free", or unparseable junk. Keep the lead —
@@ -506,10 +523,10 @@ async def retry_event(
         # touching cost sync or push — so a `processed` event that still
         # carries Task 3's "lead created but lead cost sync failed" error
         # would otherwise never heal. Do that here, on the retry path only:
-        # load the lead and, if it has a known cost but no linked expense yet,
-        # run the same idempotent sync_lead_cost_expense the original
-        # delivery would have run. This heals an existing lead — it must
-        # never flip `created` to True.
+        # load the lead and, if there is a repairable cost problem, run the
+        # same idempotent sync_lead_cost_expense the original delivery would
+        # have run. This heals an existing lead — it must never flip
+        # `created` to True.
         if lead_id is not None:
             lead_result = await db.execute(select(Lead).where(Lead.id == lead_id).limit(1))
             lead = lead_result.scalar_one_or_none()
@@ -520,25 +537,39 @@ async def retry_event(
             # column would let this heal book a full-price expense for a
             # refunded lead and report success. The payload never lies.
             retry_mapped = map_lead_payload(parsed)
-            if (
+            can_heal = (
                 lead is not None
-                and lead.lead_cost_cents is not None
                 and lead.lead_cost_finance_transaction_id is None
                 and retry_mapped is not None
                 and not retry_mapped.is_refunded
-            ):
+            )
+            if can_heal and lead.lead_cost_cents is None and retry_mapped.lead_cost_cents is not None:
+                # The cost was unparseable at ingest time (Fix 3's flag is
+                # correct and stays — 0 is never substituted for unknown).
+                # Retry re-reads the same stored raw body, so if parse_cents
+                # is fixed later, re-mapping it now can yield a real price.
+                # Fill it in from the payload — never invented — then sync
+                # below like any other now-known cost.
+                lead.lead_cost_cents = retry_mapped.lead_cost_cents
+                lead.lead_cost_gross_cents = retry_mapped.lead_cost_gross_cents
+            if can_heal and lead.lead_cost_cents is not None:
                 try:
                     await lead_cost_service.sync_lead_cost_expense(db, lead)
-                    # The stale "cost sync failed" string is now false.
+                    # The stale "cost sync failed" / "could not be parsed"
+                    # string is now false.
                     event.error = None
                     await db.commit()
                 except Exception as exc:
                     await db.rollback()
-                    logger.exception(
-                        "thumbtack retry cost sync heal failed lead=%s", lead_id
+                    logger.error(
+                        "thumbtack retry cost sync heal failed lead=%s error=%s",
+                        lead_id, _safe_exc_summary(exc),
                     )
-                    event.error = f"lead created but lead cost sync failed: {exc}"
+                    event.error = f"lead created but lead cost sync failed: {_safe_exc_summary(exc)}"
                     await db.commit()
+            # can_heal True but lead.lead_cost_cents still None here means the
+            # re-mapped body still will not parse — the error correctly
+            # remains untouched.
 
     await db.refresh(event)
     return event, created

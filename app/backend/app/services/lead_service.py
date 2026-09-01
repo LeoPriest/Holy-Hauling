@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.models.lead import Lead, LeadSourceType, LeadStatus
 from app.models.lead_event import LeadEvent
 from app.models.screenshot import Screenshot
-from app.schemas.lead import LeadCreate, LeadStatusUpdate, LeadUpdate, NoteCreate
+from app.schemas.lead import LeadCreate, LeadDetailOut, LeadStatusUpdate, LeadUpdate, NoteCreate
 
 # Resolved at import time. Tests monkeypatch this before any fixture runs.
 _SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -116,6 +116,23 @@ def visible_raw_payload(
     if source_type == LeadSourceType.thumbtack_api and role != "admin":
         return None
     return raw_payload
+
+
+def to_lead_detail_out(lead: Lead, role: str) -> LeadDetailOut:
+    """The one sanctioned way to build a LeadDetailOut.
+
+    LeadDetailOut is the single schema raw_payload is reachable through at
+    all (LeadOut, used everywhere else, does not declare the field). Every
+    caller that needs a LeadDetailOut goes through this function rather than
+    calling `LeadDetailOut.model_validate(lead)` directly, so the redaction
+    is not a step a route handler can forget — there is no other way to get
+    one. Two callers today (GET /leads/{id}, POST /ingest/screenshot); any
+    future one is safe the same way, by construction, not by remembering to
+    also call visible_raw_payload.
+    """
+    dto = LeadDetailOut.model_validate(lead)
+    dto.raw_payload = visible_raw_payload(dto.raw_payload, lead.source_type, role)
+    return dto
 
 
 def _apply_acknowledgement(

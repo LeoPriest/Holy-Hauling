@@ -127,11 +127,7 @@ async def get_lead(
 ):
     lead = await lead_service.get_lead(db, lead_id, detailed=True, city_id=city_scope(current_user))
     await _enrich(db, lead)
-    dto = LeadDetailOut.model_validate(lead)
-    dto.raw_payload = lead_service.visible_raw_payload(
-        dto.raw_payload, lead.source_type, current_user.role
-    )
-    return dto
+    return lead_service.to_lead_detail_out(lead, current_user.role)
 
 
 @router.delete("/{lead_id}", status_code=204)

@@ -1615,3 +1615,164 @@ async def test_a_webhook_lead_opens_with_a_created_timeline_event(client, db_ses
         sa_select(LeadEvent).where(LeadEvent.lead_id == lead.id)
     )).scalars().all()
     assert any(e.event_type == "created" for e in events)
+
+
+# ── Residuals round: R1-R4 ────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_retry_via_idempotency_hit_clears_a_stale_error_on_a_healthy_lead(
+    client, db_session, monkeypatch
+):
+    """Event A delivers cleanly and books the lead's expense. Event B, a
+    redelivery of the same negotiationID, fails mapping transiently. Retrying
+    B once mapping works again hits the idempotency lookup (the lead already
+    exists via A) rather than the insert path, so the ordinary unconditional
+    event.error clear at the bottom of the insert path never runs for B.
+    Without a fix, B keeps its stale "Mapping failed" error and a Retry
+    button forever, even though the lead it maps to is entirely healthy."""
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    body = _real_lead_body()
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    assert lead.lead_cost_finance_transaction_id is not None
+
+    def _boom(_body):
+        raise RuntimeError("transient")
+
+    monkeypatch.setattr(thumbtack_service, "map_lead_payload", _boom)
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    monkeypatch.undo()
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    event_b = next(e for e in events if e.status == "failed")
+    assert event_b.error is not None
+
+    r = await client.post(f"/admin/thumbtack/events/{event_b.id}/retry")
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["created"] is False
+    assert payload["lead_id"] == lead.id
+    assert payload["event"]["status"] == "processed"
+    assert payload["event"]["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_retry_fills_a_previously_unparseable_cost_once_it_parses(
+    client, db_session, monkeypatch
+):
+    """Fix 3's flag is correct and stays: an unparseable leadPrice leaves
+    lead_cost_cents unset and flags the event, never substituting 0. But
+    retry could not previously heal that state at all -- the heal gate
+    required a known cost. Retry re-reads the same stored raw body, so if
+    the mapper is later fixed, re-mapping it can now yield a real price.
+    This simulates that: the stored body never changes, only what the
+    mapper does with it."""
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.finance import FinanceTransaction
+    from app.models.lead import Lead
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import thumbtack_service
+    from app.services.thumbtack_mapper import map_lead_payload as real_map_lead_payload
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    body = _copy.deepcopy(_real_lead_body())
+    body["data"]["leadPrice"] = "Free"
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    assert r.status_code == 200
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    assert lead.lead_cost_cents is None
+    assert lead.lead_cost_finance_transaction_id is None
+
+    event = (await db_session.execute(
+        sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.connection_id == conn.id)
+    )).scalar_one()
+    assert event.error is not None
+    assert "could not be parsed" in event.error
+
+    def _now_parses(raw_body):
+        mapped = real_map_lead_payload(raw_body)
+        mapped.lead_cost_cents = 1500
+        mapped.lead_cost_gross_cents = 1500
+        return mapped
+
+    monkeypatch.setattr(thumbtack_service, "map_lead_payload", _now_parses)
+    r = await client.post(f"/admin/thumbtack/events/{event.id}/retry")
+    monkeypatch.undo()
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["event"]["error"] is None
+
+    await db_session.refresh(lead)
+    # Filled from the (simulated-fixed) re-mapping, never a substituted 0.
+    assert lead.lead_cost_cents == 1500
+    assert lead.lead_cost_finance_transaction_id is not None
+
+    tx_count = (await db_session.execute(
+        sa_select(func.count()).select_from(FinanceTransaction)
+        .where(FinanceTransaction.lead_id == lead.id)
+    )).scalar()
+    assert tx_count == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_of_a_still_unparseable_price_leaves_the_error_in_place(
+    client, db_session
+):
+    """The other half of R2: when the re-mapped body still will not parse,
+    the flag must not be silently cleared just because a retry ran."""
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.models.thumbtack import ThumbtackWebhookEvent
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    body = _copy.deepcopy(_real_lead_body())
+    body["data"]["leadPrice"] = "Free"
+
+    r = await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=body)
+    assert r.status_code == 200
+
+    event = (await db_session.execute(
+        sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.connection_id == conn.id)
+    )).scalar_one()
+    original_error = event.error
+    assert original_error is not None
+
+    r = await client.post(f"/admin/thumbtack/events/{event.id}/retry")
+
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["event"]["error"] == original_error
+
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one()
+    assert lead.lead_cost_cents is None
+    assert lead.lead_cost_finance_transaction_id is None
