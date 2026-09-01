@@ -351,6 +351,48 @@ async def _persist_lead(
     return lead_id
 
 
+async def retry_event(db: AsyncSession, event_id: str) -> Optional[ThumbtackWebhookEvent]:
+    """Re-run mapping over a stored delivery. None when the event does not exist.
+
+    Idempotent by way of _persist_lead's own lookup on source_reference_id —
+    retrying a delivery that already produced a lead returns that lead rather
+    than making a second one.
+    """
+    result = await db.execute(
+        select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.id == event_id).limit(1)
+    )
+    event = result.scalar_one_or_none()
+    if event is None:
+        return None
+
+    conn = await get_by_id(db, event.connection_id)
+    if conn is None:
+        event.status = "failed"
+        event.error = "Connection no longer exists"
+        await db.commit()
+        return event
+
+    try:
+        parsed = json.loads(event.raw_body)
+    except (json.JSONDecodeError, ValueError) as exc:
+        event.status = "failed"
+        event.error = f"Body is not valid JSON: {exc}"
+        await db.commit()
+        return event
+
+    try:
+        await _persist_lead(db, conn, event, parsed)
+    except Exception as exc:
+        await db.rollback()
+        event.status = "failed"
+        event.error = f"Mapping failed: {exc}"
+        await db.commit()
+        logger.exception("thumbtack retry failed event=%s", event.id)
+
+    await db.refresh(event)
+    return event
+
+
 async def record_event(
     db: AsyncSession, conn: ThumbtackConnection, raw_body: bytes
 ) -> ThumbtackWebhookEvent:

@@ -57,3 +57,10 @@ class EventOut(BaseModel):
     lead_id: Optional[str] = None
     received_at: datetime
     processed_at: Optional[datetime] = None
+
+
+class RetryResult(BaseModel):
+    """Response for POST /admin/thumbtack/events/{id}/retry."""
+    event: EventOut
+    created: bool          # True when this retry produced or found a lead
+    lead_id: Optional[str] = None

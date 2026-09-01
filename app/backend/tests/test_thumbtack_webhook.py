@@ -1125,6 +1125,7 @@ async def test_a_push_failure_does_not_lose_the_lead(client, db_session, monkeyp
     from sqlalchemy import select as sa_select
 
     from app.models.lead import Lead
+    from app.models.thumbtack import ThumbtackWebhookEvent
     from app.services import push_service, thumbtack_service
 
     async def _boom(db, roles, message, city_id=None):
@@ -1143,3 +1144,70 @@ async def test_a_push_failure_does_not_lose_the_lead(client, db_session, monkeyp
         sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
     )).scalar_one_or_none()
     assert lead is not None
+    # The other half of the governing rule: a push failure must not also mark
+    # the event `failed` — that would invite a retry that can never actually
+    # retry the (already-succeeded) push.
+    event = (await db_session.execute(
+        sa_select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.connection_id == conn.id)
+    )).scalar_one_or_none()
+    assert event is not None
+    assert event.status == "processed"
+
+
+@pytest.mark.asyncio
+async def test_retry_maps_a_delivery_that_failed_the_first_time(client, db_session, monkeypatch):
+    from sqlalchemy import select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+
+    def _boom(_body):
+        raise RuntimeError("transient")
+
+    monkeypatch.setattr(thumbtack_service, "map_lead_payload", _boom)
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+    monkeypatch.undo()
+
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+    assert events[0].status == "failed"
+
+    r = await client.post(f"/admin/thumbtack/events/{events[0].id}/retry")
+
+    assert r.status_code == 200
+    assert r.json()["created"] is True
+    lead = (await db_session.execute(
+        sa_select(Lead).where(Lead.source_reference_id == "589129524549820420")
+    )).scalar_one_or_none()
+    assert lead is not None
+
+
+@pytest.mark.asyncio
+async def test_retrying_an_already_processed_delivery_creates_no_duplicate(client, db_session):
+    from sqlalchemy import func, select as sa_select
+
+    from app.models.lead import Lead
+    from app.services import thumbtack_service
+
+    conn, _ = await thumbtack_service.create_connection(
+        db_session, label="HH STL", city_id="st-louis", business="holy_handy"
+    )
+    await client.post(f"/ingest/webhook/thumbtack/{conn.url_token}", json=_real_lead_body())
+    events = await thumbtack_service.list_events(db_session, connection_id=conn.id)
+
+    await client.post(f"/admin/thumbtack/events/{events[0].id}/retry")
+
+    count = (await db_session.execute(
+        sa_select(func.count()).select_from(Lead)
+        .where(Lead.source_reference_id == "589129524549820420")
+    )).scalar()
+    assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_retrying_an_unknown_event_id_is_a_404(client):
+    r = await client.post("/admin/thumbtack/events/no-such-event/retry")
+    assert r.status_code == 404
