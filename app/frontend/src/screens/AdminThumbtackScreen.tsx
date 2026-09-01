@@ -5,6 +5,7 @@ import { useCities } from '../hooks/useCities'
 import {
   useCreateThumbtackConnection,
   useDeleteThumbtackConnection,
+  useRetryThumbtackEvent,
   useSetThumbtackConnectionActive,
   useThumbtackConnections,
   useThumbtackEvents,
@@ -336,8 +337,39 @@ function ConnectionRow({ conn }: { conn: ThumbtackConnection }) {
 function EventsFeed() {
   const { data: events = [] } = useThumbtackEvents()
   const [expanded, setExpanded] = useState<string | null>(null)
+  const retry = useRetryThumbtackEvent()
+  // Tracked per event id, not off retry.isPending — a single mutation hook is shared
+  // across every row, so isPending alone would freeze every other row's button while
+  // one retry is in flight.
+  const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [retryError, setRetryError] = useState<{ id: string; message: string } | null>(null)
+  const [retrySuccess, setRetrySuccess] = useState<{ id: string; message: string } | null>(null)
 
   if (events.length === 0) return null
+
+  function handleRetry(eventId: string) {
+    setRetryingId(eventId)
+    setRetryError(null)
+    setRetrySuccess(null)
+    retry.mutate(eventId, {
+      onSuccess: result => {
+        // Three distinct outcomes on a successful call — a flat "Retried" hides which
+        // one happened, and the operator needs to know whether a new lead now exists.
+        const message = result.created
+          ? 'Lead created.'
+          : result.lead_id
+            ? 'Lead already existed — nothing new created.'
+            : 'Nothing needed doing.'
+        setRetrySuccess({ id: eventId, message })
+      },
+      onError: err =>
+        setRetryError({
+          id: eventId,
+          message: err instanceof Error ? err.message : 'Retry failed',
+        }),
+      onSettled: () => setRetryingId(null),
+    })
+  }
 
   return (
     <section className="rounded-xl border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
@@ -361,6 +393,27 @@ function EventsFeed() {
             </button>
             {event.error && (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400">{event.error}</p>
+            )}
+            {(event.status === 'failed' || event.kind === 'unknown') && (
+              <div className="mt-2">
+                <button
+                  onClick={() => handleRetry(event.id)}
+                  disabled={retryingId === event.id}
+                  className={`${TOUCH} rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white disabled:opacity-40`}
+                >
+                  {retryingId === event.id ? 'Retrying…' : 'Retry'}
+                </button>
+              </div>
+            )}
+            {retryError?.id === event.id && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                {retryError.message}
+              </p>
+            )}
+            {retrySuccess?.id === event.id && (
+              <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                {retrySuccess.message}
+              </p>
             )}
             {expanded === event.id && (
               <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-gray-100 p-3 text-xs text-gray-800 dark:bg-gray-900 dark:text-gray-200">

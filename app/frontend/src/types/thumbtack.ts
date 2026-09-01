@@ -38,3 +38,10 @@ export interface ThumbtackConnectionCreate {
   city_id: string
   business: ThumbtackBusiness
 }
+
+export interface RetryResult {
+  event: ThumbtackEvent
+  /** True when the retry produced or found a lead. */
+  created: boolean
+  lead_id: string | null
+}
