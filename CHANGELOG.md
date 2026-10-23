@@ -27,6 +27,21 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-23] Workday design, stage 5 of 8 — crew jobs and the Jobs list
+
+- **Header (`JobsScreen.tsx`):** dark header, "Jobs", today's date and the user, and the city pill for admins. The old "Settings" text link left (Settings is in the dock).
+- **Segmented control (`Segmented.tsx`, new):** an ink pill slides between parts. Crew get Upcoming / Completed; the office gets Scheduled / In progress (with a red count) / Completed.
+- **Crew agenda (`CrewAgenda.tsx`):** "▸ Active now" card (mint, green outline, name in display caps, phase badge, address link, "Continue job →"), then Today / Tomorrow / … rows with the time on the left and a ghost "Go" button to the map.
+- **Job detail:** slides in from the right above the dock.
+  - A dark header with back, name, service and time.
+  - The 5-step stepper (Dispatched / En route / On site / Working / Done): done steps green, the current one amber with a ring.
+  - The phase timers, the address with street view and Navigate, Call / Text when the phone is shared, and a hazard-striped "Heads up" card from the scope notes.
+  - Quote and context for the office; items to bring (progress bar, 24px boxes that pop green, strikethrough, scope tag); before & after photo slots (striped until a photo exists, then mint with ✓); crew; and a job note.
+- **Next-action button (supervisor/admin only, as the server allows):** reads Dispatch / Start driving / I've arrived / Start work / Finish job. Finish asks "Mark job complete?" first, and a failed change says so. The old phase buttons and Reset sit under "Set a phase by hand". Crew see the stepper read-only, with "Your supervisor moves the job along as you go."
+- **Office list:** job cards in the Workday card style with timer flags that turn amber then red; late jobs show as a hazard warning card; completed cards keep quoted / realized.
+- **Not in this stage:** photos don't block "Finish job" and crew can't move a job themselves. Both are new rules (brief question 2); this stage only changes the look.
+- **Tests:** `app/frontend/tests/test_workday_jobs.py`, 12 tests (the test helper now hands query strings to the fake server). Frontend 68 passed; backend 527 passed.
+
 ## [2026-10-23] Workday design, stage 4 of 8 — the new-lead flow
 
 - **One full-screen flow (`LeadCreate.tsx`)** replaces both the old pop-ups. The dock's Screenshot and Type it in open it at "choose" and "manual". `IngestProgressFlow.tsx` is deleted (nothing else used it).

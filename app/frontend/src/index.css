@@ -521,6 +521,72 @@
   .wd-sw[aria-checked="true"] .wd-sw-t i { transform: translateX(18px); }
   .dark input[type="date"], .dark input[type="time"], .dark input[type="datetime-local"] { color-scheme: dark; }
 
+  /* ── Jobs ── */
+  /* Segmented control: an ink pill slides to the chosen part. */
+  .wd-seg {
+    position: relative; display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; padding: 4px;
+    border-radius: 14px; background: var(--sf); box-shadow: inset 0 0 0 1.5px var(--edge);
+  }
+  .wd-seg-pill {
+    position: absolute; top: 4px; bottom: 4px; left: calc(4px + var(--at) * (100% - 8px) / var(--n));
+    width: calc((100% - 8px) / var(--n)); border-radius: 10px; background: var(--ink);
+    transition: left .35s var(--settle);
+  }
+  .wd-seg button {
+    position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 44px; color: var(--ink); transition: color .25s;
+    font: 700 16px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .wd-seg button[aria-pressed="true"] { color: var(--bg); }
+  .wd-seg .dbdg { position: static; box-shadow: none; }
+  .wd-act { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 14px; background: var(--tint); box-shadow: inset 0 0 0 2px var(--pr); }
+  .wd-act-n { font: 700 24px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+  .wd-act-a { display: flex; align-items: center; gap: 6px; min-height: 44px; font-size: 14px; font-weight: 600; color: var(--ok); }
+  .wd-act-a svg, .wd-ag svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .wd-ag { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .wd-ag > button { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 44px; text-align: left; }
+  .wd-ag-t { font: 700 16px/1.1 "Barlow Condensed", sans-serif; text-align: right; }
+  .wd-ag-n { font-weight: 600; font-size: 15px; }
+  .wd-ag-s { font-size: 12px; color: var(--mu); }
+  .wd-ag-a { margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--mu); }
+
+  /* Job detail: slides in from the right, above the dock. */
+  .wd-jd {
+    position: fixed; left: 0; right: 0; top: 0; bottom: var(--dock-h); z-index: 30; display: flex; flex-direction: column;
+    background: var(--bg); color: var(--ink); animation: wd-slide-in .45s var(--settle) both;
+  }
+  .wd-jd.out { animation: wd-slide-out .3s var(--out) both; }
+  .wd-steps { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+  .wd-steps::before { content: ""; position: absolute; left: 10%; right: 10%; top: 13px; height: 2px; background: var(--ln); }
+  .wd-stp { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .wd-stp i {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--sf); box-shadow: inset 0 0 0 2px var(--ln);
+    color: var(--mu); text-align: center; font: 700 14px/28px "Barlow Condensed", sans-serif; font-style: normal; transition: background .3s;
+  }
+  .wd-stp.done i { background: var(--pr); color: #fff; box-shadow: none; }
+  .wd-stp.cur i { background: var(--ac); color: #161512; box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px var(--ac); }
+  .wd-stp span { white-space: nowrap; color: var(--mu); font: 600 11px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .04em; }
+  .wd-stp.cur span { color: var(--ink); }
+  .wd-heads { padding: 0; overflow: hidden; }
+  .wd-heads > div:last-child { padding: 10px 14px 12px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .wd-prog { height: 6px; overflow: hidden; border-radius: 3px; background: var(--ln); }
+  .wd-prog > i { display: block; height: 100%; background: var(--pr); transition: width .4s var(--settle); }
+  .wd-chk { display: flex; align-items: center; gap: 4px; min-height: 44px; border-top: 1px solid var(--ln); }
+  .wd-chk:first-child { border-top: 0; }
+  .wd-bx {
+    display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px;
+    box-shadow: inset 0 0 0 2px var(--ln); color: transparent; font-size: 14px; font-weight: 700;
+  }
+  .wd-chk[data-on="true"] .wd-bx { background: var(--pr); color: #fff; box-shadow: none; animation: wd-pop .35s var(--settle); }
+  .wd-chk[data-on="true"] .wd-ck-l { color: var(--mu); text-decoration: line-through; }
+  .wd-ph-slot {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 120px; width: 100%;
+    border-radius: 12px; color: var(--mu); box-shadow: inset 0 0 0 1.5px var(--ln); font-size: 12px; font-weight: 600;
+    background: repeating-linear-gradient(-45deg, var(--sf) 0 8px, var(--bg) 8px 16px); transition: background .3s, box-shadow .3s;
+  }
+  .wd-ph-slot.got { background: var(--tint); color: var(--ok); box-shadow: inset 0 0 0 1.5px var(--pr); }
+  .wd-ph-slot svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
   /* Tab switch: the new pane's cards rise in, staggered. */
   .wd-pane > * { animation: wd-rise .45s var(--settle) both; }
   .wd-pane > *:nth-child(2) { animation-delay: .05s; }
@@ -538,6 +604,8 @@
 @keyframes wd-pop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: none; } }
 @keyframes wd-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 @keyframes wd-fade { from { opacity: 0; } }
+@keyframes wd-slide-in { from { transform: translateX(105%); } }
+@keyframes wd-slide-out { to { transform: translateX(105%); } }
 @keyframes wd-scan { 0%, 100% { top: 4%; } 50% { top: 94%; } }
 @keyframes wd-ring { 50% { box-shadow: 0 0 0 5px rgba(244, 166, 35, .3); } }
 @keyframes wd-need { 50% { box-shadow: inset 0 0 0 2px var(--ac), 0 0 0 4px rgba(244, 166, 35, .22); } }

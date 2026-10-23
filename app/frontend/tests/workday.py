@@ -5,6 +5,7 @@ headless Chromium. Every API call is answered from fixtures in the tests, so
 no backend, database or outside service is touched.
 """
 import http.server
+import inspect
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -65,7 +66,9 @@ class SpaHandler(http.server.SimpleHTTPRequestHandler):
 def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHONE,
              reduced_motion="no-preference", theme="light"):
     """Open the app signed in as `role`. `answer(method, url)` returns
-    (status, body) for an API call, or None for "not found"."""
+    (status, body) for an API call, or None for "not found". An answer that
+    takes a third argument also gets the query string ("status=completed")."""
+    wants_query = len(inspect.signature(answer).parameters) >= 3
     ctx = browser.new_context(viewport=viewport, has_touch=True, reduced_motion=reduced_motion)
     ctx.add_init_script(f"localStorage.setItem('hh_token','t'); localStorage.setItem('hh_theme','{theme}');")
     calls = []
@@ -83,7 +86,8 @@ def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHO
             body = None
         bodies.append((req.method, url, body))
         got = {"/auth/me": (200, user(role))}.get(url) if req.method == "GET" else None
-        got = got or answer(req.method, url)
+        query = req.url.split("?", 1)[1] if "?" in req.url else ""
+        got = got or (answer(req.method, url, query) if wants_query else answer(req.method, url))
         if got is None:
             # Anything else answers "not found", as a fresh backend would.
             return route.fulfill(status=404, content_type="application/json", body='{"detail":"not mocked"}')
