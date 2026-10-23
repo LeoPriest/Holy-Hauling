@@ -4,6 +4,11 @@ import type { AiReview, Lead, RangeLever } from '../types/lead'
 /** 44px minimum — this surface is phone-first (Rule 013). */
 const TOUCH = 'min-h-[44px]'
 
+const PHONE_ICON = 'M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z'
+
+/** The strong-bordered box every non-decision state sits in. */
+const BOX = 'wd-box mx-3.5 mt-3.5'
+
 function money(value: number): string {
   return `$${value.toLocaleString('en-US')}`
 }
@@ -14,24 +19,19 @@ function CallRow({ lead }: { lead: Lead }) {
 
   if (!phone) {
     return (
-      <div className={`${TOUCH} flex items-center justify-center rounded-xl bg-gray-100 px-4 text-sm text-gray-500 dark:bg-gray-700 dark:text-gray-300`}>
+      <div className={`${TOUCH} flex items-center justify-center rounded-card bg-bg px-4 text-center text-sm text-mu`}>
         No number yet — reply on Thumbtack to reveal it
       </div>
     )
   }
 
   return (
-    <div className="flex gap-2">
-      <a
-        href={`tel:${phone}`}
-        className={`${TOUCH} flex flex-1 items-center justify-center rounded-xl bg-green-600 px-4 font-semibold text-white active:bg-green-700`}
-      >
+    <div className="wd-call">
+      <a href={`tel:${phone}`} className="wd-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d={PHONE_ICON} /></svg>
         Call {name}
       </a>
-      <a
-        href={`sms:${phone}`}
-        className={`${TOUCH} flex items-center justify-center rounded-xl border border-gray-300 px-4 text-sm font-medium text-gray-700 active:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:active:bg-gray-700`}
-      >
+      <a href={`sms:${phone}`} className="wd-btn wd-btn-ghost">
         Text
       </a>
     </div>
@@ -40,18 +40,16 @@ function CallRow({ lead }: { lead: Lead }) {
 
 function Lever({ lever }: { lever: RangeLever }) {
   return (
-    <div className="rounded-xl border-l-[3px] border-amber-500 bg-amber-50 p-3 dark:bg-amber-900/20">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-        {lever.factor} decides it
-      </p>
-      <div className="flex gap-2">
-        <div className="flex-1 rounded-lg border border-amber-200 bg-white p-2 dark:border-amber-800 dark:bg-gray-800">
-          <p className="text-xs text-gray-500 dark:text-gray-400">{lever.low_answer}</p>
-          <p className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">{money(lever.low_price)}</p>
+    <div className="wd-lev">
+      <p className="wd-lev-l">{lever.factor} decides it</p>
+      <div className="wd-lev-g">
+        <div className="wd-lev-c">
+          <span>{lever.low_answer}</span>
+          <b className="tabular-nums">{money(lever.low_price)}</b>
         </div>
-        <div className="flex-1 rounded-lg border border-amber-300 bg-white p-2 dark:border-amber-700 dark:bg-gray-800">
-          <p className="text-xs text-gray-500 dark:text-gray-400">{lever.high_answer}</p>
-          <p className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">{money(lever.high_price)}</p>
+        <div className="wd-lev-c">
+          <span>{lever.high_answer}</span>
+          <b className="tabular-nums">{money(lever.high_price)}</b>
         </div>
       </div>
     </div>
@@ -86,10 +84,10 @@ export function LeadDecisionCard({
   // that would replace the review already on its way.
   if (reviewLoading && !aiReview) {
     return (
-      <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <div className="mb-3 h-2.5 w-32 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="mb-3 h-8 w-48 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">Loading review…</p>
+      <div className={BOX} aria-busy="true">
+        <div className="wd-skel mb-3 h-3 w-32" />
+        <div className="wd-skel mb-3 h-9 w-48" />
+        <p className="text-sm text-mu">Loading review…</p>
       </div>
     )
   }
@@ -101,19 +99,14 @@ export function LeadDecisionCard({
   // Do not offer to overwrite it — offer to read it again.
   if (reviewError && !aiReview) {
     return (
-      <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
-          Review not loaded
-        </p>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+      <div className={BOX}>
+        <p className="wd-fl !text-danger">Review not loaded</p>
+        <p className="mb-3 text-sm text-mu">
           Could not reach the server to load this lead's AI review. If one exists it is still
           there — this is a connection fault, not a missing review.
         </p>
         {onRetryLoad && (
-          <button
-            onClick={onRetryLoad}
-            className={`${TOUCH} mb-3 w-full rounded-xl border border-gray-300 px-4 font-medium text-gray-700 active:bg-gray-100 dark:border-gray-600 dark:text-gray-200 dark:active:bg-gray-700`}
-          >
+          <button onClick={onRetryLoad} className="wd-btn wd-btn-ghost mb-3 w-full">
             Retry
           </button>
         )}
@@ -126,19 +119,18 @@ export function LeadDecisionCard({
   // Reached by a never-reviewed lead (resolved null). The trigger lives here.
   if (!aiReview) {
     return (
-      <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
-          No AI review yet for this lead.
-        </p>
+      <div className={BOX}>
+        <p className="wd-fl">AI review</p>
+        <p className="mb-3 text-sm text-mu">No AI review yet for this lead.</p>
         {triggerReview.isError && (
-          <p className="mb-2 text-sm text-red-600 dark:text-red-400">
+          <p className="wd-err mb-2">
             {triggerReview.error instanceof Error ? triggerReview.error.message : 'Could not run the review.'}
           </p>
         )}
         <button
           onClick={() => triggerReview.mutate({ leadId: lead.id })}
           disabled={triggerReview.isPending}
-          className={`${TOUCH} w-full rounded-xl bg-indigo-600 px-4 font-medium text-white disabled:opacity-50`}
+          className="wd-btn wd-btn-amber w-full"
         >
           {triggerReview.isPending ? 'Running…' : 'Run AI review'}
         </button>
@@ -149,23 +141,21 @@ export function LeadDecisionCard({
   // ── Review exists but carries no quotable figures ─────────────────────
   if (!hasMoney && s?.sayability !== 'hold') {
     return (
-      <div className="m-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-          No quotable number yet
-        </p>
-        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+      <div className={BOX}>
+        <p className="wd-fl">No quotable number yet</p>
+        <p className="mb-3 text-sm text-mu">
           This review was written before pricing was captured as figures. Re-run it to get a
           target and floor.
         </p>
         {triggerReview.isError && (
-          <p className="mb-2 text-sm text-red-600 dark:text-red-400">
+          <p className="wd-err mb-2">
             {triggerReview.error instanceof Error ? triggerReview.error.message : 'Could not re-run the review.'}
           </p>
         )}
         <button
           onClick={() => triggerReview.mutate({ leadId: lead.id })}
           disabled={triggerReview.isPending}
-          className={`${TOUCH} mb-3 w-full rounded-xl bg-indigo-600 px-4 font-medium text-white disabled:opacity-50`}
+          className="wd-btn wd-btn-amber mb-3 w-full"
         >
           {triggerReview.isPending ? 'Re-running…' : 'Re-run AI review'}
         </button>
@@ -182,10 +172,10 @@ export function LeadDecisionCard({
   const isReady = s?.sayability === 'ready'
 
   const headTone = isHold
-    ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+    ? 'bg-mu'
     : isReady
-      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
-      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+      ? 'bg-pr'
+      : 'bg-ac !text-[#161512]'
 
   const headLabel = isHold
     ? 'Hold — scope not firm'
@@ -196,44 +186,39 @@ export function LeadDecisionCard({
         : 'Check before quoting'
 
   return (
-    <div className="m-3 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-      <div className={`px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider ${headTone}`}>
-        {headLabel}
+    <div className={`${BOX} wd-dc`}>
+      <div className={`wd-dc-h ${headTone}`}>
+        <span>{headLabel}</span>
+        <span>AI review</span>
       </div>
 
-      {/* The range is deliberately suppressed on hold — showing one invites
-          quoting it when the model judged the scope too unresolved to price. */}
-      {!isHold && hasMoney && (
-        <div className="flex flex-wrap items-baseline justify-between gap-3 px-4 pt-4">
-          <p className="text-3xl font-bold tabular-nums tracking-tight text-gray-900 dark:text-white">
-            {money(s!.target_low!)}–{money(s!.target_high!)}
-          </p>
-          <p className="text-right text-xs text-gray-500 dark:text-gray-400">
-            floor
-            <span className="block text-base font-semibold tabular-nums text-red-600 dark:text-red-400">
-              {money(s!.floor!)}
-            </span>
-          </p>
-        </div>
-      )}
+      <div className="wd-dc-b">
+        {/* The range is deliberately suppressed on hold — showing one invites
+            quoting it when the model judged the scope too unresolved to price. */}
+        {!isHold && hasMoney && (
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <p className="wd-dc-n">
+              {money(s!.target_low!)}–{money(s!.target_high!)}
+            </p>
+            <p className="wd-dc-f">
+              floor
+              <b className="tabular-nums">{money(s!.floor!)}</b>
+            </p>
+          </div>
+        )}
 
-      {s?.band_reason && (
-        <p className="px-4 pb-1 pt-2 text-xs text-gray-500 dark:text-gray-400">
-          {isHold ? s.band_reason : <><span className="font-medium">{s.band_position ?? 'mid'}-band</span> · {s.band_reason}</>}
-        </p>
-      )}
+        {s?.band_reason && (
+          <p className="wd-dc-why">
+            {isHold ? s.band_reason : <><b>{s.band_position ?? 'mid'}-band</b> · {s.band_reason}</>}
+          </p>
+        )}
 
-      <div className="space-y-2 p-4 pt-3">
         {!isHold && s?.range_levers?.map((lever, i) => <Lever key={`${lever.factor}-${i}`} lever={lever} />)}
 
         {!isHold && s?.floor_defense && hasMoney && (
-          <div className="rounded-xl border-l-[3px] border-red-500 bg-red-50 p-3 dark:bg-red-900/20">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-red-700 dark:text-red-400">
-              If they push back
-            </p>
-            <p className="text-sm text-gray-700 dark:text-gray-200">
-              {s.floor_defense} Floor {money(s.floor!)}.
-            </p>
+          <div className="wd-push">
+            <p className="wd-push-l">If they push back</p>
+            <p>{s.floor_defense} Floor {money(s.floor!)}.</p>
           </div>
         )}
 

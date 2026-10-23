@@ -27,9 +27,9 @@ function defaultPayType(user: TeamMember): PayType {
 
 function PayTypebadge({ payType }: { payType: PayType }) {
   const colorMap: Record<PayType, string> = {
-    facilitator_pct: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
-    hourly: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-    flat: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    facilitator_pct: 'bg-purple-100 text-purple-700',
+    hourly: 'bg-tint text-ok',
+    flat: 'bg-bg text-ink',
   }
   return (
     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colorMap[payType]}`}>
@@ -187,11 +187,11 @@ export function PayrollSection({ lead }: Props) {
   const recordCount = records.length
   const countBadge =
     recordCount > 0 ? (
-      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-tint text-ok">
         {recordCount} {recordCount === 1 ? 'record' : 'records'}
       </span>
     ) : (
-      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-bg text-mu">
         No records
       </span>
     )
@@ -201,7 +201,7 @@ export function PayrollSection({ lead }: Props) {
   const saveLabel = isEditing ? 'Save Changes' : 'Add'
 
   return (
-    <div className="border rounded-xl bg-white dark:bg-gray-800 dark:border-gray-700">
+    <div className="wd-box wd-box-soft !p-0">
       {/* Header */}
       <button
         aria-expanded={expanded}
@@ -216,11 +216,11 @@ export function PayrollSection({ lead }: Props) {
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="w-5 h-5 text-gray-500 dark:text-gray-400"
+            className="w-5 h-5 text-mu"
           >
             <path d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
           </svg>
-          <span className="font-semibold text-sm text-gray-900 dark:text-white">Payroll</span>
+          <span className="font-semibold text-sm text-ink">Payroll</span>
           {countBadge}
         </div>
         <svg
@@ -228,17 +228,17 @@ export function PayrollSection({ lead }: Props) {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
-          className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-mu transition-transform ${expanded ? 'rotate-180' : ''}`}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
         </svg>
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t dark:border-gray-700 pt-3">
+        <div className="px-4 pb-4 space-y-4 border-t pt-3">
           {/* Loading state */}
           {(recordsLoading || usersLoading) && (
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-mu">
               <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v8H4z" />
@@ -254,20 +254,20 @@ export function PayrollSection({ lead }: Props) {
                 <button
                   key={record.id}
                   onClick={() => openEditForm(record)}
-                  className="w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-left hover:bg-gray-50 active:scale-[0.99] dark:border-gray-700 dark:hover:bg-gray-700"
+                  className="w-full flex items-center justify-between rounded-chip border px-3 py-2.5 text-left active:scale-[0.99]"
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                    <span className="font-semibold text-sm text-ink truncate">
                       {record.user_username}
                     </span>
                     <PayTypebadge payType={record.pay_type} />
                     {record.pay_type === 'hourly' && record.hours_worked !== null && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                      <span className="text-xs text-mu">
                         {record.hours_worked}h
                       </span>
                     )}
                   </div>
-                  <span className="text-sm font-semibold text-green-600 dark:text-green-400 ml-2 shrink-0">
+                  <span className="text-sm font-semibold text-ok ml-2 shrink-0">
                     {centsToDisplay(record.amount_cents)}
                   </span>
                 </button>
@@ -277,14 +277,14 @@ export function PayrollSection({ lead }: Props) {
 
           {/* Empty state */}
           {!recordsLoading && !formOpen && records.length === 0 && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">No pay records yet.</p>
+            <p className="text-sm text-mu">No pay records yet.</p>
           )}
 
           {/* Add button (shown when list exists or empty, not when form is open) */}
           {!recordsLoading && !formOpen && (
             <button
               onClick={openAddForm}
-              className="w-full rounded-lg border border-dashed px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 active:scale-[0.98] dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              className="w-full rounded-chip border border-dashed min-h-11 px-4 py-2.5 text-sm font-medium text-mu active:scale-[0.98]"
             >
               + Add Pay Record
             </button>
@@ -293,15 +293,15 @@ export function PayrollSection({ lead }: Props) {
           {/* Form */}
           {formOpen && (
             <div className="space-y-3">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white">{formTitle}</p>
+              <p className="text-sm font-semibold text-ink">{formTitle}</p>
 
               {/* User dropdown */}
               <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">
+                <label className="wd-fl !mb-1">
                   Crew member
                 </label>
                 {activeUsers.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-mu">
                     No crew found. Add users in admin first.
                   </p>
                 ) : (
@@ -309,7 +309,7 @@ export function PayrollSection({ lead }: Props) {
                     value={selectedUserId}
                     onChange={e => handleUserChange(e.target.value)}
                     disabled={isEditing}
-                    className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="wd-input disabled:opacity-60"
                   >
                     <option value="">Select crew member...</option>
                     {activeUsers.map(u => (
@@ -324,13 +324,13 @@ export function PayrollSection({ lead }: Props) {
 
               {/* Pay type select */}
               <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">
+                <label className="wd-fl !mb-1">
                   Pay type
                 </label>
                 <select
                   value={payType}
                   onChange={e => handlePayTypeChange(e.target.value as PayType)}
-                  className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  className="wd-input"
                 >
                   <option
                     value="facilitator_pct"
@@ -344,7 +344,7 @@ export function PayrollSection({ lead }: Props) {
                   <option value="flat">Flat</option>
                 </select>
                 {payType === 'facilitator_pct' && lead.quote_cents === null && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  <p className="text-xs text-[#b86e00] mt-1">
                     Set a job quote first to use the facilitator pay type.
                   </p>
                 )}
@@ -353,7 +353,7 @@ export function PayrollSection({ lead }: Props) {
               {/* Hours worked — only for hourly */}
               {payType === 'hourly' && (
                 <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">
+                  <label className="wd-fl !mb-1">
                     Hours worked
                   </label>
                   <input
@@ -363,10 +363,10 @@ export function PayrollSection({ lead }: Props) {
                     value={hoursWorked}
                     onChange={e => setHoursWorked(e.target.value)}
                     placeholder="0.0"
-                    className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    className="wd-input"
                   />
                   {hourlyRateError && (
-                    <p className="text-sm text-red-500 mt-1">{hourlyRateError}</p>
+                    <p className="text-sm text-danger mt-1">{hourlyRateError}</p>
                   )}
                 </div>
               )}
@@ -374,7 +374,7 @@ export function PayrollSection({ lead }: Props) {
               {/* Override amount — only for flat */}
               {payType === 'flat' && (
                 <div>
-                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">
+                  <label className="wd-fl !mb-1">
                     Amount ($)
                   </label>
                   <input
@@ -384,14 +384,14 @@ export function PayrollSection({ lead }: Props) {
                     value={overrideAmountCents}
                     onChange={e => setOverrideAmountCents(e.target.value)}
                     placeholder="0.00"
-                    className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    className="wd-input"
                   />
                 </div>
               )}
 
               {/* Note */}
               <div>
-                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 block mb-1">
+                <label className="wd-fl !mb-1">
                   Note (optional)
                 </label>
                 <textarea
@@ -399,25 +399,25 @@ export function PayrollSection({ lead }: Props) {
                   onChange={e => setNote(e.target.value)}
                   rows={2}
                   placeholder="Any additional details..."
-                  className="w-full rounded-lg border px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  className="wd-input"
                 />
               </div>
 
               {/* Form error */}
-              {formError && <p className="text-sm text-red-500">{formError}</p>}
+              {formError && <p className="text-sm text-danger">{formError}</p>}
 
               {/* Save / Cancel */}
               <div className="flex gap-2">
                 <button
                   onClick={handleSave}
                   disabled={upsert.isPending || !!hourlyRateError}
-                  className="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-chip bg-pr min-h-11 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {upsert.isPending ? 'Saving...' : saveLabel}
                 </button>
                 <button
                   onClick={closeForm}
-                  className="rounded-lg border px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  className="wd-btn-sm wd-btn-ghost"
                 >
                   Cancel
                 </button>
@@ -425,34 +425,34 @@ export function PayrollSection({ lead }: Props) {
 
               {/* Delete section — only when editing an existing record */}
               {isEditing && (
-                <div className="border-t pt-3 dark:border-gray-700">
+                <div className="border-t pt-3">
                   {!confirmDelete ? (
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      className="text-sm text-red-500 hover:underline"
+                      className="text-sm text-danger hover:underline"
                     >
                       Delete
                     </button>
                   ) : (
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 flex-wrap">
-                        <span className="text-sm text-gray-700 dark:text-gray-300">Are you sure?</span>
+                        <span className="text-sm text-ink">Are you sure?</span>
                         <button
                           onClick={handleDelete}
                           disabled={deleteMutation.isPending}
-                          className="text-sm font-semibold text-red-600 hover:underline disabled:opacity-50"
+                          className="text-sm font-semibold text-danger hover:underline disabled:opacity-50"
                         >
                           {deleteMutation.isPending ? 'Deleting...' : 'Yes, delete'}
                         </button>
                         <button
                           onClick={() => setConfirmDelete(false)}
-                          className="text-sm text-gray-500 hover:underline"
+                          className="text-sm text-mu hover:underline"
                         >
                           Cancel
                         </button>
                       </div>
                       {deleteError && (
-                        <p className="text-sm text-red-500">{deleteError}</p>
+                        <p className="text-sm text-danger">{deleteError}</p>
                       )}
                     </div>
                   )}

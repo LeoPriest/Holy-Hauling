@@ -20,6 +20,8 @@
 
 @layer base {
   body { background: var(--bg); color: var(--ink); font-family: Figtree, sans-serif; }
+  /* Plain `border` utilities pick up the hairline token in both themes. */
+  *, ::before, ::after { border-color: var(--ln); }
 }
 
 @layer components {
@@ -220,6 +222,134 @@
   }
   .wd-dsheet button:first-child { background: var(--ac); color: #161512; }
   .wd-dsheet button:active { transform: scale(.97); }
+
+  /* ── Lead screen ── */
+  .wd-ib {
+    flex: none; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; color: #fff; transition: background .2s;
+  }
+  .wd-ib:active { background: rgba(255, 255, 255, .12); }
+  .wd-ib svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .wd-hdr .wd-st-line { color: #fff; }
+  .wd-urg { font: 700 12px "Barlow Condensed", sans-serif; color: var(--ac); letter-spacing: .08em; text-transform: uppercase; }
+  .wd-age { font-size: 12px; color: #b9b5ac; }
+  .wd-hchip {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 10px; border-radius: 9px;
+    background: rgba(255, 255, 255, .1); color: #fff; font: 700 12px "Barlow Condensed", sans-serif;
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .wd-hchip:active { background: rgba(255, 255, 255, .2); }
+  .wd-hchip-ok { background: var(--pr); }
+
+  /* Gates: five bars, done green, current striped. */
+  .wd-gates { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 12px; padding: 0 2px; }
+  .wd-gate i { display: block; height: 6px; border-radius: 3px; transition: background .4s; }
+  .wd-gate i:not(.haz) { background: rgba(255, 255, 255, .16); }
+  .wd-gate.done i:not(.haz), .wd-gate.cur i.wd-gate-end { background: #4fb39f; }
+  .wd-gate span {
+    display: block; margin-top: 5px; white-space: nowrap; color: #8d897f;
+    font: 600 11px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .wd-gate.cur span { color: #fff; }
+  .wd-gate.done span { color: #9fd3c6; }
+
+  /* Cards: strong for things you act on, soft for reference. */
+  .wd-box { background: var(--sf); color: var(--ink); border-radius: 12px; box-shadow: inset 0 0 0 1.5px var(--edge); padding: 12px 14px; }
+  .wd-box-soft { box-shadow: inset 0 0 0 1px var(--ln); }
+  .wd-fl {
+    display: block; margin-bottom: 8px; font: 700 12px "Barlow Condensed", sans-serif;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--mu);
+  }
+
+  /* Decision card */
+  .wd-dc { padding: 0; overflow: hidden; }
+  .wd-dc-h {
+    display: flex; justify-content: space-between; gap: 8px; padding: 8px 14px; color: #fff;
+    font: 700 13px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em;
+  }
+  .wd-dc-h span + span { opacity: .7; }
+  .wd-dc-b { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; }
+  .wd-dc-n { font: 700 40px/1 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; }
+  .wd-dc-f { text-align: right; font-size: 12px; color: var(--mu); }
+  .wd-dc-f b { display: block; font: 700 24px/1 "Barlow Condensed", sans-serif; color: var(--red); }
+  .wd-dc-why { font-size: 13px; color: var(--mu); text-wrap: pretty; }
+  .wd-dc-why b { color: var(--ink); font-weight: 600; }
+  .wd-lev { border-radius: 10px; background: var(--bg); padding: 10px; }
+  .wd-lev-l { margin-bottom: 8px; font: 700 12px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; }
+  .wd-lev-g { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .wd-lev-c { border-radius: 9px; background: var(--sf); box-shadow: inset 0 0 0 1.5px var(--ln); padding: 8px 10px; }
+  .wd-lev-c span { display: block; font-size: 12px; color: var(--mu); }
+  .wd-lev-c b { font: 700 24px "Barlow Condensed", sans-serif; }
+  .wd-push { border-radius: 10px; padding: 10px; box-shadow: inset 0 0 0 1.5px var(--red); }
+  .wd-push-l { font: 700 12px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--red); }
+  .wd-push p { margin-top: 4px; font-size: 13px; line-height: 1.4; }
+  .wd-call { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .wd-call svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+  .wd-skel { border-radius: 6px; background: var(--ln); animation: wd-pulse 1.2s ease-in-out infinite; }
+
+  /* Reference list: label column + value column. */
+  .wd-dl { display: grid; grid-template-columns: 96px 1fr; gap: 2px 10px; font-size: 14px; align-items: start; }
+  .wd-dl > dt { color: var(--mu); font-size: 13px; padding-top: 12px; }
+  .wd-dl > dd { min-width: 0; padding: 0; }
+
+  /* Inline editable value: the whole row is the tap target. */
+  .wd-ed {
+    display: block; width: 100%; min-height: 44px; padding: 11px 0; text-align: left; color: var(--ink);
+    font-weight: 500; overflow-wrap: anywhere;
+  }
+  .wd-ed:active { background: var(--tint); }
+  .wd-ed .ph { color: var(--mu); font-weight: 400; font-style: italic; }
+
+  /* Fields */
+  .wd-input {
+    width: 100%; min-height: 46px; border: 0; border-radius: 12px; background: var(--sf); color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--edge); padding: 10px 12px; font-size: 15px; outline: none;
+    transition: box-shadow .2s;
+  }
+  .wd-input:focus { box-shadow: inset 0 0 0 2.5px var(--pr); }
+  textarea.wd-input { resize: none; }
+  select.wd-input { appearance: auto; }
+  .wd-hint { margin-top: 6px; font-size: 12px; color: var(--mu); }
+  .wd-err { color: var(--red); font-size: 13px; font-weight: 600; }
+
+  /* Pinned quote bar above the dock. */
+  .wd-qbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px 6px; background: var(--bg); }
+  .wd-qb-l { font: 700 11px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--mu); }
+  .wd-qb-v { margin-top: 3px; font: 700 24px/1 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; }
+
+  /* Bottom sheet */
+  .wd-scrim { position: fixed; inset: 0; z-index: 40; background: rgba(10, 12, 11, .45); opacity: 0; pointer-events: none; transition: opacity .3s; }
+  .wd-scrim.show { opacity: 1; pointer-events: auto; }
+  .wd-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-width: 640px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 4px; padding: 10px 16px calc(env(safe-area-inset-bottom) + 14px);
+    background: var(--bg); color: var(--ink); border-radius: 22px 22px 0 0;
+    transform: translateY(105%); transition: transform .45s var(--settle), visibility 0s linear .45s; visibility: hidden;
+  }
+  .wd-sheet.show { transform: none; visibility: visible; transition: transform .45s var(--settle); }
+  .wd-grab { width: 40px; height: 4px; border-radius: 2px; background: var(--ln); margin: 0 auto 8px; }
+  .wd-si { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 10px; border-radius: 12px; font-weight: 600; font-size: 15px; text-align: left; }
+  .wd-si:active { background: var(--tint); }
+  .wd-si svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .wd-si-red { color: var(--red); }
+  .wd-si-pr { color: var(--ok); }
+
+  /* Activity timeline */
+  .wd-tl-i { position: relative; display: grid; grid-template-columns: 16px 1fr; gap: 10px; padding-bottom: 14px; }
+  .wd-tl-i::before { content: ""; position: absolute; left: 7px; top: 16px; bottom: 0; width: 2px; background: var(--ln); }
+  .wd-tl-i:last-child { padding-bottom: 0; }
+  .wd-tl-i:last-child::before { display: none; }
+  .wd-tl-d { width: 16px; height: 16px; margin-top: 1px; border-radius: 50%; background: var(--sf); box-shadow: inset 0 0 0 2.5px var(--pr); }
+  .wd-tl-i.hot .wd-tl-d { background: var(--ac); box-shadow: none; }
+  .wd-tl-t { font-weight: 600; font-size: 14px; }
+  .wd-tl-s { margin-top: 2px; font-size: 12px; color: var(--mu); }
+
+  /* Tab switch: the new pane's cards rise in, staggered. */
+  .wd-pane > * { animation: wd-rise .45s var(--settle) both; }
+  .wd-pane > *:nth-child(2) { animation-delay: .05s; }
+  .wd-pane > *:nth-child(3) { animation-delay: .1s; }
+  .wd-pane > *:nth-child(4) { animation-delay: .15s; }
+  .wd-pane > *:nth-child(n+5) { animation-delay: .2s; }
 }
 
 @keyframes wd-haz { to { background-position: 28.28px 0; } }
@@ -227,6 +357,7 @@
 @keyframes wd-rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes wd-drop { from { transform: translateY(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes wd-bump { 40% { transform: scale(1.18); } }
+@keyframes wd-pulse { 50% { opacity: .45; } }
 @keyframes wd-hop { 0% { transform: translateY(-9px); } 35% { transform: translateY(-15px) scale(1.12); } 100% { transform: translateY(-9px); } }
 @keyframes wd-ray {
   0% { opacity: 0; transform: rotate(var(--a)) translateY(18px) scaleY(.3); }

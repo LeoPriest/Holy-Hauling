@@ -27,6 +27,19 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-23] Workday design, stage 2 of 8 — the lead screen
+
+- **Header (`LeadCommandCenter.tsx`):** dark slab with back, the name in display caps, status badge, URGENT, short age, follow-up and payment chips, the primary action (Mark replied amber / View jobs green) and a More button. Mark replied and Mark released now show a toast on success and on failure (before, a failed status change said nothing).
+- **Gates (`GateIndicator.tsx`):** five bars under the name — done green, current a moving hazard stripe, still to come faint.
+- **Decision card (`LeadDecisionCard.tsx`):** green band ("Ready to quote" / amber "Check before quoting" / grey "Hold"), the range in 40px display type, the red floor, the reason, the lever box, the red "If they push back" box, Call + Text. Loading, failed, never-reviewed and no-number states keep their logic and buttons. The lever prices are read-only boxes; the one-tap price buttons wait on Ron's answer (brief question 2).
+- **Tabs:** Brief / Quote / Log use the Workday dock (`TabDock.tsx`, new) instead of the old tab bar; the pinned quote bar sits above it. On a tablet the content keeps a readable column.
+- **More menu:** a bottom sheet with a grab bar and a Close button. Schedule date, Follow up and Escalate to owner open as bottom sheets too; Follow up now says so when saving or removing fails.
+- **Brief tab (`BriefPanel.tsx`):** acknowledgment strip, "Customer says" (scope notes plus the lead screenshot), "Job details" rows, lead cost, assigned to, quick read, next best message, truck rental and payroll, all in Workday cards. Fixed broken characters that showed on this tab ("Savingâ€¦", "â€” Unassigned â€”": the file had been saved double-encoded).
+- **Log tab (`LogPanel.tsx`):** activity timeline (latest six, "Show all" for the rest), a note box with Add, status buttons, Escalate, screenshots with Extract / Apply. Delete now confirms on screen ("Yes, delete for good" / "Keep it") instead of a browser pop-up. Note, upload, extract, apply and status changes say so when they fail.
+- **Restyled to the tokens:** escalation card, refund banner, phone numbers, requested dates, duration picker, lead cost, truck rental, payroll. Plain `border` lines use the hairline token everywhere.
+- **Not in this stage:** the Quote tab's builder and the "Booked" overlay (stage 3).
+- **Tests:** `app/frontend/tests/test_workday_lead.py`, 22 Playwright tests at 390 and 1024 wide (shared helpers moved to `tests/workday.py` and `tests/conftest.py`). Frontend 33 passed; backend 527 passed.
+
 ## [2026-10-23] Workday design, stage 1 of 8 — colors, fonts, dock, lead queue and cards
 
 - **Tokens app-wide:** Linen / Night backgrounds, Chapel Green, Safety Amber, Barlow Condensed for display type, Figtree for body (`index.css` variables, `tailwind.config.js`, Google Fonts in `index.html`, `viewport-fit=cover`). All motion stops under `prefers-reduced-motion: reduce`.
