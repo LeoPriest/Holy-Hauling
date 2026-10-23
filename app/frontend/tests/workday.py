@@ -77,7 +77,11 @@ def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHO
             return route.continue_()
         url = req.url.split("?")[0].replace(server, "")
         calls.append((req.method, url))
-        bodies.append((req.method, url, req.post_data))
+        try:
+            body = req.post_data
+        except Exception:  # binary uploads (screenshots) aren't text
+            body = None
+        bodies.append((req.method, url, body))
         got = {"/auth/me": (200, user(role))}.get(url) if req.method == "GET" else None
         got = got or answer(req.method, url)
         if got is None:

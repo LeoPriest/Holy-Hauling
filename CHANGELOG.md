@@ -27,6 +27,18 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-23] Workday design, stage 4 of 8 — the new-lead flow
+
+- **One full-screen flow (`LeadCreate.tsx`)** replaces both the old pop-ups. The dock's Screenshot and Type it in open it at "choose" and "manual". `IngestProgressFlow.tsx` is deleted (nothing else used it).
+- **Choose:** source chips (Thumbtack / Yelp / Google), the city picker when there's more than one city, a big "Choose screenshots" button, 9:16 thumbnails with remove buttons and an Add tile (up to 5, the backend's cap), and "Manual entry instead →". The footer reads "Read N screenshots", or "Choose a screenshot first" while empty.
+- **Reading:** an amber panel with the black logo, the three steps (Uploading N screenshots → Reading lead details → Running AI review), and the thumbnails with an amber scan line. Reading is the existing ingest call followed by the AI review, as the dock's Screenshot path already did. The step from "Uploading" to "Reading" moves on a 1.2 s timer, because fetch can't report upload progress.
+- **Upload failed:** the dark panel, a red first step, a hazard-striped "No connection" card, and Cancel / Try again. Try again re-sends the same shots, which stay selected while the screen is open. Keeping them on the phone across a reload (IndexedDB) is a later step.
+- **Review:** the dark "AI review ready" card (range, floor, readiness), or a warning when the review didn't run. A mint note lists what was filled in; READ tags mark those fields. Service is a 4-way control, plus requested dates, booking date, notes and a "Mark as urgent" switch. Close / Add to queue; a name is required, and a refusal shakes the button and says why.
+- **Shots disagree:** a hazard card names the fields. Each stays empty with a pulsing amber outline and one button per shot's value ("$21.00 · shot 2"). Add to queue is blocked until each is set. Lead cost, bonus and pros counts get their own field here and are written to the lead (`lead_cost_cents` etc.).
+- **In the queue:** a green screen with the logo, "Name · Service · Town", and Open lead / Back to queue. The burnout animation comes in stage 8.
+- **Manual entry:** source chips Manual / Website form / Thumbtack, then the same fields and Back / Create lead. Failed saves say so.
+- **Tests:** `app/frontend/tests/test_workday_newlead.py`, 12 tests. Frontend 56 passed; backend 527 passed.
+
 ## [2026-10-23] Workday design, stage 3 of 8 — quote builder, price buttons, "Booked"
 
 - **One-tap price buttons (new behavior):** the two lever prices on the AI review card are buttons. A tap sets the quote to that price as a single "Base quote" line, shows "Quote set to $325", updates the quote bar, and rings the chosen price amber. Nothing is saved until Lock & book, same as typing it. Read-only on released/lost leads.

@@ -2,7 +2,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
-import { IngestProgressFlow } from './IngestProgressFlow'
 import { LeadCreate } from '../screens/LeadCreate'
 
 // Workday dock: floating bar, amber block slides under the active tab, green
@@ -189,8 +188,7 @@ export function BottomNav() {
         </div>
       )}
 
-      {flow === 'screenshot' && <IngestProgressFlow onClose={() => setFlow(null)} />}
-      {flow === 'manual' && <LeadCreate initialMode="manual" onClose={() => setFlow(null)} />}
+      {flow && <LeadCreate initialMode={flow} onClose={() => setFlow(null)} />}
     </>
   )
 }
