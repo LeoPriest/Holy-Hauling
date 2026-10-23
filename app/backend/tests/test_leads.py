@@ -54,6 +54,173 @@ async def test_raw_payload_preserved(client):
     assert detail["raw_payload"] == payload
 
 
+async def test_thumbtack_raw_payload_hidden_from_non_admin_but_kept_for_admin(client):
+    """Thumbtack's captured webhook body carries business.accessCode, a
+    working refundRequestLink into Thumbtack's own refund flow, customerID,
+    and requestID — a real privilege step-up from the name/phone/description
+    every authenticated role already sees as first-class columns. GET /leads
+    and GET /leads/{id} sit behind require_auth (crew and supervisor
+    included); the Thumbtack admin surface deliberately requires admin. This
+    asserts the same body is not handed out through the general lead
+    endpoints to a role the admin surface would refuse."""
+    from datetime import datetime, timezone
+
+    from main import app
+    from app.dependencies import require_auth
+    from app.models.user import User
+
+    payload = '{"business":{"accessCode":"secret-code"},"refundRequestLink":"https://thumbtack.com/refund/abc"}'
+    lead_id = (await client.post(
+        "/leads",
+        json={**BASE, "source_type": "thumbtack_api", "source_reference_id": "tt-hidden-1", "raw_payload": payload},
+    )).json()["id"]
+
+    # Admin (the default test client) still sees it via the detail view --
+    # the one route where it is structurally reachable at all. The list
+    # response never carries the field for anyone (see test below); this is
+    # not a redaction, LeadOut simply has no such key.
+    admin_detail = (await client.get(f"/leads/{lead_id}")).json()
+    assert admin_detail["raw_payload"] == payload
+    admin_list = {l["id"]: l for l in (await client.get("/leads")).json()}
+    assert "raw_payload" not in admin_list[lead_id]
+
+    async def _mock_crew():
+        return User(
+            id="test-crew-id",
+            username="test-crew",
+            credential_hash="placeholder",
+            role="crew",
+            city_id="st-louis",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+
+    app.dependency_overrides[require_auth] = _mock_crew
+    try:
+        crew_detail = (await client.get(f"/leads/{lead_id}")).json()
+        crew_list = {l["id"]: l for l in (await client.get("/leads")).json()}
+    finally:
+        # Restore the fixture's own override so later assertions (and any
+        # later test reusing this client) stay admin, matching every other
+        # test in this file.
+        async def _mock_admin():
+            return User(
+                id="test-admin-id",
+                username="test-admin",
+                credential_hash="placeholder",
+                role="admin",
+                city_id="st-louis",
+                is_active=True,
+                created_at=datetime.now(timezone.utc),
+            )
+        app.dependency_overrides[require_auth] = _mock_admin
+
+    assert crew_detail["raw_payload"] is None
+    assert "raw_payload" not in crew_list[lead_id]
+    # Nothing else about the lead is hidden — only this one field.
+    assert crew_detail["customer_name"] == BASE["customer_name"]
+
+
+async def test_lead_action_endpoint_never_returns_raw_payload_to_a_non_admin(client):
+    """This is the assertion that would have caught the residual: an earlier
+    round redacted GET /leads and GET /leads/{id} individually and missed
+    every other LeadOut-returning route (status, acknowledge, refund, ...).
+    LeadOut now carries no raw_payload field at all, so any route built on
+    it -- named here or added later -- is safe by construction. Exercised
+    against a concrete action route (acknowledge) as a crew caller, since
+    that is the shape of route the residual actually left open."""
+    from datetime import datetime, timezone
+
+    from main import app
+    from app.dependencies import require_auth
+    from app.models.user import User
+
+    payload = '{"business":{"accessCode":"secret-code-2"},"customerID":"cust-1","requestID":"req-1"}'
+    lead_id = (await client.post(
+        "/leads",
+        json={**BASE, "source_type": "thumbtack_api", "source_reference_id": "tt-hidden-2", "raw_payload": payload},
+    )).json()["id"]
+
+    async def _mock_crew():
+        return User(
+            id="test-crew-id-3",
+            username="test-crew-3",
+            credential_hash="placeholder",
+            role="crew",
+            city_id="st-louis",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+
+    app.dependency_overrides[require_auth] = _mock_crew
+    try:
+        r = await client.post(f"/leads/{lead_id}/acknowledge")
+        assert r.status_code == 200
+        body = r.json()
+    finally:
+        async def _mock_admin():
+            return User(
+                id="test-admin-id",
+                username="test-admin",
+                credential_hash="placeholder",
+                role="admin",
+                city_id="st-louis",
+                is_active=True,
+                created_at=datetime.now(timezone.utc),
+            )
+        app.dependency_overrides[require_auth] = _mock_admin
+
+    assert "raw_payload" not in body
+    # The endpoint still did its actual job.
+    assert body["acknowledged_at"] is not None
+
+
+async def test_non_thumbtack_raw_payload_still_visible_to_non_admin(client):
+    """The redaction is Thumbtack-specific — an OCR screenshot capture (or
+    any other source) must not lose its raw_payload for a non-admin role;
+    that data never carried Thumbtack's privilege step-up."""
+    from datetime import datetime, timezone
+
+    from main import app
+    from app.dependencies import require_auth
+    from app.models.user import User
+
+    payload = '{"ocr": "screenshot text"}'
+    lead_id = (await client.post(
+        "/leads",
+        json={**BASE, "source_type": "thumbtack_screenshot", "raw_payload": payload},
+    )).json()["id"]
+
+    async def _mock_crew():
+        return User(
+            id="test-crew-id-2",
+            username="test-crew-2",
+            credential_hash="placeholder",
+            role="crew",
+            city_id="st-louis",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+
+    app.dependency_overrides[require_auth] = _mock_crew
+    try:
+        crew_detail = (await client.get(f"/leads/{lead_id}")).json()
+    finally:
+        async def _mock_admin():
+            return User(
+                id="test-admin-id",
+                username="test-admin",
+                credential_hash="placeholder",
+                role="admin",
+                city_id="st-louis",
+                is_active=True,
+                created_at=datetime.now(timezone.utc),
+            )
+        app.dependency_overrides[require_auth] = _mock_admin
+
+    assert crew_detail["raw_payload"] == payload
+
+
 async def test_list_leads_returns_all(client):
     await client.post("/leads", json=BASE)
     await client.post("/leads", json=BASE)

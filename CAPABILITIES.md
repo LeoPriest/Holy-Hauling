@@ -22,12 +22,255 @@ Tracks what the Holy Hauling app can currently do, what needs verification, what
 - `GET /admin/thumbtack/events` paginated delivery feed: validates `limit` (1–200) and
   returns 422 for values outside that range; returns raw body, classification, timestamp,
   and connection details.
-- **No leads, messages, or reviews are created yet.** Phase 1 captures only; mapping
-  arrives in Phase 2 once the real payload shape is confirmed.
+- **Messages and reviews are still capture-only.** Phase 2 (below) maps `lead`
+  deliveries into Leads; message/review mapping is not built.
 
 **Known limitation:** the older `POST /ingest/webhook/thumbtack` route is unusable in
 production — it requires a logged-in user and expects a payload shape Thumbtack does
-not send. Phase 2 replaces it. Do not point Thumbtack at it.
+not send. The token-scoped receiver above replaces it. Do not point Thumbtack at it.
+
+---
+
+### Thumbtack webhooks — Phase 2 (leads and alerts)
+
+- A delivery classified `lead` becomes a Lead in the facilitator queue: city pinned
+  from the connection, `leadPrice` parsed into `lead_cost_cents` and synced to
+  finance (idempotent — a redelivery adds no second expense), and the customer's
+  phone recorded as a **Thumbtack proxy line** (`customer_phone_is_proxy = True`)
+  rather than their real number.
+- A refunded delivery (`chargeState == "Refunded"`) runs `mark_refunded` instead of
+  a direct cost sync, which drops the realized cost to zero and reverses the finance
+  expense the same way a manual refund does.
+- An unparseable `leadPrice` (missing, `"Free"`, or junk) leaves `lead_cost_cents`
+  unset — never guessed, never `0` — but is not silent about it: the event carries
+  `event.error = "lead created, but Thumbtack's lead price could not be parsed —
+  cost left unset"` so a cost-per-lead figure can never quietly understate with no
+  trace anywhere.
+- A webhook lead opens with a `created` `LeadEvent` on its timeline, same as a lead
+  created any other way, instead of an empty history.
+- The facilitator and admin roles are pushed the moment a lead lands
+  (`send_push_to_roles(..., ["facilitator", "admin"], city_id=...)`). Out-of-area
+  leads say so in the notification text (`· WARNING address may be out of area`). A
+  push failure is logged and swallowed — the Lead is committed before the push is
+  attempted, so a wedged or failing push provider never costs the lead, only the
+  alert.
+- **Location mismatch flag.** `location` carries the search-area city/state/zip; the
+  street address, when present at all, is only in the description prose (`address1`/
+  `address2` are empty on every observed lead). When the description names a zip
+  whose leading digit differs from the search area's, or a US state code other than
+  the search area's own, the lead is flagged as a `[WARNING]` line appended to
+  `Lead.quote_context` (no new column) — never suppressed,
+  since the lead was paid for either way. The state check matches against an
+  **allow-list of the 50 USPS codes plus DC**, not a denylist — an earlier denylist
+  excluded "OK" and "ID" as ordinary prose words, which silently ate the Oklahoma and
+  Idaho mismatches it existed to catch. Accepted residual: a description that happens
+  to contain the word "OK" (as in "that's OK") can still produce a false positive.
+  That's the accepted tradeoff — the flag only ever adds a warning, never hides a
+  lead, so a false positive costs a glance and a false negative costs a shipped
+  problem.
+- **Thumbtack's business identity does not live on the Lead.** `Lead` has no
+  `source_business` or `thumbtack_business_id` column — an earlier version of this
+  plan assumed one, and it was wrong. The mapper extracts `business.businessID` from
+  the payload, but the persister never writes it to a Lead field; it survives only
+  inside `Lead.raw_payload` (kept indefinitely, admin-only — see below) and the
+  webhook event's stored raw body (90-day retention, pruned by `prune_old_events`).
+  If per-business reporting is ever needed, it has to be read back out of one of
+  those two places, not queried off `Lead` directly.
+- Re-delivery of the same `negotiationID` creates no second lead and no second
+  finance expense — `_persist_lead`'s idempotency lookup on
+  `(source_reference_id, source_type)` returns the existing lead id and does not
+  touch cost sync or push again. The event itself is marked `processed` and linked
+  to the found lead's id rather than left `received` forever — a delivery can no
+  longer land in a silent limbo indistinguishable from one nobody has looked at.
+  `event.error` is deliberately left untouched on this path: a redelivery is not
+  the delivery that had the problem, and overwriting its error would misreport
+  what actually went wrong and where.
+- **A redelivered lead can never update an existing one.** If a redelivery carries a
+  changed `chargeState` (e.g. Thumbtack refunding a lead after the fact) or any other
+  changed field, the idempotency early-return above discards the new body entirely —
+  the lead is never marked refunded and the expense is never reversed from a
+  redelivery. Only a lead's *first* delivery is read for state; only a first
+  delivery already carrying `chargeState: "Refunded"` is honoured.
+- A body that `classify()` judged a lead by shape (a `leadID`/`request` pair, or a
+  bare `negotiationID`) but the stricter mapper rejects — typically no
+  `data.negotiationID` — is marked `failed` with an explicit `event.error`
+  (`"Could not map this delivery as a Thumbtack lead..."`) rather than left
+  `received` with nothing anywhere acting on it.
+- **Thumbtack's synthetic test ping** (sent on webhook creation) carries no
+  `negotiationID`, `leadID`, or any other kind-identifying field anywhere `classify()`
+  looks — it is judged `unknown` before the mapper is ever reached, and creates no
+  lead. Unlike a genuinely malformed lead body, this one is not marked `failed`: it
+  stays `received`/`unknown` with no error, and a Retry tap on it is a no-op
+  (`retry_event` refuses anything whose `kind != "lead"`).
+- **The AI review does not auto-run on webhook leads**, deliberately — unlike the
+  screenshot-intake path, which does chain OCR → AI review automatically
+  (`IngestProgressFlow.tsx`). Auto-running it here would be a paid model call on
+  every inbound lead, including broker leads and out-of-area ones the facilitator
+  may never act on. The facilitator taps "Run AI review" per lead, same as any other
+  lead.
+- **Failed deliveries — and pre-Phase-2 backlog rows — can be retried from
+  `/admin/thumbtack`**, and retry does three different jobs depending on the event:
+  - **Replay.** An event that never became a lead (`failed` status) is re-mapped
+    from its stored raw body — no request back to Thumbtack. An `unknown`-kind body
+    (Thumbtack's synthetic test ping, above, is the one seen in practice) is **not**
+    replayable this way: it has no `negotiationID` anywhere the classifier looks, so
+    there is nothing for the mapper to re-map, and `retry_event` refuses anything
+    whose `kind != "lead"` outright.
+  - **Backlog.** A delivery captured by Phase 1, before Phase 2's mapping shipped, is
+    `kind: 'lead'`, `status: 'received'`, `lead_id: null`, `error: null` — none of
+    the other conditions match it. This is real and current: deliveries captured
+    before this phase are still raw rows with no Lead, and they now have a working
+    path back into the queue.
+  - **Heal.** A delivery that already created its Lead but whose finance sync failed,
+    or whose `leadPrice` could not be parsed, ends `processed`, not `failed` — the
+    Lead is real, and marking it `failed` would invite a retry that (per the
+    idempotency lookup) can never re-create it. `event.error` carries either
+    `"lead created but lead cost sync failed: ..."` or `"lead created, but
+    Thumbtack's lead price could not be parsed — cost left unset"`. Retrying
+    re-derives the price and refund state from the **stored raw body** (not from
+    the Lead row), so:
+    - A cost-sync failure is retried against the already-created lead.
+    - **An unparseable price is now genuinely repairable.** The unset-cost flag
+      itself is unchanged (never guessed, never `0`) — what changed is that a retry
+      re-runs the mapper against the same stored body, so if `parse_cents` is later
+      fixed to handle whatever Thumbtack sent, retrying fills `lead_cost_cents`,
+      syncs the expense, and clears the flag. If it still will not parse, the flag
+      correctly stays.
+    - The heal is gated on the **payload's own `chargeState`** (re-derived on every
+      retry), not on `lead.lead_refunded_at` — a refund that failed to record
+      (`mark_refunded` threw and rolled back) leaves that column `NULL` even though
+      Thumbtack refunded the lead, and trusting the column would let the heal book a
+      full-price expense on a refunded lead and report success.
+  - Because of all three, the admin screen's Retry button renders on **three**
+    conditions, not one: `event.status === 'failed' OR event.error OR
+    (event.kind === 'lead' && !event.lead_id)` — the last reaches the backlog case,
+    the second a `processed`-but-erroring heal case. `event.kind === 'unknown'` is
+    **not** one of the three (dropped — see Replay above): every `unknown` body seen
+    in practice is the test ping, which is never retryable, so a button that always
+    no-ops was worse than no button.
+  - **A successful retry clears a stale `event.error` on two different paths, not
+    unconditionally.** At the bottom of `_persist_lead`'s main (non-early-return)
+    path, `event.error` is always overwritten with whatever this attempt's own
+    outcome is (`None` on a clean success) — a delivery that once failed mapping and
+    was fixed on a later retry no longer keeps a permanent red `Mapping failed:`
+    line. On the **idempotency-hit early return** (this event's `negotiationID`
+    already has a lead, found via a sibling delivery), `event.error` is cleared only
+    when that found lead is actually healthy — has its expense booked
+    (`lead_cost_finance_transaction_id is not None`) or is legitimately refunded
+    (`lead_refunded_at is not None`); otherwise it is left exactly as it was, since
+    this early-return path does nothing to fix an unresolved problem and must not
+    report one as fixed. (An earlier version of this doc said the clear was
+    unconditional "at the bottom of `_persist_lead`" for every path — that
+    contradicted the idempotency-lookup bullet a few lines above stating the error
+    is deliberately left untouched there. Both bullets are now accurate for their
+    own path.)
+  - `RetryResult.created` is `True` **only** when the retry call genuinely inserted a
+    new Lead row. A retry that found an existing lead via the idempotency lookup, or
+    one that only healed a cost sync, returns `created: False` with a non-null
+    `lead_id` — the two are not distinguished on the wire; both read as "Lead already
+    existed — nothing new created" in the UI. "No lead at all" is the only case with
+    `lead_id: None`.
+  - **A refused retry now reports failure, not a misleading clean success.**
+    Retrying an oversize-truncated body, or a non-`lead`-kind event, returns the
+    event unchanged — no lead, and the error explaining the refusal still on the
+    row. The frontend used to read that as "Nothing needed doing." (a green line
+    right beside the row's own red error); it now checks for exactly this shape
+    (`!result.lead_id && result.event.error`) and shows "Retry did not process this
+    delivery — see the error above." instead, in the failure slot.
+  - Two smaller guards on the retry path: an event `record_oversize` rejected for
+    being too large (its stored body is a truncated 2KB prefix, never valid JSON) now
+    **refuses** a retry instead of overwriting its one useful diagnostic — the size
+    explanation — with a generic "Body is not valid JSON" error. And `retry_event`
+    now carries the same `kind == "lead"` guard `record_event` already had: without
+    it, retrying a message/review event that happens to carry the same
+    `negotiationID` as a real lead could create a hollow Lead with no name, phone, or
+    cost that would then win the idempotency lookup and permanently block the real
+    lead from ever landing.
+  - Any exception text written into `event.error` (a mapping failure, a database
+    error) is passed through one helper, `_safe_exc_summary`, first — truncated
+    before SQLAlchemy's `[SQL: ...]`/`[parameters: ...]` sections and hard-capped in
+    length, so a DBAPI error can never dump bound query parameters (customer name,
+    phone, address) into an API response or a log line. Every logging call around
+    these paths uses `logger.error` with the same bounded summary, not
+    `logger.exception` — the latter's traceback would carry the same unbounded text
+    the summary exists to keep out. This helper has no dedicated unit test of its
+    own (carried deliberately — low risk, and it's exercised indirectly by every
+    failure-path test that checks `event.error`'s shape).
+
+**Payload note.** The published Thumbtack documentation is wrong about seven fields —
+`customer.name` is actually `firstName`/`lastName`, `category` is an object,
+`request.title` does not exist, `schedule` is `proposedTimes[]`, `leadPrice` is the
+string `"$15.88"`, `chargeState` is `"Charged"`, and `location.address1` is empty. The
+real captured body is checked in at `app/backend/tests/fixtures/thumbtack_lead_v4.json`
+and is the authority.
+
+**Not in Phase 2:** photos (`request.attachments[]`), inbound messages, replying to
+Thumbtack, and extracting the street address out of description prose. The AI review
+does not auto-run on webhook leads (see above). Deliveries captured before Phase 2
+shipped are still raw rows with no Lead — no backfill script was written; they can be
+replayed one at a time from `/admin/thumbtack`'s Retry button once a connection
+exists to own them.
+
+**Known limitations carried into Phase 2, out of scope for this phase:**
+- `push_service._send_one` (called from `send_push_to_roles`/`send_push_to_user`)
+  invokes `pywebpush.webpush` as a plain blocking call from inside an `async def`,
+  with no timeout — not offloaded to a thread pool. A wedged push provider blocks the
+  event loop for the request that triggered it. Pre-existing before this phase; the
+  Lead is always committed before the push is attempted, so this can stall a webhook
+  response but cannot cost a lead.
+- **No index on `Lead.source_reference_id`**, which the idempotency lookup above
+  queries on every delivery. Pre-existing; a migration was ruled out of scope for
+  this phase (the plan's global constraint was "no database migration — every column
+  this writes already exists on `Lead`").
+- **No frontend test harness exists in this repo.** The retry button (and everything
+  else on the React side) is verified by `tsc --noEmit`, `npm run build`, and a human
+  pass on a real device — not by an automated UI test suite.
+- **The idempotency lookup is SELECT-then-INSERT with no unique constraint.**
+  `Lead.source_reference_id` carries no `UNIQUE(source_reference_id, source_type)`.
+  Two truly concurrent deliveries of the same `negotiationID` could both pass the
+  lookup and each insert its own Lead and its own finance expense. Deliberately
+  accepted for now — single Railway instance, single sender (Thumbtack), SQLite
+  serializes writes, and the Lead itself commits before any of the slower paths
+  (cost sync, push) — but a `UNIQUE(source_reference_id, source_type)` constraint
+  belongs in the next migration this repo takes.
+- **`Lead.lead_cost_gross_cents` is fed Thumbtack's pre-tax `subtotal`**
+  (`leadPriceBreakdown.subtotal`), while the column's own meaning elsewhere in this
+  app is pre-*discount* gross. With any nonzero `salesTax` on the breakdown, that
+  inverts the usual gross-is-greater-than-or-equal-to-net invariant between this
+  column and `lead_cost_cents`. Display-only today, and the mapping is what the
+  design spec asked for — an inherited spec question, not a coding slip in this
+  phase.
+- **A refunded redelivery is discarded, not applied** (see the redelivery bullet
+  above) — this is the same idempotency-lookup limitation stated twice because it
+  costs real money if it happens: a lead refunded by Thumbtack *after* its first
+  delivery already landed is never marked refunded here. Retrying the redelivery
+  event by hand does not fix it either — the retry hits the same idempotency
+  early-return (its `is_refunded` handling in `_persist_lead` is only reachable on
+  the *first* delivery of a `negotiationID`), and `retry_event`'s heal block only
+  ever runs the cost sync, never `mark_refunded`. The only fix today is manual, off
+  the app.
+- **`raw_payload` is admin-only, not broadly readable — and now structurally so
+  everywhere it can appear.** It never appears on `LeadOut` (the list/every-other
+  -route response model) at all — the field is structurally absent, not merely
+  omitted by convention. `LeadDetailOut` (the schema where it does exist) has
+  exactly one sanctioned constructor, `lead_service.to_lead_detail_out(lead, role)`,
+  which redacts it to `null` for every role but admin when the lead's `source_type`
+  is `thumbtack_api` (`lead_service.visible_raw_payload`) before returning. There
+  are two callers of that constructor: `GET /leads/{id}` and
+  `POST /ingest/screenshot` — the latter's `IngestResult.lead` is a `LeadDetailOut`
+  too, and previously built it with a bare `LeadDetailOut.model_validate(lead)`
+  that skipped the redaction step (an incidental non-leak only because a
+  screenshot-sourced lead's `source_type` is never `thumbtack_api`, so there was
+  nothing sensitive to redact yet — not a guarantee). Both routes now go through
+  the one constructor, so the redaction holds by construction: any future caller of
+  `LeadDetailOut` gets it for free rather than needing to remember
+  `visible_raw_payload` itself. The stored column remains the permanent home of the
+  Thumbtack business identity described above; it is just no longer something a
+  supervisor or crew login can pull off a plain lead fetch or a screenshot upload —
+  the captured body carries `business.accessCode`, a live `refundRequestLink` into
+  Thumbtack's own refund flow, `customerID`, and `requestID`, which is a real
+  privilege step-up over the name/phone/description already visible to every role
+  as first-class columns.
 
 ---
 

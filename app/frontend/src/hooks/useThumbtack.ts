@@ -5,6 +5,7 @@ import type {
   ThumbtackConnectionCreate,
   ThumbtackConnectionCreated,
   ThumbtackEvent,
+  RetryResult,
 } from '../types/thumbtack'
 
 const CONNECTIONS_KEY = ['thumbtack-connections']
@@ -82,6 +83,21 @@ export function useDeleteThumbtackConnection() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: CONNECTIONS_KEY })
       void qc.invalidateQueries({ queryKey: ['thumbtack-events'] })
+    },
+  })
+}
+
+export function useRetryThumbtackEvent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (eventId: string) => {
+      const r = await apiFetch(`/admin/thumbtack/events/${eventId}/retry`, { method: 'POST' })
+      if (!r.ok) throw new Error(await detail(r, 'Could not retry this delivery'))
+      return r.json() as Promise<RetryResult>
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['thumbtack-events'] })
+      void qc.invalidateQueries({ queryKey: ['leads'] })
     },
   })
 }

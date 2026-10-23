@@ -27,7 +27,7 @@ from app.schemas.ingest import (
     ThumbTackWebhookPayload,
     WebhookIngestResult,
 )
-from app.schemas.lead import LeadDetailOut, LeadOut
+from app.schemas.lead import LeadOut
 from app.schemas.ocr import OcrResultOut
 from app.services import lead_service, ocr_service
 
@@ -244,9 +244,16 @@ async def ingest_screenshot(
         await db.commit()
         await db.refresh(stub)
 
-    # 4. Load detailed lead (includes screenshots + events) for response
+    # 4. Load detailed lead (includes screenshots + events) for response.
+    # lead_service.to_lead_detail_out, not LeadDetailOut.model_validate
+    # directly: it is the one sanctioned way to build a LeadDetailOut, and it
+    # applies the raw_payload redaction as part of construction. This stub
+    # is never thumbtack_api-sourced (source_type is restricted to screenshot
+    # sources above the caller), so the redaction is a no-op here today — but
+    # that is an incidental fact about this endpoint, not something the
+    # safety of a require_auth response should depend on.
     detailed_orm = await lead_service.get_lead(db, stub.id, detailed=True)
-    detailed = LeadDetailOut.model_validate(detailed_orm)
+    detailed = lead_service.to_lead_detail_out(detailed_orm, actor_role or "")
 
     return IngestResult(
         lead=detailed,

@@ -543,3 +543,38 @@ async def test_ingest_rejects_a_bad_file_without_leaving_a_partial_lead(client, 
     assert r.status_code == 400
     after = (await db_session.execute(sa_select(func.count()).select_from(Lead))).scalar()
     assert after == before
+
+
+async def test_ingest_screenshot_response_goes_through_the_shared_redaction_factory(
+    client, monkeypatch
+):
+    """R4: POST /ingest/screenshot's IngestResult.lead is a LeadDetailOut,
+    the one schema raw_payload is reachable through, and this route sits at
+    require_auth. It cannot itself produce a thumbtack_api lead today
+    (source_type is restricted to screenshot sources), so there is nothing
+    to observe going wrong end-to-end -- what matters is that the response
+    is built through lead_service.to_lead_detail_out, the single place the
+    redaction guarantee is enforced, rather than a direct
+    LeadDetailOut.model_validate call a future change could silently swap
+    back in and make the guarantee incidental again."""
+    from app.services import ingest_service, lead_service
+
+    calls = []
+    real_factory = lead_service.to_lead_detail_out
+
+    def _spy(lead, role):
+        calls.append((lead.source_type, role))
+        return real_factory(lead, role)
+
+    monkeypatch.setattr(lead_service, "to_lead_detail_out", _spy)
+
+    r = await client.post(
+        "/ingest/screenshot",
+        files=[("files", ("test.jpg", _jpg(), "image/jpeg"))],
+        data={"source_type": "thumbtack_screenshot"},
+    )
+
+    assert r.status_code == 201
+    assert len(calls) == 1
+    assert calls[0][1] == "admin"  # the default test client's role
+    assert r.json()["lead"]["raw_payload"] is None
