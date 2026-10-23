@@ -344,6 +344,78 @@
   .wd-tl-t { font-weight: 600; font-size: 14px; }
   .wd-tl-s { margin-top: 2px; font-size: 12px; color: var(--mu); }
 
+  /* Price buttons on the decision card: one tap sets the quote. */
+  button.wd-lev-c { width: 100%; text-align: left; transition: box-shadow .2s, transform .12s var(--out); }
+  button.wd-lev-c:active { transform: scale(.97); }
+  .wd-lev-c[aria-pressed="true"] { box-shadow: inset 0 0 0 2.5px var(--ac); }
+
+  /* ── Quote builder ── */
+  .wd-money {
+    display: flex; align-items: center; gap: 4px; height: 56px; padding: 0 14px; border-radius: 12px;
+    background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--edge); transition: box-shadow .2s;
+  }
+  .wd-money:focus-within { box-shadow: inset 0 0 0 2.5px var(--pr); }
+  .wd-money span { font: 700 26px "Barlow Condensed", sans-serif; color: var(--mu); }
+  .wd-money input {
+    flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: none; color: var(--ink);
+    font: 700 30px "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums;
+  }
+  .wd-money-hint { margin-top: 8px; font-size: 12px; color: var(--mu); }
+  .wd-money-hint.bad { color: var(--red); font-weight: 600; }
+  .wd-durs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wd-durs button {
+    min-width: 44px; height: 44px; padding: 0 12px; border-radius: 9px; color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--ln); font: 700 16px "Barlow Condensed", sans-serif;
+    transition: background .2s, color .2s;
+  }
+  .wd-durs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); box-shadow: none; animation: wd-pop .3s var(--settle); }
+  .wd-li { display: grid; grid-template-columns: 84px minmax(0, 1fr) 44px; gap: 6px; margin-bottom: 6px; }
+  .wd-li.new { animation: wd-rise .35s var(--settle); }
+  .wd-li input {
+    height: 44px; min-width: 0; border: 0; border-radius: 9px; padding: 0 10px; outline: none;
+    background: var(--bg); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ln); font-size: 15px;
+  }
+  .wd-li input:focus { box-shadow: inset 0 0 0 2px var(--pr); }
+  .wd-li input.amt { font: 700 18px "Barlow Condensed", sans-serif; }
+  .wd-li .rm { display: flex; align-items: center; justify-content: center; border-radius: 9px; color: var(--red); }
+  .wd-li .rm:active { background: var(--bg); }
+  .wd-li .rm svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .wd-sum { display: grid; gap: 6px; margin-top: 4px; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 13px; }
+  .wd-sum > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .wd-sum span { color: var(--mu); }
+  .wd-sum b { font: 700 17px "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; }
+  .wd-sum b.ok { color: var(--ok); }
+  .wd-sum b.off { color: #b86e00; }
+  .dark .wd-sum b.off { color: var(--ac); }
+  .wd-shake { animation: wd-shake .4s; }
+
+  /* Chat bubbles under the quote */
+  .wd-bub { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.45; }
+  .wd-bub-me { background: var(--pr); color: #fff; border-bottom-right-radius: 4px; }
+  .wd-bub-ai { background: var(--sf); color: var(--ink); box-shadow: inset 0 0 0 1px var(--ln); border-bottom-left-radius: 4px; }
+
+  /* "Booked": a green screen with the logo, the message to send, copy / done. */
+  .wd-ovl {
+    position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: var(--pr); color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    padding: calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 24px);
+    animation: wd-fade .3s both;
+  }
+  .wd-ovl > * { width: 100%; max-width: 480px; animation: wd-rise .5s var(--settle) both; }
+  .wd-ovl > img { width: 170px; }
+  .wd-ovl > :nth-child(2) { animation-delay: .15s; }
+  .wd-ovl > :nth-child(3) { animation-delay: .22s; }
+  .wd-ovl > :nth-child(4) { animation-delay: .3s; }
+  .wd-ovl > :nth-child(n+5) { animation-delay: .38s; }
+  .wd-ovl-t { font: 700 34px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; text-align: center; }
+  .wd-ovl-s { font-size: 14px; opacity: .9; text-align: center; }
+  .wd-ovl textarea {
+    height: 190px; border: 0; border-radius: 12px; padding: 12px; resize: none; outline: none;
+    background: rgba(255, 255, 255, .12); color: #fff; font-size: 14px; line-height: 1.45;
+  }
+  .wd-ovl textarea:focus { box-shadow: inset 0 0 0 2px var(--ac); }
+  .wd-ovl .wd-btn-ghost { color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .6); }
+
   /* Tab switch: the new pane's cards rise in, staggered. */
   .wd-pane > * { animation: wd-rise .45s var(--settle) both; }
   .wd-pane > *:nth-child(2) { animation-delay: .05s; }
@@ -358,6 +430,9 @@
 @keyframes wd-drop { from { transform: translateY(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes wd-bump { 40% { transform: scale(1.18); } }
 @keyframes wd-pulse { 50% { opacity: .45; } }
+@keyframes wd-pop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: none; } }
+@keyframes wd-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+@keyframes wd-fade { from { opacity: 0; } }
 @keyframes wd-hop { 0% { transform: translateY(-9px); } 35% { transform: translateY(-15px) scale(1.12); } 100% { transform: translateY(-9px); } }
 @keyframes wd-ray {
   0% { opacity: 0; transform: rotate(var(--a)) translateY(18px) scaleY(.3); }

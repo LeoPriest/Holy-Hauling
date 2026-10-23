@@ -27,6 +27,15 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-23] Workday design, stage 3 of 8 — quote builder, price buttons, "Booked"
+
+- **One-tap price buttons (new behavior):** the two lever prices on the AI review card are buttons. A tap sets the quote to that price as a single "Base quote" line, shows "Quote set to $325", updates the quote bar, and rings the chosen price amber. Nothing is saved until Lock & book, same as typing it. Read-only on released/lost leads.
+- **Quote builder (`QuoteBuilder.tsx`):** the price in a 56px display field with the floor hint (red when below the floor), duration chips 1h / 1.5h / 2h / 2.5h / 3h / 4h plus "Other" for the hours/minutes picker, breakdown rows (amount | note | ✕) with "+ Modifier", and the sum box (difference green at $0.00, amber otherwise). Validation messages are unchanged (`validateQuote`).
+- **Lock & book:** a refused or failed booking shakes the button and shows the reason under the builder. Before booking the button lives in the pinned bar only; booked leads keep "Update & re-confirm" in the panel.
+- **"Booked" (`BookingConfirmation`):** a green full screen with the white logo, "Booked", the date and price, the editable message, Copy message / Done. Copy says when the phone refuses to copy. The burnout logo animation comes in stage 8.
+- **Quote tab (`QuotePanel.tsx`):** the builder now comes first, then scope, context, AI pricing guidance (amber outline, internal only), and the pricing chat. Save context and Run AI review say when they fail. `QuoteBasis.tsx`, `AiChatThread.tsx` moved to the tokens; the match dots lost their hover-only `title`.
+- **Tests:** `app/frontend/tests/test_workday_quote.py`, 11 tests. Frontend 44 passed; backend 527 passed.
+
 ## [2026-10-23] Workday design, stage 2 of 8 — the lead screen
 
 - **Header (`LeadCommandCenter.tsx`):** dark slab with back, the name in display caps, status badge, URGENT, short age, follow-up and payment chips, the primary action (Mark replied amber / View jobs green) and a More button. Mark replied and Mark released now show a toast on success and on failure (before, a failed status change said nothing).

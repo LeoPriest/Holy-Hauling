@@ -69,6 +69,7 @@ def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHO
     ctx = browser.new_context(viewport=viewport, has_touch=True, reduced_motion=reduced_motion)
     ctx.add_init_script(f"localStorage.setItem('hh_token','t'); localStorage.setItem('hh_theme','{theme}');")
     calls = []
+    bodies = []
 
     def handle(route):
         req = route.request
@@ -76,6 +77,7 @@ def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHO
             return route.continue_()
         url = req.url.split("?")[0].replace(server, "")
         calls.append((req.method, url))
+        bodies.append((req.method, url, req.post_data))
         got = {"/auth/me": (200, user(role))}.get(url) if req.method == "GET" else None
         got = got or answer(req.method, url)
         if got is None:
@@ -88,6 +90,7 @@ def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHO
     ctx.set_default_timeout(10000)
     page = ctx.new_page()
     page.calls = calls
+    page.bodies = bodies
     page.goto(server + path)
     return page
 

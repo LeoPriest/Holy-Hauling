@@ -134,6 +134,9 @@ export function validateQuote(draft: QuoteDraft): ValidatedQuote {
 
 export type DurationSaveState = 'idle' | 'saving' | 'saved' | 'error'
 
+/** One-tap job lengths; anything else goes through the hours/minutes picker. */
+const DURATIONS: [number, string][] = [[60, '1h'], [90, '1.5h'], [120, '2h'], [150, '2.5h'], [180, '3h'], [240, '4h']]
+
 export function QuoteBuilderFields({
   draft,
   floor,
@@ -156,181 +159,196 @@ export function QuoteBuilderFields({
   )
   const difference = quotedTotalValue == null ? null : roundMoney(quotedTotalValue - summedLineItems)
 
+  const duration = draft.estimatedDurationMinutes
+  const isPreset = DURATIONS.some(([m]) => m === duration)
+  const [showOther, setShowOther] = useState(false)
+  const otherOpen = showOther || (duration != null && !isPreset)
+  const [freshId, setFreshId] = useState<string | null>(null)
+
+  const setDuration = (value: number | null) => {
+    draft.setEstimatedDurationMinutes(value)
+    onDurationCommit?.(value)
+  }
+
+  const updateLine = (id: string, patch: Partial<QuoteLineItemDraft>) =>
+    draft.setLineItems(prev => prev.map(entry => (entry.id === id ? { ...entry, ...patch } : entry)))
+
   return (
-    <div className="space-y-4">
-      <label className="block space-y-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Quoted price</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={draft.quotedPriceTotal}
-          onChange={event => draft.setQuotedPriceTotal(event.target.value)}
-          placeholder="500.00"
-          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-        />
+    <div className="flex flex-col gap-3">
+      <div className="wd-box">
+        <label htmlFor="quoted-price" className="wd-fl">Quoted price</label>
+        <div className="wd-money">
+          <span aria-hidden="true">$</span>
+          <input
+            id="quoted-price"
+            type="text"
+            inputMode="decimal"
+            value={draft.quotedPriceTotal}
+            onChange={event => draft.setQuotedPriceTotal(event.target.value)}
+            placeholder="500.00"
+          />
+        </div>
         {floor != null && (
-          <p
-            className={
-              belowFloor
-                ? 'text-xs font-medium text-red-600 dark:text-red-400'
-                : 'text-xs text-gray-400 dark:text-gray-500'
-            }
-          >
+          <p className={`wd-money-hint ${belowFloor ? 'bad' : ''}`}>
             {belowFloor
               ? `$${(floor - quotedTotalValue!).toLocaleString('en-US')} below the $${floor.toLocaleString('en-US')} floor`
-              : `Floor $${floor.toLocaleString('en-US')} — do not go below`}
+              : `Floor $${floor.toLocaleString('en-US')} · do not go below`}
           </p>
         )}
-      </label>
+      </div>
 
-      <label className="block space-y-1">
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Estimated duration</span>
-        <DurationWheelInput
-          value={draft.estimatedDurationMinutes}
-          onChange={value => {
-            draft.setEstimatedDurationMinutes(value)
-            onDurationCommit?.(value)
-          }}
-        />
+      <div className="wd-box">
+        <p className="wd-fl" id="duration-label">Estimated duration</p>
+        <div className="wd-durs" role="group" aria-labelledby="duration-label">
+          {DURATIONS.map(([minutes, label]) => (
+            <button
+              key={minutes}
+              type="button"
+              aria-pressed={duration === minutes}
+              onClick={() => { setShowOther(false); setDuration(minutes) }}
+            >
+              {label}
+            </button>
+          ))}
+          <button type="button" aria-pressed={otherOpen} onClick={() => setShowOther(open => !open || (duration != null && !isPreset))}>
+            Other
+          </button>
+        </div>
+        {otherOpen && (
+          <div className="mt-2">
+            <DurationWheelInput value={duration} onChange={setDuration} />
+          </div>
+        )}
         {durationSaveState === 'saving' ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">Saving duration…</p>
+          <p className="wd-hint">Saving duration…</p>
         ) : durationSaveState === 'saved' ? (
-          <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">✓ Duration saved</p>
+          <p className="wd-hint !text-ok font-semibold">✓ Duration saved</p>
         ) : durationSaveState === 'error' ? (
-          <p className="text-xs font-medium text-red-600 dark:text-red-400">
-            Couldn’t save the duration. Set it again to retry.
-          </p>
+          <p className="wd-err mt-1.5">Couldn’t save the duration. Set it again to retry.</p>
         ) : (
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            Google Calendar will use this length when the job has a scheduled time slot.
-          </p>
+          <p className="wd-hint">Google Calendar will use this length when the job has a time slot.</p>
         )}
-      </label>
+      </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Price breakdown</span>
+      <div className="wd-box">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="wd-fl !mb-0">Price breakdown</p>
           <button
             type="button"
-            onClick={() => draft.setLineItems(prev => [...prev, createLineItem('', '')])}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+            onClick={() => {
+              const line = createLineItem('', '')
+              setFreshId(line.id)
+              draft.setLineItems(prev => [...prev, line])
+            }}
+            className="wd-btn-sm wd-btn-ghost"
           >
-            Add modifier
+            <span aria-hidden="true" className="text-lg leading-none">+</span> Modifier
           </button>
         </div>
 
         {draft.lineItems.map((item, index) => (
-          <div
-            key={item.id}
-            className="grid grid-cols-1 gap-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700 md:grid-cols-[140px_minmax(0,1fr)_auto]"
-          >
+          <div key={item.id} className={`wd-li ${item.id === freshId ? 'new' : ''}`}>
             <input
+              className="amt"
               type="text"
               inputMode="decimal"
+              aria-label={`Line ${index + 1} amount`}
               value={item.amount}
-              onChange={event =>
-                draft.setLineItems(prev =>
-                  prev.map(entry => (entry.id === item.id ? { ...entry, amount: event.target.value } : entry)),
-                )
-              }
+              onChange={event => updateLine(item.id, { amount: event.target.value })}
               placeholder="0.00"
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
             <input
               type="text"
+              aria-label={`Line ${index + 1} note`}
               value={item.note}
-              onChange={event =>
-                draft.setLineItems(prev =>
-                  prev.map(entry => (entry.id === item.id ? { ...entry, note: event.target.value } : entry)),
-                )
-              }
+              onChange={event => updateLine(item.id, { note: event.target.value })}
               placeholder={index === 0 ? 'Base quote' : 'Modifier note'}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
             <button
               type="button"
+              className="rm"
+              aria-label={`Remove line ${index + 1}`}
               onClick={() =>
                 draft.setLineItems(prev =>
                   prev.length === 1 ? [createLineItem('Base quote')] : prev.filter(entry => entry.id !== item.id),
                 )
               }
-              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/20"
             >
-              Remove
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18 18 6M6 6l12 12" /></svg>
             </button>
           </div>
         ))}
-      </div>
 
-      <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm dark:bg-gray-800">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-gray-500 dark:text-gray-400">Modifier sum</span>
-          <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(summedLineItems)}</span>
-        </div>
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <span className="text-gray-500 dark:text-gray-400">Difference to quoted price</span>
-          <span
-            className={`font-medium ${
-              difference === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
-            }`}
-          >
-            {difference == null ? '--' : formatCurrency(difference)}
-          </span>
+        <div className="wd-sum">
+          <div>
+            <span>Modifier sum</span>
+            <b>{formatCurrency(summedLineItems)}</b>
+          </div>
+          <div>
+            <span>Difference to quoted price</span>
+            <b className={`wd-sum-diff ${difference === 0 ? 'ok' : 'off'}`}>
+              {difference == null ? '--' : formatCurrency(difference)}
+            </b>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Post-booking confirmation overlay (step 2) ───────────────────────────────
+// ── "Booked": the green screen after Lock & book ─────────────────────────────
 
-export function BookingConfirmation({ text, onClose }: { text: string; onClose: () => void }) {
+export function BookingConfirmation({ text, total, when, onClose }: {
+  text: string
+  total?: number
+  /** The booked date as the customer will read it, or null when not set yet. */
+  when?: string | null
+  onClose: () => void
+}) {
   const [draftText, setDraftText] = useState(text)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle')
 
   useEffect(() => {
     if (text) setDraftText(text)
   }, [text])
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(draftText).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2500)
-    })
+    const done = (state: 'done' | 'failed') => {
+      setCopied(state)
+      setTimeout(() => setCopied('idle'), 2500)
+    }
+    if (!navigator.clipboard) return done('failed')
+    navigator.clipboard.writeText(draftText).then(() => done('done'), () => done('failed'))
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
-        <div className="border-b px-5 py-4 dark:border-gray-700">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">Booking confirmed!</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Edit if needed, then copy and send to your customer.</p>
-        </div>
-        <div className="px-5 py-4">
-          <textarea
-            rows={12}
-            value={draftText}
-            onChange={e => setDraftText(e.target.value)}
-            className="w-full resize-y rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm leading-relaxed text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-          />
-        </div>
-        <div className="flex items-center justify-between gap-2 border-t px-5 py-4 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            {copied ? 'Copied!' : 'Copy Message'}
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            Done
-          </button>
-        </div>
+    <div className="wd-ovl" role="dialog" aria-label="Booked">
+      <img src="/brand/logo-full-white.png" alt="Holy Hauling" />
+      <h2 className="wd-ovl-t">Booked</h2>
+      <p className="wd-ovl-s">
+        {when ?? 'Date not set yet'}{total != null ? ` · ${formatCurrency(total)}` : ''}
+      </p>
+      <textarea
+        aria-label="Confirmation message"
+        value={draftText}
+        onChange={e => setDraftText(e.target.value)}
+      />
+      {copied === 'failed' && (
+        <p className="wd-ovl-s !opacity-100">Couldn’t copy. Press and hold the message to copy it yourself.</p>
+      )}
+      <div className="flex gap-2">
+        <button type="button" onClick={handleCopy} className="wd-btn wd-btn-amber flex-1">
+          {copied === 'done' ? 'Copied' : 'Copy message'}
+        </button>
+        <button type="button" onClick={onClose} className="wd-btn wd-btn-ghost flex-1">
+          Done
+        </button>
       </div>
     </div>
   )

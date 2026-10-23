@@ -38,19 +38,37 @@ function CallRow({ lead }: { lead: Lead }) {
   )
 }
 
-function Lever({ lever }: { lever: RangeLever }) {
+function Lever({ lever, picked, onPick }: {
+  lever: RangeLever
+  picked?: number | null
+  /** Set the quote to this price. Absent = the prices are read-only. */
+  onPick?: (price: number) => void
+}) {
+  const choices: [string, number][] = [[lever.low_answer, lever.low_price], [lever.high_answer, lever.high_price]]
   return (
     <div className="wd-lev">
       <p className="wd-lev-l">{lever.factor} decides it</p>
       <div className="wd-lev-g">
-        <div className="wd-lev-c">
-          <span>{lever.low_answer}</span>
-          <b className="tabular-nums">{money(lever.low_price)}</b>
-        </div>
-        <div className="wd-lev-c">
-          <span>{lever.high_answer}</span>
-          <b className="tabular-nums">{money(lever.high_price)}</b>
-        </div>
+        {choices.map(([answer, price]) =>
+          onPick ? (
+            <button
+              key={answer}
+              type="button"
+              className="wd-lev-c"
+              aria-label={`${answer} ${money(price)}`}
+              aria-pressed={picked === price}
+              onClick={() => onPick(price)}
+            >
+              <span>{answer}</span>
+              <b className="tabular-nums">{money(price)}</b>
+            </button>
+          ) : (
+            <div key={answer} className="wd-lev-c">
+              <span>{answer}</span>
+              <b className="tabular-nums">{money(price)}</b>
+            </div>
+          ),
+        )}
       </div>
     </div>
   )
@@ -62,6 +80,8 @@ export function LeadDecisionCard({
   reviewLoading = false,
   reviewError = false,
   onRetryLoad,
+  pickedPrice,
+  onPickPrice,
 }: {
   lead: Lead
   /** `null` means the query resolved and the lead has never been reviewed. */
@@ -72,6 +92,10 @@ export function LeadDecisionCard({
   reviewError?: boolean
   /** Refetch the review query. Never triggers a new model call. */
   onRetryLoad?: () => void
+  /** The quote currently in the draft, so the matching price button shows as chosen. */
+  pickedPrice?: number | null
+  /** One tap on a lever price sets the quote to it. */
+  onPickPrice?: (price: number) => void
 }) {
   const triggerReview = useTriggerAiReview()
   const s = aiReview?.sections
@@ -213,7 +237,7 @@ export function LeadDecisionCard({
           </p>
         )}
 
-        {!isHold && s?.range_levers?.map((lever, i) => <Lever key={`${lever.factor}-${i}`} lever={lever} />)}
+        {!isHold && s?.range_levers?.map((lever, i) => <Lever key={`${lever.factor}-${i}`} lever={lever} picked={pickedPrice} onPick={onPickPrice} />)}
 
         {!isHold && s?.floor_defense && hasMoney && (
           <div className="wd-push">

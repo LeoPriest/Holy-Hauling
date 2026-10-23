@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext'
 import { BriefPanel } from './panels/BriefPanel'
 import { LogPanel } from './panels/LogPanel'
 import { QuotePanel } from './panels/QuotePanel'
-import { BookingConfirmation, formatCurrency, parseMoney, useQuoteDraft, validateQuote } from '../components/QuoteBuilder'
+import { BookingConfirmation, createLineItem, formatCurrency, parseMoney, useQuoteDraft, validateQuote } from '../components/QuoteBuilder'
 import { buildConfirmationText } from '../utils/confirmationText'
 import { EscalationCard } from '../components/EscalationCard'
 import { RefundBanner } from '../components/RefundBanner'
@@ -22,6 +22,13 @@ import { parseUtc } from '../utils/time'
 import type { LeadStatus } from '../types/lead'
 
 type Tab = 'brief' | 'quote' | 'log'
+
+/** "Sat, Oct 24" from a stored YYYY-MM-DD, read as a calendar day (no timezone shift). */
+function bookedDay(iso: string | null | undefined): string | null {
+  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return null
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
 
 // ── Icons (Heroicons outline paths) ───────────────────────────────────────
 
@@ -105,7 +112,9 @@ export function LeadCommandCenter() {
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [bookError, setBookError] = useState('')
-  const [confirmText, setConfirmText] = useState<string | null>(null)
+  const [booked, setBooked] = useState<{ text: string; total: number; when: string | null } | null>(null)
+  // Bumped on every refused Lock & book so the button shakes again.
+  const [shake, setShake] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout>>()
   const mainRef = useRef<HTMLElement>(null)
@@ -193,6 +202,7 @@ export function LeadCommandCenter() {
     const v = validateQuote(quoteDraft)
     if (!v.ok) {
       setBookError(v.error)
+      setShake(n => n + 1)
       if (tab !== 'quote') switchTab('quote')
       return
     }
@@ -207,13 +217,24 @@ export function LeadCommandCenter() {
         estimatedJobDurationMinutes: v.duration,
       },
       {
-        onSuccess: () => setConfirmText(buildConfirmationText(lead, v.total)),
-        onError: error => setBookError((error as Error)?.message ?? 'Failed to book lead.'),
+        onSuccess: () => setBooked({ text: buildConfirmationText(lead, v.total), total: v.total, when: bookedDay(lead.job_date_requested) }),
+        onError: error => {
+          setBookError((error as Error)?.message ?? 'Failed to book lead.')
+          setShake(n => n + 1)
+        },
       },
     )
   }
 
   const quoted = parseMoney(quoteDraft.quotedPriceTotal)
+
+  // One tap on a review price sets the whole quote to it, as a single base line.
+  function pickPrice(price: number) {
+    quoteDraft.setQuotedPriceTotal(price.toFixed(2))
+    quoteDraft.setLineItems([createLineItem('Base quote', String(price))])
+    setBookError('')
+    say(`Quote set to $${price.toLocaleString('en-US')}`)
+  }
 
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg text-ink">
@@ -295,6 +316,8 @@ export function LeadCommandCenter() {
           reviewLoading={aiReviewLoading}
           reviewError={aiReviewError}
           onRetryLoad={() => { void refetchAiReview() }}
+          pickedPrice={quoted}
+          onPickPrice={isActive ? pickPrice : undefined}
         />
         <div className="px-3.5 pt-3 empty:hidden">
           <RefundBanner lead={lead} />
@@ -339,7 +362,7 @@ export function LeadCommandCenter() {
           {lead.status === 'booked' ? (
             <button onClick={() => navigate('/jobs')} className="wd-btn shrink-0">View jobs</button>
           ) : tab === 'quote' ? (
-            <button onClick={lockAndBook} disabled={updateStatus.isPending} className="wd-btn shrink-0">
+            <button key={shake} onClick={lockAndBook} disabled={updateStatus.isPending} className={`wd-btn shrink-0 ${shake ? 'wd-shake' : ''}`}>
               {updateStatus.isPending ? 'Booking…' : 'Lock & book'}
             </button>
           ) : (
@@ -368,8 +391,8 @@ export function LeadCommandCenter() {
 
       <ActionSheet open={showActionSheet} items={actionSheetItems} onClose={() => setShowActionSheet(false)} />
 
-      {confirmText !== null && (
-        <BookingConfirmation text={confirmText} onClose={() => setConfirmText(null)} />
+      {booked && (
+        <BookingConfirmation text={booked.text} total={booked.total} when={booked.when} onClose={() => setBooked(null)} />
       )}
     </div>
   )
