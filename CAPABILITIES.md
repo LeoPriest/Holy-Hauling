@@ -3,6 +3,8 @@
 Tracks what the Holy Hauling app can currently do, what needs verification, what is broken, and what is planned.
 
 > Last refreshed 2026-06-15 by reconciling the doc against the actual source tree and git history — the prior version was stale at Slice 8 (2026-04-20). Treat the source + `git log` as the real source of truth; this file is a map, not the territory.
+>
+> Re-checked 2026-10-22 against `main` at `c0288c4`: multi-screenshot intake, quote builder + AI drafting, per-period availability, GCal-without-crew and the alert ladder added; three "planned" items that had already shipped (alert ladder timing, quote builder, quiet hours / backup handler) moved to Currently Working. Work on unmerged branches is listed in `CHANGELOG.md` under "Built, not live yet", not here.
 
 ---
 
@@ -36,6 +38,7 @@ not send. Phase 2 replaces it. Do not point Thumbtack at it.
 - [x] Lead queue with filters (status, source type, assigned handler) and Active / Released tabs
 - [x] Manual lead creation (`POST /leads`) with full field validation
 - [x] Screenshot-first intake (`POST /ingest/screenshot`): upload → lead stub → OCR → auto-apply high-confidence fields
+- [x] **Several screenshots per lead** (2026-09-01) — `POST /ingest/screenshot` takes up to 5 files; one lead, every shot attached, OCR on each, high-confidence fields merged. Where shots disagree, nothing is written and the conflict is shown on the upload screen and logged as a `field_conflict` event. Every file is validated before the lead is created. Both the ingest flow and the Lead Create drop zone accept several files and show conflicts
 - [x] **AI review auto-fires after screenshot upload** — the client (`IngestProgressFlow.tsx`) chains upload → OCR → AI review with no manual click (failures are non-fatal; facilitator can re-run)
 - [x] Claude Vision OCR extraction — 16 structured fields per screenshot with per-field confidence
 - [x] Thumbtack webhook ingest (`POST /ingest/webhook/thumbtack`) with dedup by `source_reference_id`
@@ -90,6 +93,8 @@ not send. Phase 2 replaces it. Do not point Thumbtack at it.
 - [x] **Quote context + scope feed the review** — `quote_context` plus route/move/scope fields are included in the snapshot sent to Claude, so hand-typed context reaches the AI, not just OCR values (fixed 2026-06-15)
 - [x] Correspondence screenshot types supported: `intake`, `correspondence`, `before_job`, `after_job`
 - [x] AI pricing chat (`AiChatThread`) to refine pricing; updates `quote_context`
+- [x] **Quote builder in the lead window** — inline builder + pinned quote bar; the window opens on Brief (2026-06-15/16)
+- [x] **AI-assisted quote drafting** — `POST /leads/{id}/quote-suggestion` drafts total, line items, duration and rationale; "Suggest with AI" fills the builder, facilitator edits before Lock & Book (2026-06-15)
 
 ### Booking, jobs & crew
 - [x] Booking confirmation flow: `confirmationText.ts` template, JobModal with View Lead + Copy Confirmation, editable confirmation, date ranges (`job_date_end`)
@@ -103,7 +108,7 @@ not send. Phase 2 replaces it. Do not point Thumbtack at it.
 ### Calendar & Google Calendar
 - [x] **Week-first calendar** (default): tap-to-expand day list for the current week, today highlighted, day quote totals; **Week / Month toggle**; collapsible "needs a date" banner (added 2026-06-15)
 - [x] Month view: existing grid + stat cards + selected-day detail (behind the toggle)
-- [x] Google Calendar OAuth (`/admin/google` connect/callback/status), auto-sync on job date/address/notes/crew changes (`calendar_service`)
+- [x] Google Calendar OAuth (`/admin/google` connect/callback/status), auto-sync on job date/address/notes/crew changes (`calendar_service`); booked jobs sync even with no crew assigned, crew are optional attendees (2026-06-18)
 - [x] Recurring expenses render on the calendar (admin)
 
 ### Admin & finance
@@ -112,13 +117,14 @@ not send. Phase 2 replaces it. Do not point Thumbtack at it.
 - [x] Finance tracking (income/expense transactions, categories, payment methods, vendor/customer, lead linking, summary)
 - [x] Recurring expenses (templates, custom intervals, `/due` badge, one-tap log → FinanceTransaction + GCal event move)
 - [x] Payroll (per-lead PayRecord: flat / hourly / 10% facilitator cut; AdminPayrollScreen aggregation)
-- [x] Truck rentals (TruckRental model, receipts, U-Haul deep link, AdminRentalsScreen, queue badge)
+- [x] Truck rentals (TruckRental model, receipts, U-Haul deep link, AdminRentalsScreen, queue badge); staged card (Reserved → Confirmed → Completed), confirmation-screenshot OCR pre-fill, auto-synced "Truck Rental" expense, line-item add in the quote builder (2026-06-15)
 - [x] Admin metrics dashboard (pipeline, conversion, revenue, sources, reply time)
 - [x] Follow-up scheduler with push reminders
 
 ### Notifications, auth, infra
 - [x] JWT auth (python-jose + bcrypt), role guards on routes
-- [x] Push notifications (VAPID/pywebpush) + service worker; availability models (per-date + weekly); stale-subscription cleanup
+- [x] Push notifications (VAPID/pywebpush) + service worker; availability models (per-date + weekly, weekly blocked by morning / afternoon / evening, days x periods grid in Settings); stale-subscription cleanup
+- [x] **Alert ladder** — T1/T2 idle thresholds (configurable in Settings), dedup, quiet hours, backup handler (SMS/email), test-alert buttons; at T2 an `auto_idle` escalation overlay opens
 - [x] Configurable alert channels per tier (push / SMS via Twilio / email via Resend+SMTP)
 - [x] Square payment integration (payment links, webhook, status chips, copy-link)
 - [x] Dark mode (ThemeContext, defaults dark)
@@ -182,7 +188,7 @@ showing a single filled dot, under a badge reading "GROUNDED · 4 LOCAL JOBS". T
 
 - [ ] **New week-first calendar UX** — compiles + builds clean, but not yet visually verified in the running app on tablet (spacing, expand interaction, week-range label)
 - [ ] **`quote_context` use by the AI** — confirmed to reach the review snapshot (guard test), but the model's actual *use* of it not yet checked on a real lead
-- [ ] AI review failure is swallowed silently in the ingest flow (`IngestProgressFlow.tsx:43-45`) — a failed review is invisible to the facilitator until they open the Quote panel
+- [ ] AI review failure is swallowed silently in the ingest flow (`IngestProgressFlow.tsx:62-63`) — a failed review is invisible to the facilitator until they open the Quote panel
 - [ ] Auto-apply accuracy: only `confidence == "high"` OCR fields apply silently — needs real-world test
 - [ ] Thumbtack webhook HMAC signature verification — not implemented (TODO before production)
 
@@ -198,9 +204,6 @@ showing a single filled dot, under a badge reading "GROUNDED · 4 LOCAL JOBS". T
 
 ## Planned / Not Yet Built
 
-- [ ] Alert ladder timing automation (escalation thresholds) beyond current configurable channels
-- [ ] Quote builder / structured pricing-control UI
-- [ ] Quiet hours / backup handler routing
 - [ ] Review history UI (compare prior reviews, not just latest)
 - [ ] Owner-review automation rules
 - [ ] Provider/model switching UI
@@ -226,6 +229,13 @@ showing a single filled dot, under a badge reading "GROUNDED · 4 LOCAL JOBS". T
 ---
 
 ## Last Verified
+
+- Date: 2026-10-22
+- By: Claude (re-baseline: suite run, CHANGELOG/CAPABILITIES backfilled past Slice 8)
+- Tests: **480 passed, 0 failed** (full backend suite, `main` at `c0288c4` plus the Google status-test isolation fix). Before that fix: 477 passed, 3 failed (`test_admin_google.py` status tests depended on the machine's `.env`).
+- Frontend build not re-run in this pass.
+
+### Previous verification
 
 - Date: 2026-06-25
 - By: Claude (crew-assist: My Pay + per-job checklist; Thumbtack Numbers alignment: lead-cost + proxy phone + 72h refund flag; quote-logic transparency: per-quote basis + grounding-eval view; role-aware /help + supervisor guide; SPA deep-link fix; escalation-push cleanup)
