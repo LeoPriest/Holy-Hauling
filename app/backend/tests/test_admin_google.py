@@ -67,6 +67,7 @@ async def test_status_not_configured(client, monkeypatch):
     ac, _ = client
     monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
     monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_SECRET", raising=False)
+    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/admin/google/callback")
 
     r = await ac.get("/admin/google/status")
 
@@ -88,6 +89,7 @@ async def test_status_configured_not_connected(client, monkeypatch):
     ac, _ = client
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/admin/google/callback")
 
     r = await ac.get("/admin/google/status")
 
@@ -106,6 +108,7 @@ async def test_status_connected(client, monkeypatch):
     ac, factory = client
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client-id.apps.googleusercontent.com")
     monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-client-secret")
+    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8000/admin/google/callback")
     async with factory() as s:
         s.add(AppSetting(key="google_refresh_token", value="some-token"))
         await s.commit()

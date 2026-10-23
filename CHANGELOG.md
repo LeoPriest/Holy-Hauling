@@ -3,6 +3,47 @@
 All meaningful development changes for the Holy Hauling app are logged here.
 
 > Entries from 2026-04-23 through 2026-06-15 were reconstructed from git history on 2026-06-15 to close a documentation gap (the log had been stale since Slice 8). They consolidate by feature area rather than per-commit; see `git log` for commit-level detail.
+>
+> Re-checked 2026-10-22: every commit on `main` since Slice 8 (`b338b72` onward, plus the Lead Command Center / alert-ladder work dated 2026-04-22/23) now falls under an entry below. Entries added in that pass are marked *(backfilled 2026-10-22)*.
+
+---
+
+## Baseline — 2026-10-22
+
+- **Line baselined:** `main` at `c0288c4` (what Railway runs is `origin/main` at `13b5891`; the three commits between are docs only).
+- **Backend suite, as found:** 477 passed, 3 failed. The three were `tests/test_admin_google.py::test_status_not_configured`, `::test_status_configured_not_connected`, `::test_status_connected`. They asserted `redirect_uri == http://localhost:8000/admin/google/callback` without setting `GOOGLE_OAUTH_REDIRECT_URI`, so they passed or failed depending on the machine's `.env` (a clean checkout derives `http://test/...` from the request).
+- **Fix:** those three tests now set `GOOGLE_OAUTH_REDIRECT_URI` themselves, so the result no longer depends on `.env`.
+- **Backend suite, after:** 480 passed, 0 failed (2026-10-22, `python -m pytest -q` from `app/backend/`).
+
+## Built, not live yet
+
+Three side branches carry finished work that is not on `main`. Each one adds its own CHANGELOG/CAPABILITIES entries, so merging them will conflict in these two files. Each needs Ron's merge decision.
+
+| Branch | What it does | Commits | Relation to `main` |
+|---|---|---|---|
+| `feat/thumbtack-phase-2` (2026-09-01) | Thumbtack webhook deliveries classified as leads become real Leads (V4 payload mapping, lead-cost sync), the facilitator gets a push when one lands, and failed/unknown deliveries get a Retry button. `LeadOut` no longer carries `raw_payload`. | 20 | branched at `a51eded`; 1 commit behind |
+| `feat/direct-booking` (2026-09-29 → 10-02) | A public, phone-first booking page (photo pricing, saved drafts, honeypot/consent, cancel link), customer texting from the business number, a 20/30-minute reply-promise timer, spam dismiss, by-channel scoreboard, Google review request, and moving on the same front door (move type, distance via Google Distance Matrix, crew/hours basis). Uploads served only to signed-in staff. Still waits on Ron's setup (texting number, domain, Google profile). | 36 | branched at `c0288c4`; up to date |
+| `fix/payment-integrity-audit` (2026-07-18) | Square webhook fails closed, booking is audit-trailed, the migration is hardened, payout rate made constant. | 1 | branched at `4d3d4ff`; 41 commits behind |
+
+---
+
+## [2026-09-01] Intake — Several Screenshots per Lead *(backfilled 2026-10-22)*
+
+### Added
+- **Multi-screenshot intake** (`0cef913`): `POST /ingest/screenshot` takes a list of files. One lead is created, every shot attaches to it, OCR runs on each, and the high-confidence fields merge. Capped at 5 files (each is a paid vision call); over the cap it refuses rather than truncating. A failed extraction loses only that shot's fields. Both intake surfaces (the ingest flow and the Lead Create drop zone) accept several files.
+- **Conflicts are reported, never guessed**: where shots disagree about a field, nothing is written; the conflict is returned on the response and recorded as a `field_conflict` event on the lead's timeline. Comparison is on the coerced value, so `$36.24` and `36.24` are not a conflict.
+
+### Fixed
+- **A figure was reported as filled when nothing was saved** (`13b5891`): a typed OCR field that failed to parse fell through to the string handler, so `lead_cost_total` (not a Lead column) was reported as auto-applied but never persisted, and `pros_contacted` could receive raw text. Unparseable typed fields now end as `None`.
+- Every file is validated before the lead is created; an invalid second file used to 400 after the lead and first image were committed, leaving a half-filled lead in the queue.
+- The Lead Create upload path now shows the conflict warning too (only the ingest flow did).
+
+---
+
+## Housekeeping — docs only, no app change *(backfilled 2026-10-22)*
+
+- `2f2a7dc`, `a51eded` (2026-09-01): Thumbtack Phase 2 design spec and implementation plan (the code is on `feat/thumbtack-phase-2`, above).
+- `c0288c4` (2026-09-29): direct booking front door design, stage 1 of 3 (the code is on `feat/direct-booking`, above).
 
 ---
 
@@ -191,6 +232,9 @@ All meaningful development changes for the Holy Hauling app are logged here.
 - **Unified quote anchoring**: `suggest_quote` now anchors to the AI review's validated `target_low`/`target_high`/`floor` when present, preventing the builder and decision card from stating different bands. Legacy reviews (no structured figures) behave byte-identically to before.
 - **Non-blocking floor validation**: floor caption beneath the quoted-price input now warns when the typed total is below it, but still permits booking. Nothing renders when the review carries no validated floor (no placeholder, dash, or zero).
 
+### Fixed *(backfilled 2026-10-22)*
+- **The number the operator reads is the number the review stands behind** (`cedddc5`, 2026-08-28, whole-branch review): a `hold` review's floor no longer shows beside the price input, and its figures never anchor `suggest_quote` (`_build_pricing_context`); the Quote tab's Est. Duration wheel now PATCHes the lead on change (in-progress / saved / failure states) instead of living only in the unsaved draft; validated figures anchor `suggest_quote` even when the review prose is empty. Backend 469 passed after this fix.
+
 ### Notes
 - See spec: `docs/superpowers/specs/2026-08-25-lead-window-phase-b-design.md`
 - See plan: `docs/superpowers/plans/2026-08-26-lead-window-phase-b.md`
@@ -280,8 +324,49 @@ All meaningful development changes for the Holy Hauling app are logged here.
 - **Lead-cost tracking + competition capture** (`bc21b2d`): six `Lead` cols — `lead_cost_cents` (net Total), `lead_cost_gross_cents`, `lead_cost_bonus_cents`, `lead_cost_finance_transaction_id`, `pros_contacted`, `pros_responded`. OCR extended to read the Thumbtack fee breakdown (Direct lead / Bonus / Total) + competition line, disambiguated from the "Estimated cost" quote, with `Decimal` money parsing. The net total auto-syncs a lead-linked "Thumbtack lead fee" `FinanceTransaction` (mirrors truck-rental sync) → flows into the outcome layer's realized_cost / ROI. Frontend `LeadCostCard` in the Brief panel.
 - **Thumbtack Numbers (proxy phone)** (`71e8f8a`): `Lead.customer_phone_is_proxy` (bool) + `Lead.customer_real_phone`; a `contact_phone(lead)` helper (real-if-valid-else-proxy) used by Square payment SMS + exposed as a computed `LeadOut.contact_phone`; proxy auto-tagged when a valid `customer_phone` is set on a Thumbtack-source lead (manual override persists). Frontend `LeadContact` (replaces the Phone row): "needs a number" prompt, "Thumbtack line" badge, real # as Primary, inline edit.
 
+- **Per-period weekly availability** *(backfilled 2026-10-22)* (`4286e47`, `0ce3950`, `c85e130`, `543fc08`): `UserWeeklyAvailability` gains a `period` column (morning / afternoon / evening) with an expand-existing migration; blocks-map `GET/PUT` with a full-day-only admin rollup; a days x periods grid in Settings.
+
+### Fixed *(backfilled 2026-10-22)*
+- **Startup crash from the availability migration** (`a64fbf4`): the `user_id` index was created before the old table was dropped, so the index name collided and the live backend failed to start. The index is now created after the drop.
+
 ### Notes
 - The Thumbtack-alignment work (lead-cost capture, proxy phones, and the 72h refund flag landed 2026-06-22) responds to Thumbtack's 2026 "Thumbtack Numbers" rollout: masked proxy phones, a ~10% lead-price hike, and 72h refunds.
+
+---
+
+## [2026-06-18] Self-Learning Items 2–3 + Calendar Sync Without Crew *(backfilled 2026-10-22)*
+
+### Added
+- **Retrieval grounding for the quote** (roadmap item 2; `c523366`, `5bd9659`, `a02bf36`, `c3afd64`): `comparables_service.find_comparables` scores same-city finalized outcomes on their frozen `scope_snapshot` (size, distance, move type, stairs; no embeddings) and the top 5 go into a `COMPARABLE LOCAL JOBS` block in the quote prompt; they are returned on `QuoteSuggestionOut.comparables`. No comparables means no block and a byte-identical prompt; retrieval failure degrades to `[]`.
+- **Quote-grounding eval** (roadmap item 3; `1bf5c02`, `dc87979`, `1e3a93e`, `bbfb2b3`, `bc65fa8`): append-only `quote_suggestion_log` (grounded, comparables count, suggested price, model), best-effort; `GET /admin/eval/quote-grounding` compares grounded vs ungrounded cohorts (win rate, pricing accuracy, signed bias) against finalized outcomes. The facilitator-facing view came 2026-06-24.
+- **Google Calendar sync without crew** (`faf0156`): booked jobs sync to GCal even with nobody assigned; crew are optional attendees.
+
+### Fixed
+- Comparables block separated from the draft instruction in the quote prompt (`d3fcd3f`).
+
+---
+
+## [2026-06-17] Self-Learning Item 1 — Outcome Layer *(backfilled 2026-10-22)*
+
+### Added
+- **`lead_outcome`** (`abfb4cd`, `262194f`, `8e118bf`, `d856903`): one reconciled row per terminal lead freezing the decision-time scope snapshot and the result (won/lost, quoted vs realized revenue and cost, price delta, escalation, AI prompt version, timings). Finalized rows (`lost`, `released`) are frozen; booked rows stay live so revenue fills in. Swept every 15 minutes plus a startup backfill, multi-city aware; read via `GET /admin/outcomes` (admin only).
+
+### Fixed
+- Time zones normalized before the time-to-book subtraction; negative values clamped; one city's reconcile failure no longer stops the others (`7900925`, `cd2284f`, `e3b23ab`).
+
+---
+
+## [2026-06-16] Escalation Overlay + Lead Window Default Tab *(backfilled 2026-10-22)*
+
+### Added
+- **Escalation as a resolvable overlay** (`064579c` → `a7c4e80`): a `LeadEscalation` row sits beside the lead's real stage instead of replacing it. Raise from the Log tab (level, decision needed, AI-suggested summary), Resolve flow for the owner (outcome + note, `LeadEvent`, handler notified), a pinned Escalations band and card badge on the queue. Routes in `routers/escalation.py`.
+- At T2 the idle ladder now opens an `auto_idle` overlay instead of flipping status to `escalated` (`cba8a17`); a startup migration moves legacy `escalated` leads back to their prior stage with an overlay (`b783e7c`). `escalated` is no longer a pipeline stage.
+
+### Changed
+- The lead window opens on the Brief tab; the quote stays in the pinned bar (`744cecc`).
+
+### Fixed
+- 44px tap target on the Suggest-with-AI button (`6ab17e6`).
 
 ---
 
@@ -290,6 +375,10 @@ All meaningful development changes for the Holy Hauling app are logged here.
 ### Added
 - **Week-first calendar** (`CalendarScreen.tsx`): default view is a tap-to-expand list of the current week (today highlighted, day quote totals), details one tap away. New **Week / Month** toggle — Month reuses the existing grid + stat cards.
 - Collapsible "needs a date" banner for unscheduled jobs, shown only when non-empty.
+- *(backfilled 2026-10-22)* **Queue grouped by stage** with an ambient Aging / Overdue signal (`4e853f3`); month grid moved above the stat cards on the Month tab (`c8e9b59`).
+- *(backfilled 2026-10-22)* **Quote-centric lead window** (`1f9cc58`): inline quote builder and a pinned quote bar.
+- *(backfilled 2026-10-22)* **AI-assisted quote drafting** (`49efb31`): `POST /leads/{id}/quote-suggestion` drafts a total, line items, duration and rationale from the lead scope, `quote_context` and the latest review, grounded in the SOP; the total is reconciled to the line-item sum. A "Suggest with AI" button fills the builder; the facilitator edits before Lock & Book.
+- *(backfilled 2026-10-22)* **Truck rental rework** (`901ddbb`): Reserved -> Confirmed -> Completed staged card; confirmation-screenshot OCR pre-fills the form (never auto-saves); saving a cost syncs a lead-linked "Truck Rental" expense; "add truck rental as line item" in the quote builder; navigable pickup/dropoff (new `dropoff_location`, `confirmation_url`).
 
 ### Fixed
 - **AI review ignored facilitator context.** The Quote panel's "Add Context Before Re-running Review" box saved `quote_context` to the lead, but `_build_input_snapshot` never included it — so hand-typed context (and hand-typed scope/move fields) never reached Claude. Added `quote_context`, `job_origin`, `job_destination`, `scope_notes`, `move_size_label`, `move_type`, `move_distance_miles`, `load_stairs`, `unload_stairs`, `move_date_options`, `accept_and_pay` to the review snapshot. Guard test added.
@@ -300,6 +389,7 @@ All meaningful development changes for the Holy Hauling app are logged here.
 
 ### Verified
 - `test_ai_review.py` 19/19; frontend `tsc --noEmit` + `npm run build` pass. Full backend suite: 239 passed / 11 failed (pre-existing failures in `test_calendar_service.py` + `test_chat.py` — see CAPABILITIES).
+- *(backfilled 2026-10-22)* Same day, `a3f8bc4` fixed those 11 stale tests (calendar model-import list and mock signatures; chat response shape). Suite green at 264.
 
 ---
 
@@ -353,6 +443,15 @@ All meaningful development changes for the Holy Hauling app are logged here.
 ### Changed
 - API `BASE` reverted to relative path to avoid double-prefixing in hosted environments.
 - Added exception logging before re-raising AI review 502s; onError logging for extract/review mutations.
+
+---
+
+## [2026-04-22 → 2026-04-23] Lead Command Center + Alert Ladder *(backfilled 2026-10-22)*
+
+### Added
+- **Lead Command Center** (`44d70c2` → `45a085e`): React Router routes for the queue and a tabbed lead window (Brief / Quote / Log) with header and tab bar; `GateIndicator`; Brief panel (screenshot, contact, AI quick read); Quote panel (scope, `quote_context`, AI pricing sections); Log panel (status controls, notes, screenshots, activity); `IngestProgressFlow` for screenshot-first entry.
+- **AI pricing chat** (`2c7c3b4`, `a0749b7`, `20c017f`, `2af324b`): `lead_chat_messages` table, chat service and router, `AiChatThread` in the Quote panel.
+- **Alert ladder** (`3e6d361` → `282c72a`): `AppSetting` + `LeadAlert` models; settings router; `alert_service` with `check_stale_leads` on the scheduler, T1/T2 thresholds, dedup, and T2 auto-escalation; quiet hours and a backup handler (SMS/email); Settings screen (thresholds, quiet hours, contacts, test-alert buttons); stale banner and card staleness chips on the queue.
 
 ---
 
