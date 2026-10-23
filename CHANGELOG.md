@@ -17,11 +17,11 @@ All meaningful development changes for the Holy Hauling app are logged here.
 
 ## Built, not live yet
 
-Three side branches carry finished work that is not on `main`. Each one adds its own CHANGELOG/CAPABILITIES entries, so merging them will conflict in these two files. Each needs Ron's merge decision.
+Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbtack Phase 2 merged locally 2026-10-23); a push deploys it to Railway. The two side branches each add their own CHANGELOG/CAPABILITIES entries, so merging them will conflict in these two files. Each needs Ron's merge decision.
 
 | Branch | What it does | Commits | Relation to `main` |
 |---|---|---|---|
-| `feat/thumbtack-phase-2` (2026-09-01) | Thumbtack webhook deliveries classified as leads become real Leads (V4 payload mapping, lead-cost sync), the facilitator gets a push when one lands, and failed/unknown deliveries get a Retry button. `LeadOut` no longer carries `raw_payload`. | 20 | branched at `a51eded`; 1 commit behind |
+| `feat/thumbtack-phase-2` (2026-09-01) | Thumbtack webhook deliveries classified as leads become real Leads (V4 payload mapping, lead-cost sync), the facilitator gets a push when one lands, and failed/unknown deliveries get a Retry button. `LeadOut` no longer carries `raw_payload`. | 20 | merged into local `main` 2026-10-23 (`98988eb`); not pushed |
 | `feat/direct-booking` (2026-09-29 → 10-02) | A public, phone-first booking page (photo pricing, saved drafts, honeypot/consent, cancel link), customer texting from the business number, a 20/30-minute reply-promise timer, spam dismiss, by-channel scoreboard, Google review request, and moving on the same front door (move type, distance via Google Distance Matrix, crew/hours basis). Uploads served only to signed-in staff. Still waits on Ron's setup (texting number, domain, Google profile). | 36 | branched at `c0288c4`; up to date |
 | `fix/payment-integrity-audit` (2026-07-18) | Square webhook fails closed, booking is audit-trailed, the migration is hardened, payout rate made constant. | 1 | branched at `4d3d4ff`; 41 commits behind |
 
@@ -42,7 +42,7 @@ Three side branches carry finished work that is not on `main`. Each one adds its
 
 ## Housekeeping — docs only, no app change *(backfilled 2026-10-22)*
 
-- `2f2a7dc`, `a51eded` (2026-09-01): Thumbtack Phase 2 design spec and implementation plan (the code is on `feat/thumbtack-phase-2`, above).
+- `2f2a7dc`, `a51eded` (2026-09-01): Thumbtack Phase 2 design spec and implementation plan (the code merged into `main` as `98988eb`, above).
 - `c0288c4` (2026-09-29): direct booking front door design, stage 1 of 3 (the code is on `feat/direct-booking`, above).
 
 ---
