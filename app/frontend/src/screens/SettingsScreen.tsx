@@ -254,6 +254,20 @@ export function SettingsScreen() {
       </header>
 
       <div className="space-y-6 p-4 pb-20">
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => navigate('/admin')}
+            aria-label="Open admin"
+            className="flex w-full min-h-14 items-center justify-between gap-3 rounded-xl border bg-white px-4 py-3 text-left active:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:active:bg-gray-700"
+          >
+            <span>
+              <span className="wd-disp block text-lg leading-none text-gray-900 dark:text-white">Admin</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Team, cities, finances, payroll, metrics</span>
+            </span>
+            <span className="text-gray-400" aria-hidden="true">›</span>
+          </button>
+        )}
         <section className="rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Account</h2>
           <FieldRow label="Signed in as">

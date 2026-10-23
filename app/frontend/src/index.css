@@ -1,3 +1,240 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Workday design tokens ──────────────────────────────────────────────
+   Light is the default; ThemeContext puts `.dark` on <html> for dark mode. */
+:root {
+  --bg: #f5f1ea; --sf: #ffffff; --ink: #161512; --mu: #5e5850; --ln: #e3dbcf;
+  --edge: #161512; --tint: #dcebe6; --hd: #161512; --ok: #1b6d60; --red: #d63a2f;
+  --pr: #1b6d60; --ac: #f4a623; --ac2: #eea01a;
+  --dock: #161512; --dock-ic: #2f9a86; --dock-shadow: 0 10px 24px rgba(0, 0, 0, .25);
+  --settle: cubic-bezier(.2, .9, .25, 1.12); --out: cubic-bezier(.2, .8, .2, 1);
+  --dock-h: calc(94px + env(safe-area-inset-bottom));
+}
+.dark {
+  --bg: #131a17; --sf: #1c2622; --ink: #f1eee6; --mu: #a3aca5; --ln: #2a3631;
+  --edge: #3b4b44; --tint: #1f3a33; --hd: #0b100e; --ok: #7fcbb9; --red: #ef5a4c;
+  --dock: #154f46; --dock-ic: #8fd1c0; --dock-shadow: inset 0 0 0 1.5px #2a6b60;
+}
+
+@layer base {
+  body { background: var(--bg); color: var(--ink); font-family: Figtree, sans-serif; }
+}
+
+@layer components {
+  /* Screen header: dark slab with an amber tick, runs up behind the notch. */
+  .wd-hdr {
+    position: relative; background: var(--hd); color: #fff;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 20px; border-radius: 0 0 20px 20px;
+  }
+  .wd-hdr::after {
+    content: ""; position: absolute; left: 18px; bottom: 7px; width: 44px; height: 4px;
+    border-radius: 2px; background: var(--ac);
+  }
+  .wd-disp { font-family: "Barlow Condensed", sans-serif; font-weight: 700; text-transform: uppercase; }
+  .wd-label {
+    font: 700 12px/1 "Barlow Condensed", sans-serif; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--mu);
+  }
+  .wd-city {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 14px;
+    border-radius: 999px; background: transparent; color: #fff;
+    box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .45);
+    font: 600 14px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em;
+  }
+  .wd-city option { color: #161512; }
+
+  /* Lead card: strong border, presses in. */
+  .wd-card {
+    display: flex; flex-direction: column; gap: 4px; width: 100%; overflow: hidden; text-align: left;
+    background: var(--sf); color: var(--ink); border-radius: 12px; padding: 12px 14px;
+    box-shadow: inset 0 0 0 1.5px var(--edge); transition: transform .14s var(--out);
+  }
+  .wd-card:active { transform: scale(.98); }
+  .wd-card:focus-visible { outline: 3px solid var(--ac); outline-offset: -3px; }
+  .wd-card-band {
+    display: block; margin: -12px -14px 6px; padding: 6px 14px; color: #161512;
+    font: 700 13px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em;
+  }
+  .wd-card-urgent { box-shadow: inset 0 0 0 1.5px var(--edge), inset 4px 0 0 var(--ac); }
+
+  /* Hazard stripes: only on new leads, warnings and the current gate. */
+  .haz {
+    background: repeating-linear-gradient(-45deg, var(--ac) 0 10px, var(--ac2) 10px 20px);
+    background-size: 28.28px 28.28px; animation: wd-haz 1.1s linear infinite;
+  }
+
+  /* Status badge */
+  .wd-st {
+    display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 6px;
+    font: 700 12px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em;
+    white-space: nowrap;
+  }
+  .wd-st-new { background: var(--ac); color: #161512; }
+  .wd-st-green { background: var(--pr); color: #fff; }
+  .wd-st-line { box-shadow: inset 0 0 0 1.5px currentColor; }
+  .wd-st-soft { background: var(--ln); color: var(--ink); }
+  .wd-st-red { background: var(--red); color: #fff; }
+
+  /* Small flag on a card (overdue, escalated, urgent, follow-up, truck). */
+  .wd-flag {
+    display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border-radius: 6px;
+    font: 700 11px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em;
+    background: var(--tint); color: var(--ok);
+  }
+  .wd-flag-amber { background: var(--ac); color: #161512; }
+  .wd-flag-red { background: var(--red); color: #fff; }
+
+  /* Filter chips with a green pill that slides between them. */
+  .wd-chips { position: relative; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .wd-chips::-webkit-scrollbar { display: none; }
+  .wd-chip {
+    position: relative; z-index: 1; flex: none; display: inline-flex; align-items: center; gap: 4px;
+    height: 44px; min-width: 44px; padding: 0 12px; border-radius: 9px; color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--ln); white-space: nowrap; transition: color .25s;
+    font: 600 14px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .wd-chip[aria-selected="true"] { color: #fff; box-shadow: none; }
+  .wd-chip:focus-visible { outline: 3px solid var(--ac); outline-offset: 1px; }
+  .wd-chip-pill {
+    position: absolute; top: 0; height: 44px; border-radius: 9px; background: var(--pr);
+    transition: left .32s var(--settle), width .32s var(--settle);
+  }
+
+  /* Panel: a strong-bordered box for grouped actions (escalations, refunds). */
+  .wd-panel { overflow: hidden; border-radius: 12px; background: var(--sf); box-shadow: inset 0 0 0 1.5px var(--edge); }
+
+  /* Buttons. Small ones still give a finger 44px. */
+  .wd-btn, .wd-btn-sm {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+    background: var(--pr); color: #fff; font-family: "Barlow Condensed", sans-serif; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em; transition: transform .12s var(--out), opacity .2s;
+  }
+  .wd-btn { height: 46px; padding: 0 16px; border-radius: 12px; font-size: 17px; }
+  .wd-btn-sm { min-height: 44px; padding: 0 12px; border-radius: 9px; font-size: 14px; }
+  .wd-btn:active, .wd-btn-sm:active { transform: scale(.97); }
+  .wd-btn:disabled, .wd-btn-sm:disabled { opacity: .4; transform: none; }
+  .wd-btn-amber { background: var(--ac); color: #161512; }
+  .wd-btn-ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--edge); }
+
+  /* Ghost button / select on the queue. */
+  .wd-ghost {
+    min-height: 44px; padding: 0 12px; border-radius: 12px; background: var(--sf); color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--ln); font-size: 14px; font-weight: 500;
+    transition: transform .12s var(--out);
+  }
+  .wd-ghost:active { transform: scale(.97); }
+
+  /* Amber toast that drops from the top. */
+  .wd-toast {
+    position: fixed; left: 14px; right: 14px; top: calc(env(safe-area-inset-top) + 6px); z-index: 40;
+    background: var(--ac); color: #161512; border-radius: 12px; padding: 10px 14px;
+    box-shadow: inset 0 0 0 1.5px #161512, 0 10px 24px rgba(0, 0, 0, .25);
+    font: 700 15px/1.2 "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .04em;
+    transform: translateY(calc(-100% - 70px)); transition: transform .45s var(--settle);
+  }
+  .wd-toast.show { transform: none; }
+
+  /* Card arrival: rise on load, drop in at the top when a new lead lands. */
+  .wd-rise { animation: wd-rise .5s var(--settle) both; animation-delay: calc(var(--i, 0) * 70ms); }
+  .wd-slot { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .45s var(--settle); }
+  .wd-slot.enter { grid-template-rows: 0fr; }
+  .wd-slot > div { min-height: 0; overflow: hidden; }
+  .wd-drop { animation: wd-drop .55s var(--settle) .12s both; }
+  .wd-bump { animation: wd-bump .45s var(--settle); }
+
+  /* ── Dock tab bar ── */
+  .wd-dock-spacer { height: var(--dock-h); }
+  .wd-dock-wrap {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; height: var(--dock-h); pointer-events: none;
+  }
+  .wd-dock {
+    position: absolute; left: 14px; right: 14px; bottom: calc(18px + env(safe-area-inset-bottom));
+    max-width: 560px; margin: 0 auto; height: 62px; border-radius: 22px; padding: 7px;
+    display: flex; background: var(--dock); box-shadow: var(--dock-shadow); pointer-events: auto;
+  }
+  .wd-dock-grp { display: flex; flex: 1 1 0; }
+  .wd-dock-gap { flex: 0 0 64px; }
+  .wd-dt {
+    flex: 1 1 0; min-width: 44px; position: relative; z-index: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px; color: #161512; -webkit-tap-highlight-color: transparent;
+  }
+  .wd-dt:focus-visible { outline: 3px solid var(--ac); outline-offset: -3px; border-radius: 14px; }
+  .wd-dt .ico { width: 22px; height: 22px; transition: transform .35s var(--settle); }
+  .wd-dt .ico-f path { fill: var(--dock-ic); stroke: none; fill-rule: evenodd; }
+  .wd-dt .ico-f path.cut { fill: none; stroke: var(--dock); stroke-width: 1.6; stroke-linecap: round; }
+  .wd-dt .ico-o path { fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+  .wd-dt .ico-o, .wd-dt .lbl { display: none; }
+  .wd-dt.on .ico-f { display: none; }
+  .wd-dt.on .ico-o, .wd-dt.on .lbl { display: block; transform: translateY(-9px); }
+  .wd-dt .lbl {
+    font: 700 12px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .05em;
+    transition: transform .35s var(--settle);
+  }
+  .wd-dt.hop .ico-o { animation: wd-hop .45s var(--settle); }
+  .wd-dind {
+    position: absolute; top: -16px; height: 70px; border-radius: 16px; background: var(--ac);
+    box-shadow: 0 -4px 14px rgba(0, 0, 0, .2); transition: left .4s var(--settle), width .4s var(--settle);
+  }
+  .wd-dind::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: 4px; height: 4px; border-radius: 2px;
+    background: repeating-linear-gradient(-45deg, #161512 0 4px, transparent 4px 8px);
+    background-size: 11.3px 11.3px; animation: wd-dhaz 1s linear infinite;
+  }
+  .dbdg {
+    position: absolute; top: 6px; left: calc(50% + 4px); min-width: 17px; height: 17px; padding: 0 4px;
+    border-radius: 9px; background: var(--red); color: #fff; text-align: center;
+    font: 700 11px/17px "Barlow Condensed", sans-serif; box-shadow: 0 0 0 2px var(--dock);
+    transition: transform .35s var(--settle);
+  }
+  .wd-dt.on .dbdg { transform: translateY(-11px); box-shadow: none; }
+  .wd-fab {
+    position: absolute; left: 50%; bottom: 18px; width: 58px; height: 58px;
+    margin-left: -29px; border-radius: 50%; background: var(--pr); color: #fff; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 5px var(--bg), 0 8px 18px rgba(0, 0, 0, .3); transition: transform .15s var(--out);
+  }
+  .wd-fab:active { transform: scale(.92); }
+  .wd-fab:focus-visible { outline: 3px solid var(--ac); outline-offset: 6px; }
+  .wd-fab svg { width: 30px; height: 30px; transition: transform .3s var(--settle); }
+  .wd-fab svg path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+  .wd-fab.open svg { transform: rotate(45deg); }
+  .wd-rays { position: absolute; left: 50%; bottom: 47px; width: 0; height: 0; z-index: 1; pointer-events: none; }
+  .wd-rays i {
+    position: absolute; left: -2.5px; top: -50px; width: 5px; height: 14px; border-radius: 3px;
+    background: var(--ac); transform-origin: 2.5px 50px; opacity: 0;
+  }
+  .wd-rays.go i { animation: wd-ray .6s var(--out) both; }
+  .wd-dsheet {
+    position: fixed; left: 12px; right: 12px; bottom: calc(112px + env(safe-area-inset-bottom)); z-index: 30;
+    max-width: 560px; margin: 0 auto; display: grid; gap: 10px; padding: 14px 16px; border-radius: 16px;
+    background: #161512; color: #fff; transform: translateY(20px) scale(.96); opacity: 0; pointer-events: none;
+    transition: transform .35s var(--settle), opacity .2s;
+  }
+  .dark .wd-dsheet { background: #0b100e; box-shadow: inset 0 0 0 1.5px var(--edge); }
+  .wd-dsheet.show { transform: none; opacity: 1; pointer-events: auto; }
+  .wd-dsheet button {
+    flex: 1; height: 48px; border-radius: 10px; background: rgba(255, 255, 255, .1); color: #fff;
+    font-weight: 600; font-size: 14px; transition: transform .12s var(--out);
+  }
+  .wd-dsheet button:first-child { background: var(--ac); color: #161512; }
+  .wd-dsheet button:active { transform: scale(.97); }
+}
+
+@keyframes wd-haz { to { background-position: 28.28px 0; } }
+@keyframes wd-dhaz { to { background-position: 11.3px 0; } }
+@keyframes wd-rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes wd-drop { from { transform: translateY(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes wd-bump { 40% { transform: scale(1.18); } }
+@keyframes wd-hop { 0% { transform: translateY(-9px); } 35% { transform: translateY(-15px) scale(1.12); } 100% { transform: translateY(-9px); } }
+@keyframes wd-ray {
+  0% { opacity: 0; transform: rotate(var(--a)) translateY(18px) scaleY(.3); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(-10px) scaleY(1); }
+}
+
+/* Every motion goes still when the phone asks for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

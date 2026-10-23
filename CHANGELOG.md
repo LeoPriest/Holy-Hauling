@@ -27,6 +27,15 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-23] Workday design, stage 1 of 8 — colors, fonts, dock, lead queue and cards
+
+- **Tokens app-wide:** Linen / Night backgrounds, Chapel Green, Safety Amber, Barlow Condensed for display type, Figtree for body (`index.css` variables, `tailwind.config.js`, Google Fonts in `index.html`, `viewport-fit=cover`). All motion stops under `prefers-reduced-motion: reduce`.
+- **Dock (`BottomNav.tsx`):** floating bar with the sliding amber tab, filled resting icons, hop on tap, red count of `status === 'new'` leads on Queue, and a green + (admin/facilitator only) that bursts rays and offers Screenshot / Type it in. Admin left the bar and is an entry at the top of Settings. Crew see Jobs and Settings only.
+- **Lead card (`LeadCard.tsx`):** name + age, title from service and move size, "Town · Source", status badge, hazard band on new leads. Phone, full address and timestamp came off the card. Overdue/aging, escalated, urgent, follow-up and truck stay as visible flags. The card is now a real button.
+- **Lead queue (`LeadQueue.tsx`):** dark header with the rays mark and city pill, title + open count, greeting, sliding filter chips (All / New / Review / Quote / Closed — Closed replaces the old Active/Closed tabs), restyled source/handler filters, escalation and refund panels, and new leads dropping in with an amber toast. The header's New Lead / Manual buttons moved to the dock's +.
+- **Tests:** `app/frontend/tests/test_workday_queue.py` (Playwright, 11 tests at 390 and 1024 wide, every API call faked). Run from `app/frontend`: `python -m pytest -q tests`. Backend suite unchanged: 527 passed.
+- Not live: the design ships in 8 stages and each stays local until Ron pushes.
+
 ## [2026-09-01] Intake — Several Screenshots per Lead *(backfilled 2026-10-22)*
 
 ### Added

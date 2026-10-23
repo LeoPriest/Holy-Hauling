@@ -16,6 +16,7 @@ const SCREENSHOT_SOURCES: { value: LeadSourceType; label: string }[] = [
 
 interface Props {
   onClose: () => void
+  initialMode?: Mode
 }
 
 function parseAllFields(extractions: IngestResult['extractions']): Record<string, string> {
@@ -41,9 +42,9 @@ function parseAllFields(extractions: IngestResult['extractions']): Record<string
 }
 
 
-export function LeadCreate({ onClose }: Props) {
+export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
   const { cities, requiredCityId } = useCity()
-  const [mode, setMode] = useState<Mode>('select')
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [stage, setStage] = useState<ScreenshotStage>('upload')
   const [sourceType, setSourceType] = useState<LeadSourceType>('thumbtack_screenshot')
   const [selectedCityId, setSelectedCityId] = useState(requiredCityId)
