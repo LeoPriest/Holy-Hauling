@@ -157,6 +157,28 @@ def _card_box(card):
         return [s.textAlign, s.paddingTop, s.paddingLeft, s.outlineStyle] }""")
 
 
+# Records every class the arriving card and its row ever carry, including the
+# ones a later render replaced, so a one-frame wrong state still shows up.
+_WATCH_ARRIVAL = """name => {
+    window.__cardClasses = []; window.__slotClasses = []
+    const note = (el, cls) => {
+        if (!el.textContent.includes(name)) return
+        if (el.matches('.wd-card')) window.__cardClasses.push(cls)
+        if (el.matches('.wd-slot')) window.__slotClasses.push(cls)
+    }
+    new MutationObserver(records => {
+        for (const r of records) {
+            if (r.type === 'attributes') { note(r.target, r.oldValue || ''); note(r.target, r.target.className) }
+            for (const n of r.addedNodes) {
+                if (!(n instanceof Element)) continue
+                for (const el of [n, ...n.querySelectorAll('.wd-card, .wd-slot')]) note(el, el.className)
+            }
+        }
+    }).observe(document.body, { subtree: true, childList: true, attributes: true,
+                                attributeFilter: ['class'], attributeOldValue: true })
+}"""
+
+
 def test_arriving_lead_keeps_the_card_layout(server, browser):
     leads = [dict(l) for l in LEADS]
     page = _live_queue(browser, server, leads)
@@ -164,6 +186,7 @@ def test_arriving_lead_keeps_the_card_layout(server, browser):
     dana.wait_for()
     page.wait_for_timeout(800)
     settled = _card_box(dana)
+    page.evaluate(_WATCH_ARRIVAL, "Nina P.")
 
     leads.append(lead(id="l9", customer_name="Nina P.", created_at=iso(0), updated_at=iso(0),
                       job_address="5 Oak Dr, Kirkwood, MO 63122"))
@@ -177,6 +200,36 @@ def test_arriving_lead_keeps_the_card_layout(server, browser):
     page.wait_for_timeout(1500)
     assert "drop" not in (nina.get_attribute("class") or "")
     assert _card_box(nina) == settled
+    # It dropped in from its very first frame and never played the load-time rise.
+    cards = page.evaluate("window.__cardClasses")
+    assert cards and "wd-card-drop" in cards[0].split()
+    assert not [c for c in cards if "wd-rise" in c.split()]
+    # Its row opened from nothing, pushing the cards below it down.
+    slots = page.evaluate("window.__slotClasses")
+    assert slots and "enter" in slots[0].split()
+    assert "enter" not in page.locator(".wd-slot", has=nina).get_attribute("class").split()
+
+
+def test_two_quick_arrivals_each_clear_on_their_own(server, browser):
+    leads = [dict(l) for l in LEADS]
+    page = _live_queue(browser, server, leads)
+    page.get_by_role("button", name="Dana R.").wait_for()
+    page.wait_for_timeout(800)
+    leads.append(lead(id="l9", customer_name="Nina P.", created_at=iso(0), updated_at=iso(0)))
+    _refetch(page)
+    nina = page.get_by_role("button", name="Nina P.")
+    nina.wait_for()
+    page.wait_for_timeout(400)
+    leads.append(lead(id="l10", customer_name="Omar S.", created_at=iso(0), updated_at=iso(0)))
+    _refetch(page)
+    omar = page.get_by_role("button", name="Omar S.")
+    omar.wait_for()
+    # The second arrival doesn't cut the first one's drop short...
+    assert "drop" in (nina.get_attribute("class") or "")
+    # ...and the first one's drop ends on its own clock, not when the second's does.
+    page.wait_for_timeout(700)
+    assert "drop" not in (nina.get_attribute("class") or "")
+    assert "drop" in (omar.get_attribute("class") or "")
 
 
 def test_filter_flip_raises_no_new_lead_alert(server, browser):

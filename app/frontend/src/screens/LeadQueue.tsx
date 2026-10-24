@@ -117,34 +117,40 @@ export function LeadQueue() {
 
   // New leads that land while the queue is open drop in at the top with an
   // amber toast. The first load, and the first load after a filter change,
-  // only records what is already there.
+  // only records what is already there. Worked out while rendering, not in an
+  // effect, so an arriving card and its row know it from their first frame.
   const listKey = [sourceFilter, assignedFilter.trim(), cityQueryId ?? ''].join('|')
-  const seenIds = useRef<Set<string> | null>(null)
-  const seenKey = useRef(listKey)
+  const [seen, setSeen] = useState<{ key: string; ids: Set<string> } | null>(null)
   const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set())
+  const [dropBatch, setDropBatch] = useState<Set<string> | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [bumpKey, setBumpKey] = useState(0)
-  useEffect(() => {
-    if (isLoading || error) return
-    const ids = new Set(leads.map(l => l.id))
-    if (seenIds.current && seenKey.current === listKey) {
-      const arrived = leads.filter(l => !seenIds.current!.has(l.id) && l.status === 'new')
+  if (!isLoading && !error) {
+    const changed = !seen || seen.key !== listKey || seen.ids.size !== leads.length || leads.some(l => !seen.ids.has(l.id))
+    if (changed) {
+      const arrived = seen && seen.key === listKey ? leads.filter(l => !seen.ids.has(l.id) && l.status === 'new') : []
+      setSeen({ key: listKey, ids: new Set(leads.map(l => l.id)) })
       if (arrived.length > 0) {
         const l = arrived[0]
         const town = leadTown(l)
+        const batch = new Set(arrived.map(a => a.id))
         setToast([leadTitle(l), town, sourceShort(l.source_type)].filter(Boolean).join(' · '))
-        setDroppedIds(new Set(arrived.map(a => a.id)))
+        setDroppedIds(prev => new Set([...prev, ...batch]))
+        setDropBatch(batch)
         setBumpKey(k => k + 1)
       }
     }
-    seenIds.current = ids
-    seenKey.current = listKey
-  }, [leads, isLoading, error, listKey])
+  }
+  // Each arrival's drop clears on its own clock, so a second lead landing
+  // doesn't cut the first one's short or hold it longer.
+  const dropTimers = useRef<ReturnType<typeof setTimeout>[]>([])
   useEffect(() => {
-    if (droppedIds.size === 0) return
-    const t = setTimeout(() => setDroppedIds(new Set()), 1000)
-    return () => clearTimeout(t)
-  }, [droppedIds])
+    if (!dropBatch) return
+    dropTimers.current.push(setTimeout(() => {
+      setDroppedIds(prev => new Set([...prev].filter(id => !dropBatch.has(id))))
+    }, 1000))
+  }, [dropBatch])
+  useEffect(() => () => dropTimers.current.forEach(clearTimeout), [])
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 2200)
