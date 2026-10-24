@@ -152,7 +152,7 @@ def test_wheels_are_clipped_round(server, browser):
     # iPhone Safari ignores overflow + border-radius while the pattern spins;
     # an ellipse clip-path keeps the wheels round there.
     page = st._login(browser, server)
-    clips = page.locator(".wd-hero .wd-lg-whl").evaluate_all("els => els.map(e => getComputedStyle(e).clipPath)")
+    clips = page.locator(".wd-hero .wd-lg-whl > i").evaluate_all("els => els.map(e => getComputedStyle(e).clipPath)")
     assert len(clips) == 3 and all(c.startswith("ellipse") for c in clips)
 
 
@@ -162,8 +162,17 @@ def test_wheels_slow_to_a_stop_on_burnout_in(server, browser):
     page = st._login(browser, server)
     spins = page.evaluate("""() => document.getAnimations()
         .filter(a => a.effect && a.effect.pseudoElement === '::before'
-                && a.effect.target.classList.contains('wd-lg-whl'))
+                && a.effect.target.closest('.wd-lg-whl'))
         .map(a => [a.animationName, a.effect.getTiming().iterations, a.effect.getKeyframes()[0].easing])""")
     assert len(spins) == 3
     for name, iterations, easing in spins:
         assert name == "wd-whl-roll" and iterations == 1 and easing != "linear"
+
+
+def test_far_wheel_is_cropped_behind_the_truck(server, browser):
+    # The far wheel sits behind the bumper and skid plate; its spin is cropped
+    # to the visible tire face. The two near wheels aren't cropped.
+    page = st._login(browser, server)
+    crops = page.locator(".wd-hero .wd-lg-whl").evaluate_all("els => els.map(e => getComputedStyle(e).clipPath)")
+    assert crops[0] == "none" and crops[1] == "none"
+    assert crops[2].startswith("polygon")

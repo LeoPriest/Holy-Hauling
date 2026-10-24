@@ -25,7 +25,13 @@ const FX = 290
 const FY = 520
 // Spinning overlays sit on each tire's face (the narrow oval left of the tread),
 // measured from ll-truck.png: [cx, cy, rx, ry] in artwork pixels.
-const WHEELS = [[141, 428, 12, 26], [268, 423, 22, 32], [400, 428, 19, 27]]
+// The far wheel sits behind the bumper bar and the skid-plate hatching, so its
+// spin is cropped to the tire face you can see (polygon in % of its box).
+const WHEELS: [number, number, number, number, string?][] = [
+  [141, 428, 12, 26],
+  [268, 423, 22, 32],
+  [400, 428, 19, 27, 'polygon(50% 7.4%, 100% 7.4%, 100% 100%, 21% 100%, 5% 76%, 8% 59%)'],
+]
 const SMOKE = [[138, 462], [278, 466]]
 const SKIDS: [string, number, number, number][] = [
   ['in', 8, 457, 138], ['in', 150, 461, 139], ['out', 146, 457, 429], ['out', 289, 461, 286],
@@ -99,8 +105,8 @@ export function Logo({ mode = 'still', color = '#fff', bg = 'var(--hd)', label =
       <div className="wd-lg-veh">
         {layer(10)}
         {layer(9)}
-        {WHEELS.map(([cx, cy, rx, ry]) => (
-          <span key={cx} className="wd-lg-whl" style={box(cx - rx, cy - ry, 2 * rx, 2 * ry)} />
+        {WHEELS.map(([cx, cy, rx, ry, crop]) => (
+          <span key={cx} className="wd-lg-whl" style={{ ...box(cx - rx, cy - ry, 2 * rx, 2 * ry), clipPath: crop }}><i /></span>
         ))}
         {SMOKE.map(([x, y]) => (
           <span key={x} className="wd-lg-smk" style={box(x, y, 0, 0)}><Puffs n={7} /></span>

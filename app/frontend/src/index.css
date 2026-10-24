@@ -725,13 +725,14 @@
   .wd-lg-whl, .wd-lg-smk, .wd-lg-skid { pointer-events: none; }
   /* clip-path, not just overflow + radius: iPhone Safari skips the rounded clip
      while the pattern inside spins, and the wheels show as squares. */
-  .wd-lg-whl { overflow: hidden; border-radius: 50%; clip-path: ellipse(50% 50% at 50% 50%); opacity: 0; }
-  .wd-lg-whl::before {
+  .wd-lg-whl { opacity: 0; }
+  .wd-lg-whl > i { position: absolute; inset: 0; overflow: hidden; border-radius: 50%; clip-path: ellipse(50% 50% at 50% 50%); }
+  .wd-lg-whl > i::before {
     content: ""; position: absolute; inset: -25%;
     /* The handoff's spin pattern: mostly dark with white spokes (Ron preferred it). */
     background: repeating-conic-gradient(var(--lc) 0 12deg, var(--wbg) 12deg 34deg);
   }
-  .wd-lg-whl::after { content: ""; position: absolute; left: 38%; top: 38%; width: 24%; height: 24%; border-radius: 50%; background: var(--lc); }
+  .wd-lg-whl > i::after { content: ""; position: absolute; left: 38%; top: 38%; width: 24%; height: 24%; border-radius: 50%; background: var(--lc); }
   .wd-lg-smk b {
     position: absolute; width: 15em; height: 15em; margin: -7.5em 0 0 -7.5em; border-radius: 50%;
     background: var(--smoke); filter: blur(1.1em); opacity: 0;
@@ -741,7 +742,7 @@
   /* Arriving, the wheels roll to a stop with the truck: one spin that eases out,
      visible until it's nearly still, then the drawn wheels take over. */
   .wd-logo.arrive .wd-lg-whl { animation: wd-whl-in 1.3s both; }
-  .wd-logo.arrive .wd-lg-whl::before { animation: wd-whl-roll 1.3s cubic-bezier(.3, .55, .35, 1) both; }
+  .wd-logo.arrive .wd-lg-whl > i::before { animation: wd-whl-roll 1.3s cubic-bezier(.3, .55, .35, 1) both; }
   .wd-logo.arrive .wd-lg-veh .wd-lg-smk b { animation: wd-puff .75s ease-out both; animation-delay: calc(var(--d) * 95ms); }
   .wd-logo.arrive .wd-lg-smk.cloud b { animation: wd-puff-big 1.1s ease-out both; animation-delay: calc(.55s + var(--d) * 80ms); }
   .wd-logo.arrive .wd-lg-skid.in { animation: wd-skid-in 2.8s ease-out both; }
@@ -749,7 +750,7 @@
   .wd-logo.arrive .wd-lg-word { animation: wd-lg-word .6s var(--out) 1.3s both; }
   .wd-logo.leave .wd-lg-veh { animation: wd-burn-out 1.5s linear both; }
   .wd-logo.leave .wd-lg-whl { animation: wd-whl-out 1.5s both; }
-  .wd-logo.leave .wd-lg-whl::before { animation: wd-whl-spin .14s linear 11; }
+  .wd-logo.leave .wd-lg-whl > i::before { animation: wd-whl-spin .14s linear 11; }
   .wd-logo.leave .wd-lg-veh .wd-lg-smk b { animation: wd-puff .7s ease-out both; animation-delay: calc(var(--d) * 110ms); }
   .wd-logo.leave .wd-lg-smk.cloud b { animation: wd-puff-big 1.2s ease-out both; animation-delay: calc(var(--d) * 140ms); }
   .wd-logo.leave .wd-lg-skid.out { animation: wd-skid-out 2.6s ease-out both; }

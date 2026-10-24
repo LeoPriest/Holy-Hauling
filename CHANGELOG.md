@@ -40,7 +40,8 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 - **Fix (Ron, second look):** the spinning wheels now match the still ones. Each disc sits on its tire face (measured from the truck art, not the handoff's numbers), and its size matches the tire.
 - **Fix (Ron, third look):** arriving, the wheels now slow to a stop with the truck (one easing-out spin) instead of spinning at full speed and fading.
 - **Tweak (Ron):** the wheel spin is back to the handoff's mostly-black spoked pattern with a white hub, keeping the new fit and the slow stop.
-- **Tests:** `app/frontend/tests/test_workday_logo.py`, 17 tests (two check the wheels: the clip, and that they slow to a stop). The test helper can hold a request open (`"hang"`) to show loading states.
+- **Fix (Ron):** the far wheel's spin is cropped to the tire face you can see, behind the bumper and skid plate, so it no longer draws over the truck.
+- **Tests:** `app/frontend/tests/test_workday_logo.py`, 18 tests (three check the wheels: the round clip, the slow stop, and the far wheel's crop). The test helper can hold a request open (`"hang"`) to show loading states.
 
 ## [2026-10-24] Workday design, stage 7 of 8 — login, Settings, Admin
 
