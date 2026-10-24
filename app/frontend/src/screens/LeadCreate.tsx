@@ -637,7 +637,6 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
 
                 <Switch on={review.urgency_flag} onChange={v => setR('urgency_flag', v)}>Mark as urgent</Switch>
               </div>
-              {reviewError && <p className="wd-err px-1" role="alert">{reviewError}</p>}
             </>
           )}
 
@@ -681,7 +680,6 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
                 </label>
                 <Switch on={!!manual.urgency_flag} onChange={v => setManual(m => ({ ...m, urgency_flag: v }))}>Mark as urgent</Switch>
               </div>
-              {manualError && <p className="wd-err px-1" role="alert">{manualError}</p>}
             </>
           )}
         </div>
@@ -689,6 +687,8 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
 
       {step !== 'reading' && (
         <div className="wd-foot">
+          {step === 'review' && reviewError && <p className="wd-err mx-auto w-full max-w-xl px-1" role="alert">{reviewError}</p>}
+          {step === 'manual' && manualError && <p className="wd-err mx-auto w-full max-w-xl px-1" role="alert">{manualError}</p>}
           <div className="mx-auto flex w-full max-w-xl gap-2">
             {step === 'choose' && (
               <button type="button" className="wd-btn flex-1" disabled={!shots.length} onClick={() => { void read() }}>

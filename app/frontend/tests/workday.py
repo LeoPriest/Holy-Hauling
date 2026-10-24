@@ -121,3 +121,25 @@ def too_small(page):
       }
       return out;
     }""")
+
+
+def in_reach(locator):
+    """True when the element's middle is inside the screen and is what a finger
+    would land on there, not something pinned on top of it."""
+    return locator.evaluate("""el => {
+      const r = el.getBoundingClientRect();
+      const x = r.left + r.width / 2, y = r.top + r.height / 2;
+      if (!r.height || y < 0 || y > innerHeight || x < 0 || x > innerWidth) return false;
+      const hit = document.elementFromPoint(x, y);
+      return !!hit && (hit === el || el.contains(hit));
+    }""")
+
+
+def scroll_to_end(page):
+    """Scroll every scrolling panel to its bottom, as a thumb would."""
+    page.evaluate("""() => {
+      for (const el of document.querySelectorAll('*')) {
+        const oy = getComputedStyle(el).overflowY;
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) el.scrollTop = el.scrollHeight;
+      }
+    }""")

@@ -34,11 +34,10 @@ interface Props {
   leadId: string
   quoteDraft: QuoteDraft
   onLockAndBook: () => void
-  bookError: string
   isBooking: boolean
 }
 
-export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, bookError, isBooking }: Props) {
+export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, isBooking }: Props) {
   const patch = usePatchLead()
   // Separate mutation instance so duration saves don't drive the Save Context
   // button's pending/success label.
@@ -170,8 +169,6 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
           onDurationCommit={saveDuration}
           durationSaveState={durationSaveState}
         />
-
-        {bookError && <p className="wd-err px-1" role="alert">{bookError}</p>}
 
         {/* Before booking, Lock & book lives in the pinned bar. A booked lead's
             bar says View jobs, so re-confirming a changed quote happens here. */}

@@ -314,6 +314,7 @@
 
   /* Pinned quote bar above the dock. */
   .wd-qbar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px 6px; background: var(--bg); }
+  .wd-qbar-err { flex: none; padding: 8px 16px 0; background: var(--bg); }
   .wd-qb-l { font: 700 11px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--mu); }
   .wd-qb-v { margin-top: 3px; font: 700 24px/1 "Barlow Condensed", sans-serif; font-variant-numeric: tabular-nums; }
 
@@ -420,7 +421,7 @@
   .wd-flow { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); }
   .wd-hdr .wd-h-s { margin-top: 4px; font-size: 13px; color: #b9b5ac; }
   .wd-foot {
-    flex: none; display: flex; gap: 8px; padding: 10px 14px calc(env(safe-area-inset-bottom) + 10px);
+    flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 14px calc(env(safe-area-inset-bottom) + 10px);
     border-top: 1px solid var(--ln); background: var(--bg);
   }
   .wd-chips2 { display: flex; flex-wrap: wrap; gap: 6px; }

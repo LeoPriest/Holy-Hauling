@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from workday import PHONE, TABLET, iso, lead, open_app, too_small
+from workday import PHONE, TABLET, in_reach, iso, lead, open_app, too_small
 from test_workday_lead import REVIEW
 
 PNG = bytes.fromhex(
@@ -195,6 +195,32 @@ def test_manual_entry_creates_lead(server, browser):
     page.get_by_role("dialog", name="In the queue").wait_for()
     body = _sent(page, "POST", "/leads")[-1]
     assert body["customer_name"] == "Pat Q." and body["source_type"] == "manual" and body["service_type"] == "moving"
+
+
+def test_missing_name_message_is_on_screen(server, browser):
+    # Proof: on a 390x844 phone the message was drawn just under the screen.
+    page = _open(browser, server)
+    _start(page, kind="manual")
+    flow = page.get_by_role("dialog", name="Add a lead")
+    flow.get_by_role("button", name="Create lead").tap()
+    msg = flow.get_by_text("Customer name is required.")
+    msg.wait_for()
+    page.wait_for_timeout(400)
+    assert in_reach(msg)
+
+
+def test_review_refusal_is_on_screen(server, browser):
+    page = _open(browser, server)
+    _start(page)
+    _pick(page, 1)
+    page.get_by_role("button", name="Read 1 screenshot").tap()
+    flow = page.get_by_role("dialog", name="Add a lead")
+    flow.get_by_label("Customer name").fill("")
+    flow.get_by_role("button", name="Add to queue").tap()
+    msg = flow.get_by_text("Customer name is required before adding to the queue.")
+    msg.wait_for()
+    page.wait_for_timeout(400)
+    assert in_reach(msg)
 
 
 def test_manual_link_from_choose(server, browser):

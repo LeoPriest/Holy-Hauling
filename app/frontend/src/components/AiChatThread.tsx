@@ -15,10 +15,18 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
   const [input, setInput] = useState('')
   const [contextFlash, setContextFlash] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  // Only messages that arrive after the thread loads scroll it into view. The
+  // thread sits at the bottom of the Quote tab, so scrolling on load would carry
+  // the screen away from the price and the Lock & book message.
+  const seen = useRef<number | null>(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (isLoading) return
+    if (seen.current != null && messages.length > seen.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+    seen.current = messages.length
+  }, [messages, isLoading])
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault()

@@ -113,12 +113,14 @@ export function LeadCommandCenter() {
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [bookError, setBookError] = useState('')
+  const priceWarning = useRef('')
   const [booked, setBooked] = useState<{ text: string; total: number; when: string | null } | null>(null)
   // Bumped on every refused Lock & book so the button shakes again.
   const [shake, setShake] = useState(0)
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout>>()
   const mainRef = useRef<HTMLElement>(null)
+  const paneRef = useRef<HTMLDivElement>(null)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
@@ -135,6 +137,11 @@ export function LeadCommandCenter() {
 
   useEffect(() => () => clearTimeout(toastTimer.current), [])
 
+  // A fixed price clears the warning about it; a server's refusal stays.
+  useEffect(() => {
+    setBookError(e => (e && e === priceWarning.current ? '' : e))
+  }, [quoteDraft.quotedPriceTotal])
+
   function say(text: string) {
     clearTimeout(toastTimer.current)
     setToast(text)
@@ -145,6 +152,14 @@ export function LeadCommandCenter() {
     setTab(next)
     mainRef.current?.scrollTo?.({ top: 0 })
   }
+
+  // The Quote tab opens on the quote itself, as the design shows; the decision
+  // card stays one scroll up. Runs after the pane is drawn so it can be measured.
+  useEffect(() => {
+    const main = mainRef.current, pane = paneRef.current
+    if (tab !== 'quote' || !main || !pane) return
+    main.scrollTo?.({ top: pane.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop })
+  }, [tab])
 
   if (isLoading) {
     return (
@@ -202,6 +217,7 @@ export function LeadCommandCenter() {
     if (!lead) return
     const v = validateQuote(quoteDraft)
     if (!v.ok) {
+      priceWarning.current = v.error
       setBookError(v.error)
       setShake(n => n + 1)
       if (tab !== 'quote') switchTab('quote')
@@ -323,7 +339,7 @@ export function LeadCommandCenter() {
         <div className="px-3.5 pt-3 empty:hidden">
           <RefundBanner lead={lead} />
         </div>
-        <div key={tab}>
+        <div key={tab} ref={paneRef}>
           {tab === 'brief' && (
             <BriefPanel
               lead={lead}
@@ -338,7 +354,6 @@ export function LeadCommandCenter() {
               leadId={id!}
               quoteDraft={quoteDraft}
               onLockAndBook={lockAndBook}
-              bookError={bookError}
               isBooking={updateStatus.isPending}
             />
           )}
@@ -354,6 +369,9 @@ export function LeadCommandCenter() {
       </main>
 
       {/* ── Pinned quote bar ─────────────────────────────── */}
+      {isActive && bookError && (
+        <p className="wd-qbar-err mx-auto w-full max-w-3xl wd-err" role="alert">{bookError}</p>
+      )}
       {isActive && (
         <div className="wd-qbar mx-auto w-full max-w-3xl">
           <div className="min-w-0">
