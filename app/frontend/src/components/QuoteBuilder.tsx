@@ -1,6 +1,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { DurationWheelInput } from './DurationWheelInput'
 import type { Lead, QuoteModifier } from '../types/lead'
+import { Logo } from './Logo'
 
 // ── Money helpers ──────────────────────────────────────────────────────────
 
@@ -329,7 +330,7 @@ export function BookingConfirmation({ text, total, when, onClose }: {
 
   return (
     <div className="wd-ovl" role="dialog" aria-label="Booked">
-      <img src="/brand/logo-full-white.png" alt="Holy Hauling" />
+      <Logo mode="arrive" bg="var(--pr)" />
       <h2 className="wd-ovl-t">Booked</h2>
       <p className="wd-ovl-s">
         {when ?? 'Date not set yet'}{total != null ? ` · ${formatCurrency(total)}` : ''}

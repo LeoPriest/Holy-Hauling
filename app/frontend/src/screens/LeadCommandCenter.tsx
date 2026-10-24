@@ -20,6 +20,7 @@ import { LeadDecisionCard } from '../components/LeadDecisionCard'
 import { shortAge } from '../utils/leadCard'
 import { parseUtc } from '../utils/time'
 import type { LeadStatus } from '../types/lead'
+import { Working } from '../components/Logo'
 
 type Tab = 'brief' | 'quote' | 'log'
 
@@ -148,7 +149,7 @@ export function LeadCommandCenter() {
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-bg">
-        <p className="text-sm text-mu">Loading…</p>
+        <Working label="Loading lead…" />
       </div>
     )
   }

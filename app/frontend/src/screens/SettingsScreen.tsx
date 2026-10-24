@@ -17,6 +17,7 @@ import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
 import { guideForRole } from '../content/helpContent'
 import { apiFetch, fetchNotificationStatus } from '../services/api'
+import { Working } from '../components/Logo'
 
 type TestKey = `${TestAlertRequest['channel']}_${TestAlertRequest['recipient']}`
 type TestState = { sent: boolean; reason?: string | null }
@@ -233,7 +234,7 @@ export function SettingsScreen() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen bg-bg p-6 text-mu">Loading…</div>
+    return <div className="min-h-screen bg-bg"><Working label="Loading settings…" /></div>
   }
 
   const saveLabel = patch.isPending ? 'Saving…' : saved ? 'Saved' : 'Save settings'

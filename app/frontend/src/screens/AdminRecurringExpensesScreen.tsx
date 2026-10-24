@@ -13,6 +13,7 @@ import {
 import { centsToDisplay, intervalLabel } from '../types/recurringExpense'
 import type { IntervalUnit, RecurringExpense } from '../types/recurringExpense'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 function dollarsToCents(value: string): number {
   const parsed = parseFloat(value.replace(/[^0-9.]/g, ''))
@@ -122,7 +123,7 @@ export function AdminRecurringExpensesScreen() {
       </div>
 
       <main className="p-4 space-y-3">
-        {isLoading && <p className="text-center text-sm text-mu py-8">Loading…</p>}
+        {isLoading && <Working label="Loading expenses…" />}
         {!isLoading && expenses.length === 0 && (
           <div className="text-center py-12">
             <p className="text-mu text-sm">No recurring expenses yet</p>

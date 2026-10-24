@@ -12,6 +12,7 @@ import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import type { FinanceTransaction, FinanceTransactionInput, FinanceTransactionType } from '../types/finance'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 const EMPTY_FORM: FinanceTransactionInput = {
   occurred_on: new Date().toISOString().slice(0, 10),
@@ -178,7 +179,7 @@ export function AdminFinancesScreen() {
             <p className="text-xs text-mu">{transactions.length} transaction{transactions.length === 1 ? '' : 's'}</p>
             {summary && <p className="text-xs text-mu">{summary.transaction_count} in summary</p>}
           </div>
-          {isLoading && <p className="py-8 text-center text-sm text-mu">Loading...</p>}
+          {isLoading && <Working label="Loading transactions…" />}
           {!isLoading && transactions.length === 0 && <p className="py-8 text-center text-sm text-mu">No transactions in this range.</p>}
           {transactions.map(transaction => (
             <article key={transaction.id} className="rounded-card border bg-sf p-4">

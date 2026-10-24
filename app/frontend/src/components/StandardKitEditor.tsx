@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStandardKit, useSaveStandardKit } from '../hooks/useStandardKit'
+import { Working } from './Logo'
 
 export function StandardKitEditor() {
   const { data, isLoading, isError } = useStandardKit()
@@ -11,7 +12,7 @@ export function StandardKitEditor() {
     if (data) setItems(data.items)
   }, [data])
 
-  if (isLoading) return <p className="py-2 text-sm text-mu">Loading…</p>
+  if (isLoading) return <Working label="Loading kit…" className="sm" />
   if (isError) return <p className="py-2 text-sm text-[#b86e00]">Couldn't load the standard kit.</p>
 
   const addDraft = () => {

@@ -1,5 +1,6 @@
 import { useTriggerAiReview } from '../hooks/useLeads'
 import type { AiReview, Lead, RangeLever } from '../types/lead'
+import { Working } from './Logo'
 
 /** 44px minimum — this surface is phone-first (Rule 013). */
 const TOUCH = 'min-h-[44px]'
@@ -111,7 +112,7 @@ export function LeadDecisionCard({
       <div className={BOX} aria-busy="true">
         <div className="wd-skel mb-3 h-3 w-32" />
         <div className="wd-skel mb-3 h-9 w-48" />
-        <p className="text-sm text-mu">Loading review…</p>
+        <Working label="Loading review…" className="sm" />
       </div>
     )
   }

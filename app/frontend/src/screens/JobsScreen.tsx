@@ -23,6 +23,7 @@ import { useLead, useUploadScreenshot } from '../hooks/useLeads'
 import { type TeamMember, useUsers } from '../hooks/useUsers'
 import type { Screenshot } from '../types/lead'
 import { fmtDurationMinutes, fmtTimeSlot, parseUtc, fmtLocalTime, fmtLocalDateTime } from '../utils/time'
+import { Working } from '../components/Logo'
 
 const MAPS_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
   import.meta.env.VITE_GOOGLE_MAPS_KEY) as string | undefined
@@ -847,7 +848,7 @@ export function JobsScreen() {
 
             {jobView !== 'completed' && (
               <>
-                {isLoading && <p className="py-10 text-center text-sm text-mu">Loading jobs…</p>}
+                {isLoading && <Working label="Loading jobs…" />}
                 {!isLoading && jobGroups.length === 0 && (
                   <p className="py-10 text-center text-sm text-mu">
                     {jobView === 'scheduled' ? 'No scheduled jobs.' : 'No jobs in progress right now.'}

@@ -5,6 +5,7 @@ import { CitySwitcher } from '../components/CitySwitcher'
 import { useDueRecurringExpenses, useLogRecurringExpense } from '../hooks/useRecurringExpenses'
 import { centsToDisplay, isOverdue } from '../types/recurringExpense'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 export function AdminDueExpensesScreen() {
   const navigate = useNavigate()
@@ -41,7 +42,7 @@ export function AdminDueExpensesScreen() {
       )}
 
       <div className="p-4 space-y-3">
-        {isLoading && <p className="text-center text-sm text-mu py-8">Loading…</p>}
+        {isLoading && <Working label="Loading expenses…" />}
         {isError && <p className="text-center text-sm text-danger py-8">Failed to load due expenses</p>}
         {!isLoading && !isError && expenses.length === 0 && (
           <div className="text-center py-12">

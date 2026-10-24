@@ -27,6 +27,17 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-24] Workday design, stage 8 of 8 — the animated logo and the final pass
+
+- **`Logo.tsx` (new):** the logo rebuilt from 12 layered pieces (9 rays, cross, truck, wordmark) in `public/brand/ll/`. Each piece is a mask tinted with any color, so one image set covers white, ink and black. Modes from the handoff: **arrive** (burnout in: the truck skids in with spinning wheels, smoke and skid marks, rays pop out from the center, the word wipes in), **leave** (burnout out: shake, squat, launch), **load** (the working pulse) and **still**. The keyframes follow the handoff's `workday.css`. Under reduced motion every mode shows the plain logo.
+- **Where it plays:**
+  - Login: the hero burns in on load. After a good sign-in it burns out, and "You're in" burns in (the app opens at about 2s).
+  - "Booked" and "In the queue": the logo burns in. On "In the queue", Open lead / Back to queue play the burnout out first, then go.
+  - New-lead reading panel: the black pulse on amber. Upload failed: the logo dimmed on dark.
+- **`Working` (new):** the working pulse plus a label, replacing every loading line in the app. That covers the app start, queue, lead, jobs, calendar, Settings, every admin screen, and the small loads inside cards (compact row). The one real spinner (payroll) is gone.
+- **Final pass:** login, queue, lead, crew jobs, calendar, Settings and Admin checked at 390×844 and 1024×768 in light and dark, with no tap target under 44px and no sideways scroll.
+- **Tests:** `app/frontend/tests/test_workday_logo.py`, 15 tests. The test helper can hold a request open (`"hang"`) to show loading states.
+
 ## [2026-10-24] Workday design, stage 7 of 8 — login, Settings, Admin
 
 - **Login (`LoginScreen.tsx`):** a dark hero with the white logo and an amber bar, "Welcome back", a username field, four PIN dots that pop green, and a 3×4 keypad (52px keys, press flash). A hardware keyboard types digits, Backspace and Enter when the username box isn't focused. Sign in fills amber with "Loading up…", then a green "You're in" overlay shows for 0.9s before the app opens. A wrong PIN shakes the dots, clears them and says "Invalid username or PIN". No signal says so.

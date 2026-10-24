@@ -19,6 +19,7 @@ import {
   type TruckSize,
 } from '../types/truck_rental'
 import type { Lead } from '../types/lead'
+import { Working } from './Logo'
 
 interface Props {
   lead: Lead
@@ -301,7 +302,7 @@ export function TruckRentalSection({ lead }: Props) {
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t pt-3">
-          {isLoading && <p className="text-sm text-mu">Loading...</p>}
+          {isLoading && <Working label="Loading rental…" className="sm" />}
 
           <input ref={confRef} type="file" accept="image/*" className="hidden" onChange={handleConfirmationUpload} />
 

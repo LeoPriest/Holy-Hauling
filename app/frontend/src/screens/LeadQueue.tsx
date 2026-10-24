@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import { leadTitle, leadTown, sourceShort } from '../utils/leadCard'
+import { Working } from '../components/Logo'
 
 const ACTIVE_STAGES: { status: LeadStatus; label: string }[] = [
   { status: 'new', label: 'New' },
@@ -358,7 +359,7 @@ export function LeadQueue() {
             </section>
           )}
           {isLoading && (
-            <p className="py-10 text-center text-sm text-mu">Loading…</p>
+            <Working label="Loading leads…" />
           )}
           {!isLoading && error && (
             <p className="py-10 text-center text-sm text-danger">Could not load leads. Is the backend running?</p>

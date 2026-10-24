@@ -4,6 +4,7 @@ import { useCity } from '../context/CityContext'
 import { useQuoteGroundingEval } from '../hooks/useLeads'
 import type { CohortMetrics } from '../services/api'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 const MIN_COHORT_N = 10
 const MIN_PRICED_N = 5
@@ -96,7 +97,7 @@ export function AdminQuoteGroundingScreen() {
           When the AI drafts a quote it either anchors on <b className="text-ink">similar past jobs</b> (“grounded”) or falls back to the SOP only. This compares how those two groups actually turn out.
         </p>
 
-        {isLoading && <p className="py-8 text-center text-sm text-mu">Loading…</p>}
+        {isLoading && <Working label="Loading grounding stats…" />}
         {isError && <p className="py-8 text-center text-sm text-[#b86e00]">Couldn’t load the grounding stats.</p>}
 
         {data && (data.grounded.n === 0 && data.ungrounded.n === 0) && (

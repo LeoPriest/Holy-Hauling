@@ -17,6 +17,7 @@ import type {
 } from '../types/thumbtack'
 import { parseUtc } from '../utils/time'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 const BUSINESSES: { value: ThumbtackBusiness; label: string }[] = [
   { value: 'holy_hauling', label: 'Holy Hauling' },
@@ -187,7 +188,7 @@ export function AdminThumbtackScreen() {
         )}
 
         <section className="space-y-3">
-          {isLoading && <p className="py-8 text-center text-sm text-mu">Loading…</p>}
+          {isLoading && <Working label="Loading connections…" />}
           {!isLoading && connections.length === 0 && (
             <p className="py-8 text-center text-sm text-mu">
               No connections yet. Create one above to start receiving Thumbtack leads.

@@ -67,7 +67,8 @@ def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHO
              reduced_motion="no-preference", theme="light"):
     """Open the app signed in as `role` (None = signed out). `answer(method, url)` returns
     (status, body) for an API call, or None for "not found". An answer that
-    takes a third argument also gets the query string ("status=completed")."""
+    takes a third argument also gets the query string ("status=completed").
+    Answering "hang" leaves the request pending."""
     wants_query = len(inspect.signature(answer).parameters) >= 3
     ctx = browser.new_context(viewport=viewport, has_touch=True, reduced_motion=reduced_motion)
     token = "localStorage.setItem('hh_token','t'); " if role else ""
@@ -89,6 +90,8 @@ def open_app(browser, server, answer, role="facilitator", path="/", viewport=PHO
         got = {"/auth/me": (200, user(role))}.get(url) if req.method == "GET" and role else None
         query = req.url.split("?", 1)[1] if "?" in req.url else ""
         got = got or (answer(req.method, url, query) if wants_query else answer(req.method, url))
+        if got == "hang":
+            return  # never answered, so the screen stays in its loading state
         if got is None:
             # Anything else answers "not found", as a fresh backend would.
             return route.fulfill(status=404, content_type="application/json", body='{"detail":"not mocked"}')

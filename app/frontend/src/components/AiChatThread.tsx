@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useChatMessages, useSendChatMessage } from '../hooks/useLeads'
 import { fmtLocalTime } from '../utils/time'
+import { Working } from './Logo'
 
 interface Props {
   leadId: string
@@ -43,7 +44,7 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
 
       {/* Thread */}
       <div className="space-y-3 min-h-[4rem]">
-        {isLoading && <p className="text-xs text-mu">Loading chat…</p>}
+        {isLoading && <Working label="Loading chat…" className="sm" />}
         {!isLoading && messages.length === 0 && (
           <p className="text-xs text-mu italic">
             No messages yet. Challenge the pricing or add context.

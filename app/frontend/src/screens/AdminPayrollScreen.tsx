@@ -5,6 +5,7 @@ import { CitySwitcher } from '../components/CitySwitcher'
 import { usePayrollSummary } from '../hooks/usePayroll'
 import { PAY_TYPE_LABELS } from '../types/payroll'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 function centsToDisplay(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
@@ -97,7 +98,7 @@ export function AdminPayrollScreen() {
       {/* List */}
       <div className="p-4 space-y-3">
         {isLoading && (
-          <p className="text-center text-sm text-mu py-8">Loading…</p>
+          <Working label="Loading payroll…" />
         )}
         {isError && (
           <p className="text-center text-sm text-danger py-8">Failed to load payroll data</p>

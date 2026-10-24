@@ -22,12 +22,13 @@ import { AdminRentalsScreen } from './screens/AdminRentalsScreen'
 import { AdminPayrollScreen } from './screens/AdminPayrollScreen'
 import { AdminRecurringExpensesScreen } from './screens/AdminRecurringExpensesScreen'
 import { AdminDueExpensesScreen } from './screens/AdminDueExpensesScreen'
+import { Working } from './components/Logo'
 
 const queryClient = new QueryClient()
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-mu">Loading…</div>
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-bg"><Working label="Loading…" /></div>
   if (!user) return <Navigate to="/login" replace />
   return <>{children}</>
 }
@@ -43,7 +44,7 @@ function RoleGuard({ roles, children }: { roles: Array<AuthUser['role']>; childr
 
 function AppRoutes() {
   const { user, loading } = useAuth()
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-mu">Loading…</div>
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-bg"><Working label="Loading…" /></div>
   const defaultPath = user?.role === 'admin' || user?.role === 'facilitator' ? '/' : '/jobs'
   return (
     <Routes>

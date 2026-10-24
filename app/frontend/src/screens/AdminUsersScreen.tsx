@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext'
 import { apiFetch } from '../services/api'
 import type { TeamMember } from '../hooks/useUsers'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 const ROLES = ['admin', 'facilitator', 'supervisor', 'crew'] as const
 type Role = (typeof ROLES)[number]
@@ -131,7 +132,7 @@ export function AdminUsersScreen() {
     }
   }
 
-  if (isLoading) return <div className="p-8 text-mu">Loading…</div>
+  if (isLoading) return <div className="min-h-screen bg-bg"><Working label="Loading team…" /></div>
 
   return (
     <div className="min-h-screen bg-bg pb-16">

@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import type { AuthUser } from '../context/AuthContext'
 import { API_BASE } from '../services/api'
+import { Logo, reducedMotion } from '../components/Logo'
 
 const DELETE = 'del'
 const PAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', DELETE]
 
-// How long "You're in" shows before the app opens.
-const WELCOME_MS = 900
+// After a good sign-in: the hero burns out, "You're in" burns in at
+// WELCOME_AT, and the app opens at OPEN_AT. Reduced motion skips straight on.
+const WELCOME_AT = 600
+const OPEN_AT = 2000
 
 export function LoginScreen() {
   const [username, setUsername] = useState('')
@@ -16,15 +19,16 @@ export function LoginScreen() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [welcome, setWelcome] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const [shake, setShake] = useState(0)
   const { login } = useAuth()
   const navigate = useNavigate()
   const userInput = useRef<HTMLInputElement>(null)
 
-  const ready = Boolean(username.trim()) && pin.length === 4 && !loading && !welcome
+  const ready = Boolean(username.trim()) && pin.length === 4 && !loading && !leaving
 
   function handleDigit(d: string) {
-    if (loading || welcome) return
+    if (loading || leaving) return
     setError('')
     if (d === DELETE) { setPin(p => p.slice(0, -1)); return }
     setPin(p => (p.length < 4 ? p + d : p))
@@ -59,14 +63,16 @@ export function LoginScreen() {
         return
       }
       const { token, user } = await r.json() as { token: string; user: AuthUser }
-      setWelcome(true)
-      // Signing in swaps this route for the app, so the welcome plays first.
+      // Signing in swaps this route for the app, so the goodbye and welcome play first.
+      const still = reducedMotion()
+      setLeaving(true)
+      window.setTimeout(() => setWelcome(true), still ? 0 : WELCOME_AT)
       window.setTimeout(() => {
         login(token, user)
         registerPush(token)
         if (user.role === 'admin' || user.role === 'facilitator') navigate('/')
         else navigate('/jobs')
-      }, WELCOME_MS)
+      }, still ? 400 : OPEN_AT)
     } catch (_e) {
       console.error('Login error', _e)
       setError('No connection. Check your signal and try again.')
@@ -78,7 +84,7 @@ export function LoginScreen() {
   return (
     <div className="flex min-h-screen flex-col bg-bg text-ink">
       <div className="wd-hero">
-        <img src="/brand/logo-full-white.png" alt="Holy Hauling" />
+        <Logo mode={leaving ? 'leave' : 'arrive'} className="w-[min(240px,70%)]" />
       </div>
 
       <main className="mx-auto flex w-full max-w-sm flex-1 flex-col px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-6">
@@ -135,7 +141,7 @@ export function LoginScreen() {
 
       {welcome && (
         <div className="wd-ovl" role="status">
-          <img src="/brand/logo-full-white.png" alt="" />
+          <Logo mode="arrive" bg="var(--pr)" label="" />
           <p className="wd-ovl-t">You're in</p>
           <p className="wd-ovl-s">Loading your day…</p>
         </div>

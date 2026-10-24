@@ -4,6 +4,7 @@ import { useUsers } from '../hooks/useUsers'
 import type { TeamMember } from '../hooks/useUsers'
 import type { Lead } from '../types/lead'
 import type { PayRecord, PayType } from '../types/payroll'
+import { Working } from './Logo'
 
 interface Props {
   lead: Lead
@@ -238,13 +239,7 @@ export function PayrollSection({ lead }: Props) {
         <div className="px-4 pb-4 space-y-4 border-t pt-3">
           {/* Loading state */}
           {(recordsLoading || usersLoading) && (
-            <div className="flex items-center gap-2 text-sm text-mu">
-              <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v8H4z" />
-              </svg>
-              Loading payroll...
-            </div>
+            <Working label="Loading payroll…" className="sm" />
           )}
 
           {/* Records list */}

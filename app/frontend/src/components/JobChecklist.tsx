@@ -6,6 +6,7 @@ import {
   useDeleteChecklistItem,
 } from '../hooks/useChecklist'
 import type { ChecklistItem } from '../services/api'
+import { Working } from './Logo'
 
 function Tag({ source }: { source: ChecklistItem['source'] }) {
   if (source === 'standard') return null
@@ -83,7 +84,7 @@ export function JobChecklist({ leadId }: { leadId: string }) {
         <div className="wd-prog" aria-hidden="true"><i style={{ width: `${pct}%` }} /></div>
       )}
 
-      {isLoading && <p className="py-2 text-sm text-mu">Loading…</p>}
+      {isLoading && <Working label="Loading the list…" className="sm" />}
       {isError && <p className="wd-err py-2">Couldn't load the checklist.</p>}
 
       {!isLoading && !isError && total === 0 && (

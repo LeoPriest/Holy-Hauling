@@ -4,6 +4,7 @@ import type { Job } from '../hooks/useJobs'
 import { bucketJobsByDay } from '../utils/jobAgenda'
 import { fmtTimeSlot } from '../utils/time'
 import { Segmented } from './Segmented'
+import { Working } from './Logo'
 
 const fmtMoney = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
@@ -106,7 +107,7 @@ export function CrewAgenda({ jobs, completedJobs, isLoading, onOpenJob }: Props)
       <main key={segment} className="wd-pane flex flex-col gap-3 px-3.5 pb-6 pt-4">
         {segment === 'upcoming' && (
           <>
-            {isLoading && <p className="py-10 text-center text-sm text-mu">Loading…</p>}
+            {isLoading && <Working label="Loading jobs…" />}
             {!isLoading && empty && (
               <p className="py-10 text-center text-sm text-mu">No upcoming jobs scheduled.</p>
             )}

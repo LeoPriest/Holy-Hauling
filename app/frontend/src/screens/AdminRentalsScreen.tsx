@@ -4,6 +4,7 @@ import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useRentals } from '../hooks/useTruckRental'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 import {
   STATUS_COLORS,
   STATUS_LABELS,
@@ -72,7 +73,7 @@ export function AdminRentalsScreen() {
       {/* List */}
       <div className="p-4 space-y-3">
         {isLoading && (
-          <p className="text-center text-sm text-mu py-8">Loading…</p>
+          <Working label="Loading rentals…" />
         )}
         {isError && (
           <p className="text-center text-sm text-danger py-8">Failed to load rentals</p>

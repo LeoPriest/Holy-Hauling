@@ -4,6 +4,7 @@ import { BottomNav } from '../components/BottomNav'
 import { useCities, useCreateCity, usePatchCity } from '../hooks/useCities'
 import type { City } from '../types/city'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 const DEFAULT_TZ = 'America/Chicago'
 
@@ -81,7 +82,7 @@ export function AdminCitiesScreen() {
         </section>
 
         <section className="space-y-3">
-          {isLoading && <p className="py-8 text-center text-sm text-mu">Loading...</p>}
+          {isLoading && <Working label="Loading cities…" />}
           {!isLoading && cities.map(city => <CityRow key={city.id} city={city} />)}
         </section>
       </main>

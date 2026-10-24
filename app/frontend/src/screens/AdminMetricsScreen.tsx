@@ -5,6 +5,7 @@ import { useCity } from '../context/CityContext'
 import { fetchAdminMetrics } from '../services/api'
 import type { AdminMetrics } from '../types/metrics'
 import { ScreenHeader } from '../components/ScreenHeader'
+import { Working } from '../components/Logo'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ export function AdminMetricsScreen() {
 
       {loading && (
         <div className="flex items-center justify-center py-24">
-          <p className="text-sm text-mu">Loading…</p>
+          <Working label="Loading metrics…" />
         </div>
       )}
 

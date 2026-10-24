@@ -1,5 +1,6 @@
 import { useMyPay } from '../hooks/useMyPay'
 import type { MyPayEntry } from '../services/api'
+import { Working } from './Logo'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -56,7 +57,7 @@ export function MyPay() {
   const { data, isLoading, isError } = useMyPay()
 
   if (isLoading) {
-    return <div className="py-6 text-center text-sm text-mu">Loading…</div>
+    return <Working label="Loading pay…" className="sm" />
   }
   if (isError || !data) {
     return <div className="py-6 text-center text-sm text-[#b86e00]">Couldn't load your pay.</div>

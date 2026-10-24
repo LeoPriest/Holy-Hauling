@@ -12,6 +12,7 @@ import { fmtDurationMinutes, fmtTimeSlot } from '../utils/time'
 import { useRecurringExpenses } from '../hooks/useRecurringExpenses'
 import { centsToDisplay } from '../types/recurringExpense'
 import type { RecurringExpense } from '../types/recurringExpense'
+import { Working } from '../components/Logo'
 
 type ViewMode = 'week' | 'month'
 
@@ -394,7 +395,7 @@ export function CalendarScreen() {
           </button>
         </div>
 
-        {isLoading && <p className="py-6 text-center text-sm text-mu">Loading calendar…</p>}
+        {isLoading && <Working label="Loading calendar…" />}
 
         {viewMode === 'week' && (
           <section key="week" className="wd-pane flex flex-col gap-2" aria-label="Week">

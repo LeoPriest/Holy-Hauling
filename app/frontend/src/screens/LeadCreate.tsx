@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DateOptionsEditor } from '../components/DateOptionsEditor'
 import { Switch } from '../components/Switch'
+import { Logo } from '../components/Logo'
 import { useAuth } from '../context/AuthContext'
 import { useCity } from '../context/CityContext'
 import { useCreateLead, useIngestScreenshot, usePatchLead } from '../hooks/useLeads'
@@ -183,6 +184,8 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
 
   // ── done ──
   const [done, setDone] = useState<{ id: string; line: string } | null>(null)
+  // Where to go once the burnout-out finishes on the "In the queue" screen.
+  const [leaveTo, setLeaveTo] = useState<string | null>(null)
   const [shake, setShake] = useState(0)
 
   const canClose = step !== 'reading' && !patching && !creating
@@ -468,7 +471,12 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
           {(step === 'reading' || step === 'error') && (
             <>
               <div className={`wd-rd ${step === 'error' ? 'err' : ''}`} aria-hidden="true">
-                <img src={step === 'error' ? '/brand/logo-full-white.png' : '/brand/logo-full-black.png'} alt="" />
+                <Logo
+                  mode={step === 'error' ? 'still' : 'load'}
+                  color={step === 'error' ? '#fff' : '#161512'}
+                  bg={step === 'error' ? 'var(--hd)' : 'var(--ac)'}
+                  label=""
+                />
               </div>
               <ol className="wd-box wd-box-soft grid gap-3" aria-label="Progress">
                 {steps.map((label, i) => {
@@ -715,14 +723,18 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
 
       {done && (
         <div className="wd-ovl" role="dialog" aria-label="In the queue">
-          <img src="/brand/logo-full-white.png" alt="Holy Hauling" />
+          <Logo
+            mode={leaveTo ? 'leave' : 'arrive'}
+            bg="var(--pr)"
+            onDone={leaveTo ? () => { onClose(); navigate(leaveTo) } : undefined}
+          />
           <h2 className="wd-ovl-t">In the queue</h2>
           <p className="wd-ovl-s">{done.line}</p>
           <div className="flex gap-2">
-            <button type="button" className="wd-btn wd-btn-amber flex-1" onClick={() => { onClose(); navigate(`/leads/${done.id}`) }}>
+            <button type="button" className="wd-btn wd-btn-amber flex-1" onClick={() => setLeaveTo(`/leads/${done.id}`)} disabled={Boolean(leaveTo)}>
               Open lead
             </button>
-            <button type="button" className="wd-btn wd-btn-ghost flex-1" onClick={() => { onClose(); navigate('/') }}>
+            <button type="button" className="wd-btn wd-btn-ghost flex-1" onClick={() => setLeaveTo('/')} disabled={Boolean(leaveTo)}>
               Back to queue
             </button>
           </div>
