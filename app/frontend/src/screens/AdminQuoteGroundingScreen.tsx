@@ -1,7 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { useCity } from '../context/CityContext'
 import { useQuoteGroundingEval } from '../hooks/useLeads'
 import type { CohortMetrics } from '../services/api'
+import { ScreenHeader } from '../components/ScreenHeader'
 
 const MIN_COHORT_N = 10
 const MIN_PRICED_N = 5
@@ -21,12 +23,12 @@ function winnerSide(better: Better, g: number | null, u: number | null, gOk: boo
 
 function Side({ label, value, detail, win }: { label: string; value: string; detail: string; win: boolean }) {
   return (
-    <div className={`flex-1 p-3 ${label === 'Grounded' ? 'border-r border-gray-100 dark:border-gray-700' : ''}`}>
-      <div className={`text-[10px] font-bold uppercase tracking-wide ${label === 'Grounded' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>{label}</div>
-      <div className={`mt-0.5 flex items-center gap-1.5 text-2xl font-extrabold tabular-nums ${win ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-white'}`}>
+    <div className={`flex-1 p-3 ${label === 'Grounded' ? 'border-r border-ln ' : ''}`}>
+      <div className={`text-[10px] font-bold uppercase tracking-wide ${label === 'Grounded' ? 'text-ok ' : 'text-mu'}`}>{label}</div>
+      <div className={`mt-0.5 flex items-center gap-1.5 text-2xl font-extrabold tabular-nums ${win ? 'text-ok ' : 'text-ink '}`}>
         {win && <span className="text-sm">✓</span>}{value}
       </div>
-      <div className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{detail}</div>
+      <div className="mt-0.5 text-[11px] text-mu">{detail}</div>
     </div>
   )
 }
@@ -38,13 +40,13 @@ function MetricCard({ name, explain, hint, better, gVal, uVal, gOk, uOk, gDetail
 }) {
   const win = winnerSide(better, gVal, uVal, gOk, uOk)
   return (
-    <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+    <div className="rounded-card border border-ln bg-sf">
       <div className="flex items-baseline gap-2 px-4 pt-3">
-        <span className="text-sm font-bold text-gray-900 dark:text-white">{name}</span>
-        <span className="ml-auto text-[10.5px] text-gray-400">{hint}</span>
+        <span className="text-sm font-bold text-ink">{name}</span>
+        <span className="ml-auto text-[10.5px] text-mu">{hint}</span>
       </div>
-      <p className="px-4 pb-2 pt-0.5 text-xs leading-snug text-gray-500 dark:text-gray-400">{explain}</p>
-      <div className="flex border-t border-gray-100 dark:border-gray-700">
+      <p className="px-4 pb-2 pt-0.5 text-xs leading-snug text-mu">{explain}</p>
+      <div className="flex border-t border-ln">
         <Side label="Grounded" value={pct(gVal)} detail={gDetail} win={win === 'g'} />
         <Side label="SOP-only" value={pct(uVal)} detail={uDetail} win={win === 'u'} />
       </div>
@@ -56,22 +58,22 @@ function Takeaway({ grounded, ungrounded }: { grounded: CohortMetrics; ungrounde
   const enough = grounded.n >= MIN_COHORT_N && ungrounded.n >= MIN_COHORT_N
   if (!enough) {
     return (
-      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-900/20">
-        <div className="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">⏳ Too early to tell</div>
-        <div className="mt-1 font-bold text-gray-900 dark:text-white">Keep quoting — this sharpens as jobs finish.</div>
-        <p className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">Need about {MIN_COHORT_N} finished quotes in each group before the comparison means anything. Counts below show it filling in.</p>
+      <div className="rounded-card border border-ac bg-bg p-4">
+        <div className="text-[10px] font-bold uppercase tracking-wide text-[#b86e00]">⏳ Too early to tell</div>
+        <div className="mt-1 font-bold text-ink">Keep quoting — this sharpens as jobs finish.</div>
+        <p className="mt-1 text-xs text-[#b86e00]">Need about {MIN_COHORT_N} finished quotes in each group before the comparison means anything. Counts below show it filling in.</p>
       </div>
     )
   }
   const gw = grounded.win_rate ?? 0, uw = ungrounded.win_rate ?? 0
   const helping = gw > uw
   return (
-    <div className={`rounded-xl border p-4 ${helping ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
-      <div className={`text-[10px] font-bold uppercase tracking-wide ${helping ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500'}`}>◎ Takeaway</div>
-      <div className="mt-1 font-bold text-gray-900 dark:text-white">
+    <div className={`rounded-card border p-4 ${helping ? 'border-ln bg-tint' : 'border-ln bg-sf'}`}>
+      <div className={`text-[10px] font-bold uppercase tracking-wide ${helping ? 'text-ok ' : 'text-mu'}`}>◎ Takeaway</div>
+      <div className="mt-1 font-bold text-ink">
         {helping ? 'Grounded quotes are landing more.' : 'Grounding isn’t pulling ahead on win rate yet.'}
       </div>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mt-1 text-xs text-mu">
         {helping
           ? 'Keep leaning on the “What this quote is based on” comparables when they’re there — they’re outperforming SOP-only quotes.'
           : 'Grounded quotes aren’t winning more than SOP-only so far. Worth watching as more jobs finish.'}
@@ -81,25 +83,24 @@ function Takeaway({ grounded, ungrounded }: { grounded: CohortMetrics; ungrounde
 }
 
 export function AdminQuoteGroundingScreen() {
+  const navigate = useNavigate()
   const { cityQueryId } = useCity()
   const { data, isLoading, isError } = useQuoteGroundingEval(cityQueryId ?? null)
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 dark:bg-gray-900">
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Quote grounding</h1>
-      </header>
+    <div className="min-h-screen bg-bg pb-20">
+      <ScreenHeader title="Quote grounding" onBack={() => navigate(-1)} />
 
       <div className="space-y-3 p-4">
-        <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-          When the AI drafts a quote it either anchors on <b className="text-gray-700 dark:text-gray-200">similar past jobs</b> (“grounded”) or falls back to the SOP only. This compares how those two groups actually turn out.
+        <p className="text-xs leading-relaxed text-mu">
+          When the AI drafts a quote it either anchors on <b className="text-ink">similar past jobs</b> (“grounded”) or falls back to the SOP only. This compares how those two groups actually turn out.
         </p>
 
-        {isLoading && <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">Loading…</p>}
-        {isError && <p className="py-8 text-center text-sm text-amber-600 dark:text-amber-400">Couldn’t load the grounding stats.</p>}
+        {isLoading && <p className="py-8 text-center text-sm text-mu">Loading…</p>}
+        {isError && <p className="py-8 text-center text-sm text-[#b86e00]">Couldn’t load the grounding stats.</p>}
 
         {data && (data.grounded.n === 0 && data.ungrounded.n === 0) && (
-          <p className="rounded-xl border border-gray-200 py-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <p className="rounded-card border border-ln py-8 text-center text-sm text-mu">
             No finished quotes yet — this fills in as jobs are won or lost.
           </p>
         )}
@@ -124,7 +125,7 @@ export function AdminQuoteGroundingScreen() {
                 explain="Do you tend to quote too low (leaving money on the table) or too high? Near 0 = balanced."
                 gVal={g.pricing_bias} uVal={u.pricing_bias} gOk={gPriceOk} uOk={uPriceOk}
                 gDetail={biasDetail(g)} uDetail={biasDetail(u)} />
-              <p className="text-[11px] leading-relaxed text-gray-400">
+              <p className="text-[11px] leading-relaxed text-mu">
                 <b>Grounded</b> = anchored on comparable local jobs · <b>SOP-only</b> = no comparables were available yet. Win rate = won ÷ (won+lost); pricing is measured against realized revenue on won jobs. No “winner” marks until both groups clear the sample threshold.
               </p>
             </>

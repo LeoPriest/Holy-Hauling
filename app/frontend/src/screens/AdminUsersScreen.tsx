@@ -8,15 +8,16 @@ import { useCity } from '../context/CityContext'
 import { useTheme } from '../context/ThemeContext'
 import { apiFetch } from '../services/api'
 import type { TeamMember } from '../hooks/useUsers'
+import { ScreenHeader } from '../components/ScreenHeader'
 
 const ROLES = ['admin', 'facilitator', 'supervisor', 'crew'] as const
 type Role = (typeof ROLES)[number]
 
 const ROLE_COLORS: Record<Role, string> = {
-  admin: 'bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200',
-  facilitator: 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200',
-  supervisor: 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200',
-  crew: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+  admin: 'bg-bg text-[#b86e00]',
+  facilitator: 'bg-tint text-ok',
+  supervisor: 'bg-tint text-ok',
+  crew: 'bg-bg text-ink',
 }
 
 export function AdminUsersScreen() {
@@ -130,55 +131,44 @@ export function AdminUsersScreen() {
     }
   }
 
-  if (isLoading) return <div className="p-8 text-gray-400 dark:text-gray-500">Loading…</div>
+  if (isLoading) return <div className="p-8 text-mu">Loading…</div>
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
-      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/admin')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-lg">←</button>
-          <h1 className="font-bold text-gray-900 dark:text-white text-lg">Team</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => { setNewCityId(requiredCityId); setShowAdd(true) }}
-            className="bg-indigo-600 text-white rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-indigo-700"
-          >
-            Add User
-          </button>
-          <CitySwitcher />
-        </div>
-      </header>
+    <div className="min-h-screen bg-bg pb-16">
+      <ScreenHeader title="Team" onBack={() => navigate('/admin')} right={<CitySwitcher variant="pill" />} />
+      <div className="mx-auto flex max-w-3xl flex-wrap gap-2 px-3.5 pt-3">
+        <button type="button" onClick={() => { setNewCityId(requiredCityId); setShowAdd(true) }} className="wd-btn-sm">Add user</button>
+      </div>
 
       <main className="p-4 space-y-3 pb-10">
         {users.map(u => (
-          <div key={u.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex justify-between items-center">
+          <div key={u.id} className="bg-sf rounded-card shadow-sm border border-ln p-4 flex justify-between items-center">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <p className="font-semibold text-gray-900 dark:text-white">{u.username}</p>
-                {u.id === me?.id && <span className="text-xs text-gray-400">(you)</span>}
+                <p className="font-semibold text-ink">{u.username}</p>
+                {u.id === me?.id && <span className="text-xs text-mu">(you)</span>}
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${ROLE_COLORS[u.role as Role] ?? ''}`}>
                   {u.role}
                 </span>
-                {!u.is_active && <span className="text-xs text-red-500 dark:text-red-400 font-medium">Inactive</span>}
+                {!u.is_active && <span className="text-xs text-danger font-medium">Inactive</span>}
                 {isAllCities && u.city_name && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-tint text-ok">
                     {u.city_name}
                   </span>
                 )}
               </div>
-              {u.email && <span className="text-xs text-gray-400 dark:text-gray-500">{u.email}</span>}
+              {u.email && <span className="text-xs text-mu">{u.email}</span>}
               {u.hourly_rate_cents != null && (
-                <span className="text-xs text-gray-400 dark:text-gray-500">
+                <span className="text-xs text-mu">
                   ${(u.hourly_rate_cents / 100).toFixed(2)}/hr
                 </span>
               )}
             </div>
             <button
               onClick={() => { setEditUser(u); setEditRole(u.role as Role); setEditActive(u.is_active); setEditPin(''); setEditEmail(u.email ?? ''); setEditCityId(u.city_id ?? ''); setEditHourlyRate(u.hourly_rate_cents != null ? (u.hourly_rate_cents / 100).toFixed(2) : '') }}
-              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="text-sm text-ok hover:underline"
             >
               Edit
             </button>
@@ -188,16 +178,16 @@ export function AdminUsersScreen() {
 
       {showAdd && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Add User</h2>
+          <div className="bg-sf rounded-panel p-6 w-full max-w-sm">
+            <h2 className="text-lg font-bold text-ink mb-4">Add User</h2>
             <input
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               placeholder="Username"
               value={newUsername}
               onChange={e => setNewUsername(e.target.value)}
             />
             <input
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               placeholder="PIN (4 digits)"
               value={newPin}
               onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -205,7 +195,7 @@ export function AdminUsersScreen() {
               inputMode="numeric"
             />
             <select
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               value={newRole}
               onChange={e => {
                 const role = e.target.value as Role
@@ -215,9 +205,9 @@ export function AdminUsersScreen() {
             >
               {ROLES.map(r => <option key={r} value={r} className="capitalize">{r}</option>)}
             </select>
-            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">City</label>
+            <label className="block text-xs font-semibold text-mu mb-1">City</label>
             <select
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               value={newCityId}
               onChange={e => setNewCityId(e.target.value)}
             >
@@ -225,7 +215,7 @@ export function AdminUsersScreen() {
               {cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
             </select>
             <input
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               placeholder="Google email (optional, for calendar invites)"
               value={newEmail}
               onChange={e => setNewEmail(e.target.value)}
@@ -233,9 +223,9 @@ export function AdminUsersScreen() {
               inputMode="email"
             />
             <div className="mb-4">
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <label className="block text-xs text-mu mb-1">
                 Hourly rate ($/hr)
-                <span className="ml-1 font-normal text-gray-400">— for crew hourly pay</span>
+                <span className="ml-1 font-normal text-mu">— for crew hourly pay</span>
               </label>
               <input
                 type="number"
@@ -244,21 +234,21 @@ export function AdminUsersScreen() {
                 value={newHourlyRate}
                 onChange={e => setNewHourlyRate(e.target.value)}
                 placeholder="e.g. 18.00"
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full border border-ln rounded-chip px-3 py-2 text-sm bg-sf text-ink"
               />
             </div>
-            {createError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{createError}</p>}
+            {createError && <p className="text-danger text-sm mb-3">{createError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={handleCreate}
                 disabled={!newUsername.trim() || newPin.length !== 4 || (newRole !== 'admin' && !(newCityId || requiredCityId)) || createMutation.isPending}
-                className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40"
+                className="flex-1 py-2 bg-pr text-white rounded-card text-sm font-semibold disabled:opacity-40"
               >
                 Create
               </button>
               <button
                 onClick={() => { setShowAdd(false); setCreateError('') }}
-                className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-semibold"
+                className="flex-1 py-2 bg-bg text-ink rounded-card text-sm font-semibold"
               >
                 Cancel
               </button>
@@ -269,12 +259,12 @@ export function AdminUsersScreen() {
 
       {editUser && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Edit {editUser.username}</h2>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">Changes apply immediately.</p>
-            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Role</label>
+          <div className="bg-sf rounded-panel p-6 w-full max-w-sm">
+            <h2 className="text-lg font-bold text-ink mb-1">Edit {editUser.username}</h2>
+            <p className="text-xs text-mu mb-4">Changes apply immediately.</p>
+            <label className="block text-xs font-semibold text-mu mb-1">Role</label>
             <select
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               value={editRole}
               onChange={e => {
                 const role = e.target.value as Role
@@ -284,18 +274,18 @@ export function AdminUsersScreen() {
             >
               {ROLES.map(r => <option key={r} value={r} className="capitalize">{r}</option>)}
             </select>
-            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">City</label>
+            <label className="block text-xs font-semibold text-mu mb-1">City</label>
             <select
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               value={editCityId}
               onChange={e => setEditCityId(e.target.value)}
             >
               {editRole === 'admin' && <option value="">No default city</option>}
               {cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
             </select>
-            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">New PIN (leave blank to keep current)</label>
+            <label className="block text-xs font-semibold text-mu mb-1">New PIN (leave blank to keep current)</label>
             <input
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               placeholder="New PIN"
               value={editPin}
               onChange={e => setEditPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -309,11 +299,11 @@ export function AdminUsersScreen() {
                 checked={editActive}
                 onChange={e => setEditActive(e.target.checked)}
               />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Active</span>
+              <span className="text-sm text-ink">Active</span>
             </label>
-            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Google email (for calendar invites)</label>
+            <label className="block text-xs font-semibold text-mu mb-1">Google email (for calendar invites)</label>
             <input
-              className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 mb-3 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
               placeholder="name@gmail.com"
               value={editEmail}
               onChange={e => setEditEmail(e.target.value)}
@@ -321,9 +311,9 @@ export function AdminUsersScreen() {
               inputMode="email"
             />
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+              <label className="block text-xs font-semibold text-mu mb-1">
                 Hourly rate ($/hr)
-                <span className="ml-1 font-normal text-gray-400">— for crew hourly pay</span>
+                <span className="ml-1 font-normal text-mu">— for crew hourly pay</span>
               </label>
               <input
                 type="number"
@@ -332,26 +322,26 @@ export function AdminUsersScreen() {
                 value={editHourlyRate}
                 onChange={e => setEditHourlyRate(e.target.value)}
                 placeholder="e.g. 18.00"
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full border border-ln rounded-chip px-3 py-2 text-sm bg-sf text-ink"
               />
               {!editHourlyRate && editUser?.hourly_rate_cents != null && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                <p className="text-xs text-[#b86e00] mt-1">
                   Clearing this rate will prevent future hourly pay entries for this user.
                 </p>
               )}
             </div>
-            {editError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{editError}</p>}
+            {editError && <p className="text-danger text-sm mb-3">{editError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={handlePatch}
                 disabled={patchMutation.isPending}
-                className="flex-1 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40"
+                className="flex-1 py-2 bg-pr text-white rounded-card text-sm font-semibold disabled:opacity-40"
               >
                 Save
               </button>
               <button
                 onClick={() => { setEditUser(null); setEditError(''); setEditHourlyRate('') }}
-                className="flex-1 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-semibold"
+                className="flex-1 py-2 bg-bg text-ink rounded-card text-sm font-semibold"
               >
                 Cancel
               </button>

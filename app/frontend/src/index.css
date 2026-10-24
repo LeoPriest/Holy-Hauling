@@ -645,6 +645,74 @@
   .wd-needs-i { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-radius: 10px; background: var(--bg); padding: 10px 12px; }
   .wd-cal-v { margin-top: 4px; font: 700 15px "Barlow Condensed", sans-serif; letter-spacing: .02em; color: var(--ok); }
 
+  /* ── Login ── */
+  .wd-hero {
+    position: relative; display: flex; align-items: center; justify-content: center; flex: none;
+    height: calc(env(safe-area-inset-top) + 300px); padding: calc(env(safe-area-inset-top) + 24px) 24px 40px;
+    border-radius: 0 0 28px 28px; background: var(--hd);
+  }
+  .wd-hero img { width: min(240px, 70%); }
+  .wd-hero::after {
+    content: ""; position: absolute; left: 50%; bottom: 18px; width: 64px; height: 6px; margin-left: -32px;
+    border-radius: 3px; background: var(--ac);
+  }
+  @media (max-height: 700px) { .wd-hero { height: calc(env(safe-area-inset-top) + 200px); } }
+  .wd-login-user {
+    display: flex; align-items: center; gap: 12px; min-height: 46px; padding: 0 14px; border-radius: 12px;
+    background: var(--sf); box-shadow: inset 0 0 0 1.5px var(--edge);
+  }
+  .wd-login-user:focus-within { box-shadow: inset 0 0 0 2.5px var(--pr); }
+  .wd-login-user span { flex: none; font-size: 14px; color: var(--mu); }
+  .wd-login-user input { min-width: 0; flex: 1; min-height: 44px; background: transparent; text-align: right; font-size: 16px; outline: none; }
+  .wd-pin { display: flex; justify-content: center; gap: 14px; margin: 16px 0 12px; }
+  .wd-pin i { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--mu); transition: background .2s; }
+  .wd-pin i.on { background: var(--pr); box-shadow: none; animation: wd-pop .3s var(--settle); }
+  .wd-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .wd-pad button {
+    min-height: 52px; border-radius: 12px; background: var(--sf); box-shadow: inset 0 0 0 1.5px var(--ln);
+    font: 700 22px "Barlow Condensed", sans-serif; transition: transform .1s var(--out), background .25s;
+  }
+  .wd-pad button:active { transform: scale(.92); background: var(--tint); transition: none; }
+  .wd-pad button:focus-visible, .wd-login-go:focus-visible { outline: 3px solid var(--ac); outline-offset: 2px; }
+  .wd-login-go { position: relative; overflow: hidden; margin-top: 20px; height: 50px; }
+  .wd-login-go > span { position: relative; }
+  .wd-login-go.busy { opacity: 1; color: #161512; }
+  .wd-login-go.busy::before {
+    content: ""; position: absolute; inset: 0; background: var(--ac); transform-origin: left;
+    animation: wd-fill .9s var(--out) both;
+  }
+
+  /* ── Settings and Admin ── */
+  .wd-ad {
+    position: relative; display: flex; align-items: center; gap: 14px; width: 100%; min-height: 72px; padding: 12px 14px;
+    border-radius: 14px; background: var(--sf); color: var(--ink); text-align: left; box-shadow: inset 0 0 0 1px var(--ln);
+    transition: transform .14s var(--out);
+  }
+  .wd-ad:active { transform: scale(.98); }
+  .wd-ad:focus-visible { outline: 3px solid var(--ac); outline-offset: 2px; }
+  .wd-ad-i { display: flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: var(--tint); color: var(--ok); }
+  .wd-ad-i svg, .wd-ad > svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .wd-ad > svg { width: 20px; height: 20px; color: var(--mu); }
+  .wd-ad-t { flex: 1; min-width: 0; }
+  .wd-ad-t b { display: block; font: 700 18px/1.1 "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .02em; }
+  .wd-ad-t span { display: block; margin-top: 2px; font-size: 12px; line-height: 1.35; color: var(--mu); }
+  .wd-ad-b {
+    position: absolute; top: -6px; right: -6px; display: flex; align-items: center; justify-content: center; min-width: 22px; height: 22px;
+    padding: 0 6px; border-radius: 11px; background: var(--red); color: #fff; box-shadow: 0 0 0 2px var(--bg);
+    font: 700 12px "Barlow Condensed", sans-serif;
+  }
+  .wd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: 14px; }
+  .wd-row + .wd-row { border-top: 1px solid var(--ln); }
+  .wd-row > span:first-child { color: var(--mu); }
+  .wd-on { color: var(--ok); font-weight: 600; }
+  .wd-off { color: #b86e00; font-weight: 600; }
+  .dark .wd-off { color: var(--ac); }
+  .wd-cell {
+    min-height: 44px; border-radius: 9px; background: var(--sf); color: var(--mu); box-shadow: inset 0 0 0 1.5px var(--ln);
+    font-size: 12px; font-weight: 600; transition: background .2s, color .2s;
+  }
+  .wd-cell[aria-pressed="true"] { background: var(--red); color: #fff; box-shadow: none; animation: wd-pop .3s var(--settle); }
+
   /* Tab switch: the new pane's cards rise in, staggered. */
   .wd-pane > * { animation: wd-rise .45s var(--settle) both; }
   .wd-pane > *:nth-child(2) { animation-delay: .05s; }
@@ -662,6 +730,7 @@
 @keyframes wd-pop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: none; } }
 @keyframes wd-shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
 @keyframes wd-fade { from { opacity: 0; } }
+@keyframes wd-fill { from { transform: scaleX(0); } }
 @keyframes wd-slide-in { from { transform: translateX(105%); } }
 @keyframes wd-slide-out { to { transform: translateX(105%); } }
 @keyframes wd-scan { 0%, 100% { top: 4%; } 50% { top: 94%; } }

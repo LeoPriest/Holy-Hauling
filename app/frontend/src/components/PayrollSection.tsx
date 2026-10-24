@@ -27,7 +27,7 @@ function defaultPayType(user: TeamMember): PayType {
 
 function PayTypebadge({ payType }: { payType: PayType }) {
   const colorMap: Record<PayType, string> = {
-    facilitator_pct: 'bg-purple-100 text-purple-700',
+    facilitator_pct: 'bg-ln text-ink',
     hourly: 'bg-tint text-ok',
     flat: 'bg-bg text-ink',
   }

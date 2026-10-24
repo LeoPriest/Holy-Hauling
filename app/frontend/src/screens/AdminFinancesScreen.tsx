@@ -11,6 +11,7 @@ import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
 import type { FinanceTransaction, FinanceTransactionInput, FinanceTransactionType } from '../types/finance'
+import { ScreenHeader } from '../components/ScreenHeader'
 
 const EMPTY_FORM: FinanceTransactionInput = {
   occurred_on: new Date().toISOString().slice(0, 10),
@@ -124,42 +125,24 @@ export function AdminFinancesScreen() {
     await deleteTransaction.mutateAsync(id)
   }
 
-  const inputClass = 'rounded-lg border px-3 py-2 text-sm bg-white text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
+  const inputClass = 'min-h-11 rounded-chip border px-3 py-2 text-sm bg-sf text-ink'
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/admin')} className="text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200">
-            Back
-          </button>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Finances</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/admin/recurring-expenses')}
-            className="rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-          >
-            Recurring
-          </button>
-          <button
-            onClick={() => openCreate('income')}
-            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            Add
-          </button>
-          <CitySwitcher />
-        </div>
-      </header>
+    <div className="min-h-screen bg-bg pb-16">
+      <ScreenHeader title="Finances" onBack={() => navigate('/admin')} right={<CitySwitcher variant="pill" />} />
+      <div className="mx-auto flex max-w-3xl flex-wrap gap-2 px-3.5 pt-3">
+        <button type="button" onClick={() => openCreate('income')} className="wd-btn-sm">Add</button>
+        <button type="button" onClick={() => navigate('/admin/recurring-expenses')} className="wd-btn-sm wd-btn-ghost">Recurring</button>
+      </div>
 
       <main className="space-y-4 p-4 pb-12">
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <SummaryCard label="Income" value={centsToCurrency(summary?.income_cents ?? 0)} tone="text-emerald-600 dark:text-emerald-400" />
-          <SummaryCard label="Expenses" value={centsToCurrency(summary?.expense_cents ?? 0)} tone="text-red-600 dark:text-red-400" />
-          <SummaryCard label="Net" value={centsToCurrency(summary?.net_cents ?? 0)} tone={netPositive ? 'text-gray-900 dark:text-white' : 'text-red-600 dark:text-red-400'} />
+          <SummaryCard label="Income" value={centsToCurrency(summary?.income_cents ?? 0)} tone="text-ok " />
+          <SummaryCard label="Expenses" value={centsToCurrency(summary?.expense_cents ?? 0)} tone="text-danger " />
+          <SummaryCard label="Net" value={centsToCurrency(summary?.net_cents ?? 0)} tone={netPositive ? 'text-ink ' : 'text-danger '} />
         </section>
 
-        <section className="rounded-xl border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <section className="rounded-card border bg-sf p-4">
           <div className="flex flex-wrap gap-2">
             <input type="date" className={inputClass} value={startDate} onChange={e => setStartDate(e.target.value)} />
             <input type="date" className={inputClass} value={endDate} onChange={e => setEndDate(e.target.value)} />
@@ -168,20 +151,20 @@ export function AdminFinancesScreen() {
               <option value="income">Income</option>
               <option value="expense">Expense</option>
             </select>
-            <button onClick={() => openCreate('expense')} className="rounded-lg border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">
-              Add Expense
+            <button onClick={() => openCreate('expense')} className="wd-btn-sm wd-btn-ghost">
+              Add expense
             </button>
           </div>
         </section>
 
         {summary && summary.categories.length > 0 && (
-          <section className="rounded-xl border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Categories</h2>
+          <section className="rounded-card border bg-sf p-4">
+            <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-mu">Categories</h2>
             <div className="space-y-2">
               {summary.categories.slice(0, 6).map(category => (
                 <div key={category.category} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="font-medium text-gray-700 dark:text-gray-200">{category.category}</span>
-                  <span className={category.net_cents >= 0 ? 'text-gray-600 dark:text-gray-300' : 'text-red-600 dark:text-red-400'}>
+                  <span className="font-medium text-ink">{category.category}</span>
+                  <span className={category.net_cents >= 0 ? 'text-mu ' : 'text-danger '}>
                     {centsToCurrency(category.net_cents)}
                   </span>
                 </div>
@@ -192,39 +175,39 @@ export function AdminFinancesScreen() {
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-400">{transactions.length} transaction{transactions.length === 1 ? '' : 's'}</p>
-            {summary && <p className="text-xs text-gray-400">{summary.transaction_count} in summary</p>}
+            <p className="text-xs text-mu">{transactions.length} transaction{transactions.length === 1 ? '' : 's'}</p>
+            {summary && <p className="text-xs text-mu">{summary.transaction_count} in summary</p>}
           </div>
-          {isLoading && <p className="py-8 text-center text-sm text-gray-400">Loading...</p>}
-          {!isLoading && transactions.length === 0 && <p className="py-8 text-center text-sm text-gray-400">No transactions in this range.</p>}
+          {isLoading && <p className="py-8 text-center text-sm text-mu">Loading...</p>}
+          {!isLoading && transactions.length === 0 && <p className="py-8 text-center text-sm text-mu">No transactions in this range.</p>}
           {transactions.map(transaction => (
-            <article key={transaction.id} className="rounded-xl border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+            <article key={transaction.id} className="rounded-card border bg-sf p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${transaction.transaction_type === 'income' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200'}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${transaction.transaction_type === 'income' ? 'bg-tint text-ok' : 'bg-bg text-danger'}`}>
                       {transaction.transaction_type}
                     </span>
-                    <span className="text-xs text-gray-400">{transaction.occurred_on}</span>
+                    <span className="text-xs text-mu">{transaction.occurred_on}</span>
                   </div>
-                  <h2 className="mt-2 font-semibold text-gray-900 dark:text-white">{transaction.category}</h2>
+                  <h2 className="mt-2 font-semibold text-ink">{transaction.category}</h2>
                   {(transaction.vendor_customer || transaction.payment_method) && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-mu">
                       {[transaction.vendor_customer, transaction.payment_method].filter(Boolean).join(' - ')}
                     </p>
                   )}
                   {isAllCities && transaction.city_name && (
-                    <p className="mt-1 text-xs font-medium text-indigo-500 dark:text-indigo-300">{transaction.city_name}</p>
+                    <p className="mt-1 text-xs font-medium text-ok">{transaction.city_name}</p>
                   )}
-                  {transaction.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{transaction.description}</p>}
+                  {transaction.description && <p className="mt-2 text-sm text-mu">{transaction.description}</p>}
                 </div>
                 <div className="text-right">
-                  <p className={`font-bold ${transaction.transaction_type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  <p className={`font-bold ${transaction.transaction_type === 'income' ? 'text-ok ' : 'text-danger '}`}>
                     {transaction.transaction_type === 'income' ? '+' : '-'}{centsToCurrency(transaction.amount_cents)}
                   </p>
                   <div className="mt-2 flex justify-end gap-2">
-                    <button onClick={() => openEdit(transaction)} className="text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400">Edit</button>
-                    <button onClick={() => void removeTransaction(transaction.id)} className="text-xs font-medium text-red-600 hover:underline dark:text-red-400">Delete</button>
+                    <button onClick={() => openEdit(transaction)} className="text-xs font-medium text-ok hover:underline">Edit</button>
+                    <button onClick={() => void removeTransaction(transaction.id)} className="text-xs font-medium text-danger hover:underline">Delete</button>
                   </div>
                 </div>
               </div>
@@ -235,8 +218,8 @@ export function AdminFinancesScreen() {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 dark:bg-gray-800">
-            <h2 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">{editing ? 'Edit Transaction' : 'Add Transaction'}</h2>
+          <div className="w-full max-w-md rounded-panel bg-sf p-5">
+            <h2 className="mb-4 text-lg font-bold text-ink">{editing ? 'Edit Transaction' : 'Add Transaction'}</h2>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 <input type="date" className={inputClass} value={form.occurred_on} onChange={e => setForm(prev => ({ ...prev, occurred_on: e.target.value }))} />
@@ -255,16 +238,16 @@ export function AdminFinancesScreen() {
               <input className={`${inputClass} w-full`} placeholder="Customer or vendor" value={form.vendor_customer ?? ''} onChange={e => setForm(prev => ({ ...prev, vendor_customer: e.target.value }))} />
               <input className={`${inputClass} w-full`} placeholder="Payment method" value={form.payment_method ?? ''} onChange={e => setForm(prev => ({ ...prev, payment_method: e.target.value }))} />
               <textarea className={`${inputClass} min-h-20 w-full`} placeholder="Notes" value={form.description ?? ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} />
-              {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+              {error && <p className="text-sm text-danger">{error}</p>}
               <div className="flex gap-3">
                 <button
                   onClick={() => void saveTransaction()}
                   disabled={createTransaction.isPending || patchTransaction.isPending}
-                  className="flex-1 rounded-xl bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-40"
+                  className="flex-1 rounded-card bg-pr py-2 text-sm font-semibold text-white disabled:opacity-40"
                 >
                   Save
                 </button>
-                <button onClick={() => setShowForm(false)} className="flex-1 rounded-xl bg-gray-100 py-2 text-sm font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                <button onClick={() => setShowForm(false)} className="flex-1 rounded-card bg-bg py-2 text-sm font-semibold text-ink">
                   Cancel
                 </button>
               </div>
@@ -279,8 +262,8 @@ export function AdminFinancesScreen() {
 
 function SummaryCard({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
-    <div className="rounded-xl border bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</p>
+    <div className="rounded-card border bg-sf p-4">
+      <p className="wd-label">{label}</p>
       <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
     </div>
   )

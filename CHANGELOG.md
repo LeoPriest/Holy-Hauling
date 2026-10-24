@@ -27,6 +27,17 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-24] Workday design, stage 7 of 8 — login, Settings, Admin
+
+- **Login (`LoginScreen.tsx`):** a dark hero with the white logo and an amber bar, "Welcome back", a username field, four PIN dots that pop green, and a 3×4 keypad (52px keys, press flash). A hardware keyboard types digits, Backspace and Enter when the username box isn't focused. Sign in fills amber with "Loading up…", then a green "You're in" overlay shows for 0.9s before the app opens. A wrong PIN shakes the dots, clears them and says "Invalid username or PIN". No signal says so.
+- **Settings (`SettingsScreen.tsx`):** the shared dark header, rows to Admin and the help guide, and every section as a Workday card. It uses the shared switch (dark mode, alert channels, quiet hours), 44px availability cells (red when blocked) and Workday inputs and buttons.
+  - **Bug fixed:** the page went blank when `/settings/notification-status` answered with something other than the three channels (an empty list was seen). It now treats that as unknown.
+  - **New failure state:** "Save settings" now shows "Couldn't save settings…" when the save fails (before, nothing). Test alerts read "Sending…" while they run.
+- **Admin hub (`AdminScreen.tsx`):** "Admin" / "Settings · user" with a back arrow to Settings. Nine rows each have a 44px mint icon tile, a display-caps title, a one-line description and a chevron. Recurring has a red count badge.
+- **Admin screens:** Metrics, Quote grounding, Finances, Rentals, Payroll, Recurring, Due, Team, Cities, Thumbtack and the help guide get the shared header with a back arrow. Old colors are swapped for tokens and every control is at least 44px. Add / Recurring buttons moved from the header to a row under it. This is a header, color and size pass, not a redesign.
+- **New shared pieces:** `ScreenHeader.tsx`, `Switch.tsx` (LeadCreate now uses it too) and `NavRow.tsx`. The test helper can open the app signed out (`role=None`).
+- **Tests:** `app/frontend/tests/test_workday_settings.py`, 30 tests (28 failed against the old screens first).
+
 ## [2026-10-23] Workday design, stage 6 of 8 — the calendar
 
 - **Header (`CalendarScreen.tsx`):** dark header, "Calendar" / "Confirmed jobs by day", the city pill for admins. The back arrow left (Calendar is a dock tab).

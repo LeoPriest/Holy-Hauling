@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DateOptionsEditor } from '../components/DateOptionsEditor'
+import { Switch } from '../components/Switch'
 import { useAuth } from '../context/AuthContext'
 import { useCity } from '../context/CityContext'
 import { useCreateLead, useIngestScreenshot, usePatchLead } from '../hooks/useLeads'
@@ -136,15 +137,6 @@ function Seg({ value, onChange, label, need, read = false }: { value: ServiceTyp
         ))}
       </div>
     </div>
-  )
-}
-
-function Switch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} onClick={() => onChange(!on)} className="wd-sw">
-      <span className="wd-sw-t" aria-hidden="true"><i /></span>
-      Mark as urgent
-    </button>
   )
 }
 
@@ -635,7 +627,7 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
                   <textarea rows={3} aria-label="Notes" value={review.notes} onChange={e => setR('notes', e.target.value)} />
                 </label>
 
-                <Switch on={review.urgency_flag} onChange={v => setR('urgency_flag', v)} />
+                <Switch on={review.urgency_flag} onChange={v => setR('urgency_flag', v)}>Mark as urgent</Switch>
               </div>
               {reviewError && <p className="wd-err px-1" role="alert">{reviewError}</p>}
             </>
@@ -679,7 +671,7 @@ export function LeadCreate({ onClose, initialMode = 'select' }: Props) {
                   <span className="wd-fl2">Notes</span>
                   <textarea rows={3} aria-label="Notes" placeholder="What are we hauling?" value={manual.notes ?? ''} onChange={e => setManual(m => ({ ...m, notes: e.target.value || undefined }))} />
                 </label>
-                <Switch on={!!manual.urgency_flag} onChange={v => setManual(m => ({ ...m, urgency_flag: v }))} />
+                <Switch on={!!manual.urgency_flag} onChange={v => setManual(m => ({ ...m, urgency_flag: v }))}>Mark as urgent</Switch>
               </div>
               {manualError && <p className="wd-err px-1" role="alert">{manualError}</p>}
             </>

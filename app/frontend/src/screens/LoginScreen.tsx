@@ -1,31 +1,49 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import type { AuthUser } from '../context/AuthContext'
 import { API_BASE } from '../services/api'
 
-const PAD = [
-  ['1', '2', '3'],
-  ['4', '5', '6'],
-  ['7', '8', '9'],
-  ['',  '0', '⌫'],
-]
+const DELETE = 'del'
+const PAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', DELETE]
+
+// How long "You're in" shows before the app opens.
+const WELCOME_MS = 900
 
 export function LoginScreen() {
   const [username, setUsername] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [welcome, setWelcome] = useState(false)
+  const [shake, setShake] = useState(0)
   const { login } = useAuth()
   const navigate = useNavigate()
+  const userInput = useRef<HTMLInputElement>(null)
+
+  const ready = Boolean(username.trim()) && pin.length === 4 && !loading && !welcome
 
   function handleDigit(d: string) {
-    if (d === '⌫') { setPin(p => p.slice(0, -1)); return }
-    if (pin.length < 4) setPin(p => p + d)
+    if (loading || welcome) return
+    setError('')
+    if (d === DELETE) { setPin(p => p.slice(0, -1)); return }
+    setPin(p => (p.length < 4 ? p + d : p))
   }
 
+  // Digits typed on a keyboard fill the PIN too, unless the username box has focus.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (document.activeElement === userInput.current) return
+      if (/^[0-9]$/.test(e.key)) handleDigit(e.key)
+      else if (e.key === 'Backspace') handleDigit(DELETE)
+      else if (e.key === 'Enter' && ready) void handleSubmit()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   async function handleSubmit() {
-    if (!username.trim() || pin.length !== 4) return
+    if (!ready) return
     setLoading(true)
     setError('')
     try {
@@ -37,78 +55,91 @@ export function LoginScreen() {
       if (!r.ok) {
         setError('Invalid username or PIN')
         setPin('')
+        setShake(n => n + 1)
         return
       }
       const { token, user } = await r.json() as { token: string; user: AuthUser }
-      login(token, user)
-      registerPush(token)
-      if (user.role === 'admin' || user.role === 'facilitator') navigate('/')
-      else navigate('/jobs')
+      setWelcome(true)
+      // Signing in swaps this route for the app, so the welcome plays first.
+      window.setTimeout(() => {
+        login(token, user)
+        registerPush(token)
+        if (user.role === 'admin' || user.role === 'facilitator') navigate('/')
+        else navigate('/jobs')
+      }, WELCOME_MS)
     } catch (_e) {
       console.error('Login error', _e)
-      setError('Connection error — is the server running?')
+      setError('No connection. Check your signal and try again.')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">Holy Hauling</h1>
+    <div className="flex min-h-screen flex-col bg-bg text-ink">
+      <div className="wd-hero">
+        <img src="/brand/logo-full-white.png" alt="Holy Hauling" />
+      </div>
 
-        <input
-          className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 mb-5 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          placeholder="Username"
-          value={username}
-          onChange={e => setUsername(e.target.value)}
-          autoComplete="username"
-        />
+      <main className="mx-auto flex w-full max-w-sm flex-1 flex-col px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-6">
+        <h1 className="wd-disp text-[28px] leading-none">Welcome back</h1>
+        <p className="mt-1.5 text-[13px] text-mu">Good to see you. Sign in to get rolling.</p>
 
-        <div className="flex justify-center gap-3 mb-5">
-          {[0, 1, 2, 3].map(i => (
-            <div
-              key={i}
-              className={`w-11 h-11 rounded-full border-2 flex items-center justify-center transition-colors ${
-                pin[i]
-                  ? 'border-indigo-600 dark:border-indigo-400'
-                  : 'border-gray-300 dark:border-gray-600'
-              }`}
-            >
-              {pin[i] && <div className="w-3 h-3 rounded-full bg-indigo-600 dark:bg-indigo-400" />}
-            </div>
-          ))}
+        <label className="wd-login-user mt-5">
+          <span>Username</span>
+          <input
+            ref={userInput}
+            value={username}
+            onChange={e => { setUsername(e.target.value); setError('') }}
+            onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
+            enterKeyHint="next"
+          />
+        </label>
+
+        <div
+          key={shake}
+          className={`wd-pin${shake ? ' wd-shake' : ''}`}
+          role="img"
+          aria-label={`PIN, ${pin.length} of 4 digits`}
+        >
+          {[0, 1, 2, 3].map(i => <i key={i} className={pin[i] ? 'on' : ''} />)}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 mb-5">
-          {PAD.flat().map((d, i) => (
+        <div className="wd-pad" role="group" aria-label="Keypad">
+          {PAD.map((d, i) => d === '' ? <span key={i} /> : (
             <button
               key={i}
-              onClick={() => d && handleDigit(d)}
-              disabled={!d}
-              className={`h-12 rounded-xl text-lg font-semibold transition-colors ${
-                d
-                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 active:bg-gray-300'
-                  : 'opacity-0 pointer-events-none'
-              }`}
+              type="button"
+              onClick={() => handleDigit(d)}
+              aria-label={d === DELETE ? 'Delete digit' : undefined}
             >
-              {d}
+              {d === DELETE ? '⌫' : d}
             </button>
           ))}
         </div>
 
-        {error && (
-          <p className="text-red-600 dark:text-red-400 text-sm mb-4 text-center">{error}</p>
-        )}
+        {error && <p role="alert" className="mt-3 text-center text-sm font-semibold text-danger">{error}</p>}
 
         <button
-          onClick={handleSubmit}
-          disabled={!username.trim() || pin.length !== 4 || loading}
-          className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+          type="button"
+          onClick={() => void handleSubmit()}
+          disabled={!ready}
+          className={`wd-btn wd-login-go mt-auto w-full${loading ? ' busy' : ''}`}
         >
-          {loading ? 'Signing in…' : 'Sign In'}
+          <span>{loading ? 'Loading up…' : 'Sign in'}</span>
         </button>
-      </div>
+      </main>
+
+      {welcome && (
+        <div className="wd-ovl" role="status">
+          <img src="/brand/logo-full-white.png" alt="" />
+          <p className="wd-ovl-t">You're in</p>
+          <p className="wd-ovl-s">Loading your day…</p>
+        </div>
+      )}
     </div>
   )
 }

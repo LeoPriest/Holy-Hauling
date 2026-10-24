@@ -12,7 +12,7 @@ export function CitySwitcher({ allowAll = true, variant = 'default' }: { allowAl
     <select
       className={variant === 'pill'
         ? 'wd-city appearance-none pr-3'
-        : 'rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100'}
+        : 'rounded-chip border border-ln bg-sf px-2 py-1.5 text-xs font-medium text-ink'}
       value={value}
       onChange={event => setSelectedCityId(event.target.value)}
       aria-label="City"
