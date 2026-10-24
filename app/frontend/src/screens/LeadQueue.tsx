@@ -93,7 +93,7 @@ export function LeadQueue() {
   const { agingIds, overdueIds, idleMinuteMap } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
   const { user } = useAuth()
-  const { isAllCities, selectedCity } = useCity()
+  const { isAllCities, selectedCity, cityQueryId } = useCity()
   const { data: rentals = [] } = useRentals()
   const rentalLeadIds = useMemo(() => new Set(rentals.map(r => r.lead_id)), [rentals])
 
@@ -116,15 +116,18 @@ export function LeadQueue() {
   const newCount = activeLeads.filter(l => l.status === 'new').length
 
   // New leads that land while the queue is open drop in at the top with an
-  // amber toast. The first load only records what is already there.
+  // amber toast. The first load, and the first load after a filter change,
+  // only records what is already there.
+  const listKey = [sourceFilter, assignedFilter.trim(), cityQueryId ?? ''].join('|')
   const seenIds = useRef<Set<string> | null>(null)
+  const seenKey = useRef(listKey)
   const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
   const [bumpKey, setBumpKey] = useState(0)
   useEffect(() => {
     if (isLoading || error) return
     const ids = new Set(leads.map(l => l.id))
-    if (seenIds.current) {
+    if (seenIds.current && seenKey.current === listKey) {
       const arrived = leads.filter(l => !seenIds.current!.has(l.id) && l.status === 'new')
       if (arrived.length > 0) {
         const l = arrived[0]
@@ -135,7 +138,13 @@ export function LeadQueue() {
       }
     }
     seenIds.current = ids
-  }, [leads, isLoading, error])
+    seenKey.current = listKey
+  }, [leads, isLoading, error, listKey])
+  useEffect(() => {
+    if (droppedIds.size === 0) return
+    const t = setTimeout(() => setDroppedIds(new Set()), 1000)
+    return () => clearTimeout(t)
+  }, [droppedIds])
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 2200)

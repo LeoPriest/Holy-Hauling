@@ -276,3 +276,67 @@ def test_admin_screens_use_the_workday_header(server, browser, path, title):
     _no_old_colors(page)
     assert too_small(page) == []
     _no_sideways(page)
+
+
+# ── Dark mode: every field and button label can be read ──────────────────
+
+UNREADABLE = """() => {
+  const rgb = c => (c.match(/[\d.]+/g) || []).map(Number);
+  const lum = ([r, g, b]) => { const f = v => (v /= 255) <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+    return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+  const bgOf = el => { for (let e = el; e; e = e.parentElement) {
+      const c = rgb(getComputedStyle(e).backgroundColor); if (c.length === 3 || c[3] > 0) return c; }
+    return [255, 255, 255]; };
+  const out = [];
+  for (const el of document.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea, button')) {
+    const r = el.getBoundingClientRect();
+    // The dock's labels are their own spans with their own colours.
+    if (!r.width || !r.height || el.closest('[aria-hidden=true], .wd-dock')) continue;
+    if (el.tagName === 'BUTTON' && !el.textContent.trim()) continue;
+    const a = lum(rgb(getComputedStyle(el).color)), b = lum(bgOf(el));
+    const ratio = (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+    if (ratio < 3) out.push((el.getAttribute('aria-label') || el.placeholder || el.textContent.trim().slice(0, 24) || el.tagName) + ' ' + ratio.toFixed(2));
+  }
+  return out;
+}"""
+
+CITY = {"id": "c1", "name": "St. Louis", "slug": "stl", "timezone": "America/Chicago",
+        "is_active": True, "created_at": "2026-01-01T00:00:00", "updated_at": "2026-01-01T00:00:00"}
+MEMBER = {"id": "u2", "username": "jordan", "role": "crew", "city_id": "c1", "city_name": "St. Louis",
+          "is_active": True, "email": None, "hourly_rate_cents": None}
+
+
+def _dark_admin(browser, server, path):
+    def answer(method, url):
+        if method == "GET" and url == "/admin/cities":
+            return 200, [CITY]
+        if method == "GET" and url == "/admin/users":
+            return 200, [MEMBER]
+        if method == "GET" and url in ("/admin/thumbtack/connections", "/admin/rentals"):
+            return 200, []
+        return None
+
+    return open_app(browser, server, answer, role="admin", path=path, theme="dark")
+
+
+def test_dark_team_forms_are_readable(server, browser):
+    page = _dark_admin(browser, server, "/admin/users")
+    page.get_by_role("button", name="Add user").tap()
+    page.get_by_placeholder("Username").fill("newcrew")
+    assert page.evaluate(UNREADABLE) == []
+    page.get_by_role("button", name="Cancel").tap()
+    page.get_by_role("button", name="Edit").tap()
+    page.get_by_placeholder("New PIN").wait_for()
+    assert page.evaluate(UNREADABLE) == []
+
+
+@pytest.mark.parametrize("path,ready", [
+    ("/admin/thumbtack", "Add connection"),
+    ("/admin/cities", "Save"),
+    ("/admin/rentals", "All"),
+])
+def test_dark_admin_screens_are_readable(server, browser, path, ready):
+    page = _dark_admin(browser, server, path)
+    page.get_by_text(ready, exact=True).first.wait_for()
+    page.wait_for_timeout(400)
+    assert page.evaluate(UNREADABLE) == []

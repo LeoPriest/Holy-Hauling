@@ -156,7 +156,7 @@ function CityRow({ city }: { city: City }) {
         <button
           onClick={() => void save()}
           disabled={!dirty || patchCity.isPending}
-          className="rounded-chip bg-ink px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          className="min-h-11 rounded-chip bg-ink px-4 py-2 text-sm font-medium text-bg disabled:opacity-40"
         >
           Save
         </button>

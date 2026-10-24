@@ -129,3 +129,67 @@ def test_no_sideways_scroll(server, browser, viewport):
     page = _open(browser, server, viewport=viewport)
     page.get_by_role("button", name="Marcus T.").wait_for()
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+# ── Leads that land while the queue is open ──────────────────────────────
+
+def _live_queue(browser, server, leads):
+    """Queue whose /leads answer is the `leads` list as it stands, filtered by
+    source_type like the backend does. Mutate the list, then `_refetch`."""
+    def answer(method, url, query):
+        if method == "GET" and url == "/leads":
+            want = next((p.split("=", 1)[1] for p in query.split("&") if p.startswith("source_type=")), None)
+            return 200, [l for l in leads if not want or l["source_type"] == want]
+        if method == "GET" and url == "/settings":
+            return 200, SETTINGS
+        return None
+
+    return open_app(browser, server, answer)
+
+
+def _refetch(page):
+    # Coming back to the tab refetches the queue, as the 30s poll would.
+    page.evaluate("window.dispatchEvent(new Event('visibilitychange'))")
+
+
+def _card_box(card):
+    return card.evaluate("""e => { const s = getComputedStyle(e);
+        return [s.textAlign, s.paddingTop, s.paddingLeft, s.outlineStyle] }""")
+
+
+def test_arriving_lead_keeps_the_card_layout(server, browser):
+    leads = [dict(l) for l in LEADS]
+    page = _live_queue(browser, server, leads)
+    dana = page.get_by_role("button", name="Dana R.")
+    dana.wait_for()
+    page.wait_for_timeout(800)
+    settled = _card_box(dana)
+
+    leads.append(lead(id="l9", customer_name="Nina P.", created_at=iso(0), updated_at=iso(0),
+                      job_address="5 Oak Dr, Kirkwood, MO 63122"))
+    _refetch(page)
+    page.locator(".wd-toast.show").wait_for()
+    nina = page.get_by_role("button", name="Nina P.")
+    nina.wait_for()
+    # Mid drop-in, the new card already has the same layout as every other card.
+    assert _card_box(nina) == settled
+    # Once the drop has played it is an ordinary card again.
+    page.wait_for_timeout(1500)
+    assert "drop" not in (nina.get_attribute("class") or "")
+    assert _card_box(nina) == settled
+
+
+def test_filter_flip_raises_no_new_lead_alert(server, browser):
+    leads = [dict(l) for l in LEADS]
+    page = _live_queue(browser, server, leads)
+    page.get_by_role("button", name="Dana R.").wait_for()
+    page.wait_for_timeout(800)
+    source = page.get_by_role("combobox", name="Source")
+    source.select_option("yelp_screenshot")
+    page.get_by_role("button", name="Marcus T.").wait_for()
+    page.wait_for_timeout(400)
+    source.select_option("")
+    page.get_by_role("button", name="Dana R.").wait_for()
+    page.wait_for_timeout(800)
+    assert page.locator(".wd-toast.show").count() == 0
+    assert page.locator(".wd-card[class*=drop]").count() == 0

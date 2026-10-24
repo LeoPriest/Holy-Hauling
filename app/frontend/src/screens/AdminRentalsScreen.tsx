@@ -61,7 +61,7 @@ export function AdminRentalsScreen() {
             onClick={() => setStatusFilter(tab.value)}
             className={`min-h-11 min-w-11 shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
               statusFilter === tab.value
-                ? 'bg-ink text-white'
+                ? 'bg-ink text-bg'
                 : 'bg-sf border text-mu'
             }`}
           >

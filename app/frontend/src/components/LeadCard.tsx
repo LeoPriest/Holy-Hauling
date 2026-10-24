@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Lead } from '../types/lead'
 import { parseUtc } from '../utils/time'
 import { leadTitle, leadTown, shortAge, sourceShort } from '../utils/leadCard'
@@ -28,12 +29,14 @@ export function LeadCard({ lead, onClick, staleness, idleMinutes, hasTruckRental
   const town = leadTown(lead)
   const isNew = lead.status === 'new'
   const hasFlags = staleness || isEscalated || lead.urgency_flag || lead.active_followup || hasTruckRental
+  // Only cards there on load rise; one that dropped in settles with no second animation.
+  const [rises] = useState(!dropped)
 
   return (
     <button
       type="button"
       onClick={() => onClick(lead.id)}
-      className={['wd-card', dropped ? 'wd-drop' : 'wd-rise', lead.urgency_flag ? 'wd-card-urgent' : ''].join(' ')}
+      className={['wd-card', dropped ? 'wd-card-drop' : rises ? 'wd-rise' : '', lead.urgency_flag ? 'wd-card-urgent' : ''].join(' ')}
       style={{ '--i': index } as React.CSSProperties}
     >
       {isNew && (

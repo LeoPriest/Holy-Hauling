@@ -128,13 +128,13 @@ export function AdminThumbtackScreen() {
           </h2>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
             <input
-              className={`${TOUCH} rounded-chip border px-3 text-sm text-ink   `}
+              className="wd-input text-sm"
               placeholder="Label, e.g. Holy Hauling — St. Louis"
               value={label}
               onChange={event => setLabel(event.target.value)}
             />
             <select
-              className={`${TOUCH} rounded-chip border px-3 text-sm text-ink   `}
+              className="wd-input text-sm"
               value={effectiveCityId}
               onChange={event => setCityId(event.target.value)}
             >
@@ -143,7 +143,7 @@ export function AdminThumbtackScreen() {
               ))}
             </select>
             <select
-              className={`${TOUCH} rounded-chip border px-3 text-sm text-ink   `}
+              className="wd-input text-sm"
               value={business}
               onChange={event => setBusiness(event.target.value as ThumbtackBusiness)}
             >

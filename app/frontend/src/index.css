@@ -143,7 +143,7 @@
   .wd-slot { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .45s var(--settle); }
   .wd-slot.enter { grid-template-rows: 0fr; }
   .wd-slot > div { min-height: 0; overflow: hidden; }
-  .wd-drop { animation: wd-drop .55s var(--settle) .12s both; }
+  .wd-card-drop { animation: wd-drop .55s var(--settle) .12s both; }
   .wd-bump { animation: wd-bump .45s var(--settle); }
 
   /* ── Dock tab bar ── */

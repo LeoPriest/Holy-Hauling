@@ -182,13 +182,13 @@ export function AdminUsersScreen() {
           <div className="bg-sf rounded-panel p-6 w-full max-w-sm">
             <h2 className="text-lg font-bold text-ink mb-4">Add User</h2>
             <input
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               placeholder="Username"
               value={newUsername}
               onChange={e => setNewUsername(e.target.value)}
             />
             <input
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               placeholder="PIN (4 digits)"
               value={newPin}
               onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -196,7 +196,7 @@ export function AdminUsersScreen() {
               inputMode="numeric"
             />
             <select
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               value={newRole}
               onChange={e => {
                 const role = e.target.value as Role
@@ -208,7 +208,7 @@ export function AdminUsersScreen() {
             </select>
             <label className="block text-xs font-semibold text-mu mb-1">City</label>
             <select
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               value={newCityId}
               onChange={e => setNewCityId(e.target.value)}
             >
@@ -216,7 +216,7 @@ export function AdminUsersScreen() {
               {cities.map(city => <option key={city.id} value={city.id}>{city.name}</option>)}
             </select>
             <input
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               placeholder="Google email (optional, for calendar invites)"
               value={newEmail}
               onChange={e => setNewEmail(e.target.value)}
@@ -265,7 +265,7 @@ export function AdminUsersScreen() {
             <p className="text-xs text-mu mb-4">Changes apply immediately.</p>
             <label className="block text-xs font-semibold text-mu mb-1">Role</label>
             <select
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               value={editRole}
               onChange={e => {
                 const role = e.target.value as Role
@@ -277,7 +277,7 @@ export function AdminUsersScreen() {
             </select>
             <label className="block text-xs font-semibold text-mu mb-1">City</label>
             <select
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               value={editCityId}
               onChange={e => setEditCityId(e.target.value)}
             >
@@ -286,7 +286,7 @@ export function AdminUsersScreen() {
             </select>
             <label className="block text-xs font-semibold text-mu mb-1">New PIN (leave blank to keep current)</label>
             <input
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               placeholder="New PIN"
               value={editPin}
               onChange={e => setEditPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -304,7 +304,7 @@ export function AdminUsersScreen() {
             </label>
             <label className="block text-xs font-semibold text-mu mb-1">Google email (for calendar invites)</label>
             <input
-              className="w-full border rounded-chip px-3 py-2 mb-3 text-ink focus:outline-none focus:ring-2 focus:ring-pr"
+              className="wd-input mb-3"
               placeholder="name@gmail.com"
               value={editEmail}
               onChange={e => setEditEmail(e.target.value)}
