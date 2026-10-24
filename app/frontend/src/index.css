@@ -729,7 +729,7 @@
   .wd-lg-whl::before {
     content: ""; position: absolute; inset: -25%;
     /* Mostly tire-white with thin dark streaks: the face's rim lines blurring as it spins. */
-    background: repeating-conic-gradient(var(--lc) 0 27deg, var(--wbg) 27deg 30deg);
+    background: repeating-conic-gradient(var(--lc) 0 24deg, var(--wbg) 24deg 30deg);
   }
   .wd-lg-whl::after { content: ""; position: absolute; inset: 24% 20%; border-radius: 50%; background: var(--lc); box-shadow: inset 0 0 0 .2em var(--wbg); }
   .wd-lg-smk b {
