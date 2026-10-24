@@ -723,9 +723,11 @@
   .wd-lg-l { background: var(--lc); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
   .wd-lg-veh { inset: 0; transform-origin: 50% 85%; }
   .wd-lg-whl, .wd-lg-smk, .wd-lg-skid { pointer-events: none; }
-  .wd-lg-whl { overflow: hidden; border-radius: 50%; opacity: 0; }
+  /* clip-path, not just overflow + radius: iPhone Safari skips the rounded clip
+     while the pattern inside spins, and the wheels show as squares. */
+  .wd-lg-whl { overflow: hidden; border-radius: 50%; clip-path: ellipse(50% 50% at 50% 50%); opacity: 0; }
   .wd-lg-whl::before {
-    content: ""; position: absolute; inset: -25%; filter: blur(.6px);
+    content: ""; position: absolute; inset: -25%;
     background: repeating-conic-gradient(var(--lc) 0 12deg, var(--wbg) 12deg 34deg);
   }
   .wd-lg-whl::after { content: ""; position: absolute; left: 38%; top: 38%; width: 24%; height: 24%; border-radius: 50%; background: var(--lc); }

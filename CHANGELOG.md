@@ -36,7 +36,8 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
   - New-lead reading panel: the black pulse on amber. Upload failed: the logo dimmed on dark.
 - **`Working` (new):** the working pulse plus a label, replacing every loading line in the app. That covers the app start, queue, lead, jobs, calendar, Settings, every admin screen, and the small loads inside cards (compact row). The one real spinner (payroll) is gone.
 - **Final pass:** login, queue, lead, crew jobs, calendar, Settings and Admin checked at 390×844 and 1024×768 in light and dark, with no tap target under 44px and no sideways scroll.
-- **Tests:** `app/frontend/tests/test_workday_logo.py`, 15 tests. The test helper can hold a request open (`"hang"`) to show loading states.
+- **Fix (from Ron's phone preview):** the spinning wheels showed as squares on iPhone. Safari drops a rounded clip while the pattern inside spins, so each wheel is now also clipped with an ellipse `clip-path`, and the pattern's blur is gone.
+- **Tests:** `app/frontend/tests/test_workday_logo.py`, 16 tests (one checks the wheel clip). The test helper can hold a request open (`"hang"`) to show loading states.
 
 ## [2026-10-24] Workday design, stage 7 of 8 — login, Settings, Admin
 

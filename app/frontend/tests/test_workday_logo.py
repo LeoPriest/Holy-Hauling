@@ -146,3 +146,11 @@ def test_app_start_uses_the_working_pulse(server, browser):
     page.add_init_script("localStorage.setItem('hh_token','t')")
     page.goto(server + "/jobs")
     page.get_by_role("status").filter(has=page.locator(".wd-logo.load")).first.wait_for()
+
+
+def test_wheels_are_clipped_round(server, browser):
+    # iPhone Safari ignores overflow + border-radius while the pattern spins;
+    # an ellipse clip-path keeps the wheels round there.
+    page = st._login(browser, server)
+    clips = page.locator(".wd-hero .wd-lg-whl").evaluate_all("els => els.map(e => getComputedStyle(e).clipPath)")
+    assert len(clips) == 3 and all(c.startswith("ellipse") for c in clips)
