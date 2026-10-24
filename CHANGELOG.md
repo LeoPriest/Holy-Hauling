@@ -27,6 +27,17 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-23] Workday design, stage 6 of 8 — the calendar
+
+- **Header (`CalendarScreen.tsx`):** dark header, "Calendar" / "Confirmed jobs by day", the city pill for admins. The back arrow left (Calendar is a dock tab).
+- **Week / Month** uses the shared segmented control. The nav row is a ghost back arrow, the week or month label, an amber "Today" and a ghost forward arrow (44px each, labelled "Previous week" / "Next month" and so on).
+- **Week:** 7 day rows, 50px tall. Today has a 2px amber outline and a "TODAY" tag. Each row shows the job count and the green day total (office only). Rows open and close with a grid-rows slide and the chevron turns 90°. Closed rows are `inert`, so their buttons stay out of the tab order.
+- **Job cards:** a sync chip ("Google synced" mint / "Local only"), a details list (time, duration, status, crew, address, quoted, scope), and Open lead / Sync to Google. Sync shows "Syncing…", then the chip turns synced with a bump. A failure shows the server's message in red under the card.
+- **Month:** a 7×6 grid of day buttons with green dots per job (up to 4). Today is ringed amber, the chosen day is ink. The chosen day's jobs list underneath. Cells stop growing at 56px tall on tablets.
+- **Needs a date:** a hazard-striped card ("1 job needs a date") that opens to the unscheduled jobs, each with a "Set date" button to its lead (crew get "Open jobs").
+- **Dropped:** the three summary tiles under the month (This month / Google sync / Needs date), which the design leaves out. Admins get a one-line note when Google Calendar isn't connected for the city. Recurring expenses (admin) moved from purple cards to plain cards with an amber edge.
+- **Tests:** `app/frontend/tests/test_workday_calendar.py`, 12 tests. Frontend 80 passed; backend 527 passed.
+
 ## [2026-10-23] Workday design, stage 5 of 8 — crew jobs and the Jobs list
 
 - **Header (`JobsScreen.tsx`):** dark header, "Jobs", today's date and the user, and the city pill for admins. The old "Settings" text link left (Settings is in the dock).

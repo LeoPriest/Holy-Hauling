@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { BottomNav } from '../components/BottomNav'
 import { CitySwitcher } from '../components/CitySwitcher'
+import { Segmented } from '../components/Segmented'
 import { useCity } from '../context/CityContext'
 import { useJobs, useSyncJobCalendar, type Job } from '../hooks/useJobs'
 import { apiFetch } from '../services/api'
@@ -16,11 +17,33 @@ type ViewMode = 'week' | 'month'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+const BACK = 'M15 6l-6 6 6 6'
+const CHEV = 'M9 6l6 6-6 6'
+const WARN = 'M12 3.5 21.5 20h-19L12 3.5zM12 10v4.5M12 17.5v.01'
+
 type CalendarStatus = {
   configured: boolean
   connected: boolean
   missing: string[]
   detail: string | null
+}
+
+function Icon({ d }: { d: string }) {
+  return <svg className="wd-ic" viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
+}
+
+function Chevron() {
+  return <span className="wd-chv" aria-hidden="true"><Icon d={CHEV} /></span>
+}
+
+// Collapsed accordion content stays in the DOM for the grid-rows animation,
+// so it is made inert to keep it out of the tab order.
+function Accordion({ open, children }: { open: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`wd-acc${open ? ' open' : ''}`}>
+      <div {...(open ? {} : { inert: '' })}>{children}</div>
+    </div>
+  )
 }
 
 function startOfMonth(date: Date) {
@@ -92,14 +115,9 @@ function dayNumber(key: string) {
   return Number(key.split('-')[2])
 }
 
-function dayLabel(key: string) {
+function selectedLabel(key: string) {
   const [year, month, day] = key.split('-').map(Number)
-  return new Date(year, month - 1, day).toLocaleDateString([], {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
+  return new Date(year, month - 1, day).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 function formatCurrency(amount: number) {
@@ -113,11 +131,12 @@ function formatCurrency(amount: number) {
 
 function phaseLabel(job: Job) {
   if (!job.job_phase) return 'Scheduled'
-  return job.job_phase.replace('_', ' ')
+  const text = job.job_phase.replace('_', ' ')
+  return text[0].toUpperCase() + text.slice(1)
 }
 
-function openTargetLabel(role: string | undefined) {
-  return role === 'admin' || role === 'facilitator' ? 'Open Lead' : 'Open Jobs'
+function plural(count: number, word: string) {
+  return `${count} ${word}${count === 1 ? '' : 's'}`
 }
 
 function compareJobsBySchedule(left: Job, right: Job) {
@@ -140,6 +159,7 @@ export function CalendarScreen() {
   const [expandedDay, setExpandedDay] = useState(todayKey)
   const [showUnscheduled, setShowUnscheduled] = useState(false)
   const [syncErrorByJob, setSyncErrorByJob] = useState<Record<string, string>>({})
+  const [justSynced, setJustSynced] = useState<string | null>(null)
   const { requiredCityId, isAllCities } = useCity()
 
   const { data: jobs = [], isLoading } = useJobs()
@@ -172,11 +192,7 @@ export function CalendarScreen() {
 
   const monthDays = buildMonthGrid(monthCursor)
   const weekDays = buildWeekDays(weekCursor)
-  const monthPrefix = dateKey(monthCursor).slice(0, 7)
-  const monthJobs = jobs.filter(job => job.job_date_requested?.startsWith(monthPrefix))
   const unscheduledJobs = jobs.filter(job => !job.job_date_requested)
-  const syncedJobs = jobs.filter(job => job.has_google_calendar_event).length
-  const backTarget = user?.role === 'admin' || user?.role === 'facilitator' ? '/' : '/jobs'
   const showQuote = user?.role === 'admin' || user?.role === 'facilitator'
 
   function dayJobs(key: string) {
@@ -217,7 +233,7 @@ export function CalendarScreen() {
   }
 
   function openJob(job: Job) {
-    if (user?.role === 'admin' || user?.role === 'facilitator') {
+    if (showQuote) {
       navigate(`/leads/${job.id}`)
       return
     }
@@ -235,210 +251,183 @@ export function CalendarScreen() {
       },
       onSuccess: () => {
         setSyncErrorByJob(prev => ({ ...prev, [jobId]: '' }))
+        setJustSynced(jobId)
       },
     })
   }
 
   function recurringCard(exp: RecurringExpense) {
     return (
-      <div key={exp.id} className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3">
-        <div className="flex items-center gap-2">
-          <span className="text-purple-600 dark:text-purple-300 text-sm" aria-hidden="true">$</span>
-          <div>
-            <p className="text-sm font-medium text-purple-900 dark:text-purple-100">{exp.name}</p>
-            <p className="text-xs text-purple-600 dark:text-purple-300">{exp.category} · {centsToDisplay(exp.amount_cents)}</p>
-          </div>
+      <div key={exp.id} className="wd-cal-exp">
+        <span className="wd-disp text-lg text-mu" aria-hidden="true">$</span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{exp.name}</p>
+          <p className="text-xs text-mu">Expense due · {exp.category} · {centsToDisplay(exp.amount_cents)}</p>
         </div>
       </div>
     )
   }
 
   function jobCard(job: Job) {
+    const syncing = syncJobCalendar.isPending && syncJobCalendar.variables === job.id
+    const synced = job.has_google_calendar_event
     return (
-      <div key={job.id} className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-gray-900 dark:text-white">{job.customer_name ?? 'Unnamed customer'}</h3>
-              {isAllCities && job.city_name && (
-                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
-                  {job.city_name}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{job.service_type}</p>
+      <div key={job.id} className="wd-cal-job">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-semibold">{job.customer_name ?? 'Unnamed customer'}</p>
+            <p className="text-xs capitalize text-mu">
+              {job.service_type}
+              {isAllCities && job.city_name ? ` · ${job.city_name}` : ''}
+            </p>
           </div>
-          <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-            job.has_google_calendar_event
-              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
-          }`}>
-            {job.has_google_calendar_event ? 'Google synced' : 'Local only'}
+          <span
+            className={`wd-sync${synced ? ' on' : ''}${synced && justSynced === job.id ? ' wd-bump' : ''}`}
+            aria-live="polite"
+          >
+            {synced ? 'Google synced' : 'Local only'}
           </span>
         </div>
 
-        <div className="mt-3 space-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-          <p><span className="font-medium text-gray-800 dark:text-gray-200">Time:</span> {job.appointment_time_slot ? fmtTimeSlot(job.appointment_time_slot) : 'Not set'}</p>
-          <p><span className="font-medium text-gray-800 dark:text-gray-200">Est. Duration:</span> {job.estimated_job_duration_minutes != null ? fmtDurationMinutes(job.estimated_job_duration_minutes) : 'Not set'}</p>
-          <p><span className="font-medium text-gray-800 dark:text-gray-200">Status:</span> {phaseLabel(job)}</p>
+        <dl className="wd-kv">
+          <dt>Time</dt>
+          <dd>{job.appointment_time_slot ? fmtTimeSlot(job.appointment_time_slot) : 'Not set'}</dd>
+          <dt>Duration</dt>
+          <dd>{job.estimated_job_duration_minutes != null ? fmtDurationMinutes(job.estimated_job_duration_minutes) : 'Not set'}</dd>
+          <dt>Status</dt>
+          <dd>{phaseLabel(job)}</dd>
+          <dt>Crew</dt>
+          <dd>{job.crew.length > 0 ? job.crew.join(', ') : 'Unassigned'}</dd>
+          <dt>Address</dt>
+          <dd>{job.job_address || job.job_location || 'Not set'}</dd>
           {showQuote && job.quoted_price_total != null && (
-            <p><span className="font-medium text-gray-800 dark:text-gray-200">Quoted Price:</span> {formatCurrency(job.quoted_price_total)}</p>
+            <>
+              <dt>Quoted</dt>
+              <dd>{formatCurrency(job.quoted_price_total)}</dd>
+            </>
           )}
-          <p><span className="font-medium text-gray-800 dark:text-gray-200">Crew:</span> {job.crew.length > 0 ? job.crew.join(', ') : 'Unassigned'}</p>
-          <p><span className="font-medium text-gray-800 dark:text-gray-200">Address:</span> {job.job_address || job.job_location || 'Not set'}</p>
           {job.scope_notes && (
-            <p><span className="font-medium text-gray-800 dark:text-gray-200">Scope:</span> {job.scope_notes}</p>
+            <>
+              <dt>Scope</dt>
+              <dd>{job.scope_notes}</dd>
+            </>
           )}
-        </div>
+        </dl>
 
-        <div className="mt-4 flex gap-2">
-          <button
-            onClick={() => openJob(job)}
-            className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-          >
-            {openTargetLabel(user?.role)}
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          <button type="button" onClick={() => openJob(job)} className="wd-btn-sm">
+            {showQuote ? 'Open lead' : 'Open jobs'}
           </button>
-          {showQuote && !job.has_google_calendar_event && job.job_date_requested && (
-            <button
-              onClick={() => handleSyncJob(job.id)}
-              disabled={syncJobCalendar.isPending && syncJobCalendar.variables === job.id}
-              className="px-3 py-2 rounded-lg border border-emerald-300 text-emerald-700 text-sm font-medium hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
-            >
-              {syncJobCalendar.isPending && syncJobCalendar.variables === job.id ? 'Syncing...' : 'Sync to Google'}
+          {showQuote && !synced && job.job_date_requested && (
+            <button type="button" onClick={() => handleSyncJob(job.id)} disabled={syncing} className="wd-btn-sm wd-btn-ghost">
+              {syncing ? 'Syncing…' : 'Sync to Google'}
             </button>
           )}
         </div>
         {syncErrorByJob[job.id] && (
-          <p className="mt-2 text-xs text-red-600 dark:text-red-400">{syncErrorByJob[job.id]}</p>
+          <p className="mt-2 text-xs font-medium text-danger" role="alert">{syncErrorByJob[job.id]}</p>
         )}
       </div>
     )
   }
 
+  function dayBody(key: string) {
+    const jobsOn = dayJobs(key)
+    const recurringOn = recurringByDay[key] ?? []
+    if (jobsOn.length === 0 && recurringOn.length === 0) {
+      return <p className="text-sm text-mu">No confirmed jobs on this date.</p>
+    }
+    return (
+      <>
+        {recurringOn.map(recurringCard)}
+        {jobsOn.map(jobCard)}
+      </>
+    )
+  }
+
   const selectedJobs = dayJobs(selectedDay)
-  const selectedRecurring = recurringByDay[selectedDay] ?? []
+  const weeks = Array.from({ length: 6 }, (_, w) => monthDays.slice(w * 7, w * 7 + 7))
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
-      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(backTarget)}
-            className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-lg"
-          >
-            <span aria-hidden="true">←</span>
-          </button>
-          <div>
-            <h1 className="font-bold text-gray-900 dark:text-white text-lg">Calendar</h1>
-            <p className="text-xs text-gray-400 dark:text-gray-500">Confirmed jobs by day</p>
-          </div>
+    <div className="min-h-screen bg-bg pb-[calc(var(--dock-h)+16px)] text-ink">
+      <header className="wd-hdr flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="wd-disp text-[26px] leading-none">Calendar</h1>
+          <p className="wd-h-s truncate">Confirmed jobs by day</p>
         </div>
-        <div className="flex items-center gap-3">
-          {user?.role === 'admin' && <CitySwitcher />}
-          <span className="text-xs text-gray-500 dark:text-gray-400">{user?.username}</span>
-        </div>
+        {user?.role === 'admin' && <CitySwitcher variant="pill" />}
       </header>
 
-      <main className="p-4 space-y-4 pb-10">
-        {/* View toggle + period nav */}
-        <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="inline-flex rounded-lg border dark:border-gray-700 bg-white dark:bg-gray-800 p-1 self-start">
-            {(['week', 'month'] as ViewMode[]).map(mode => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`min-h-11 px-4 rounded-md text-sm font-medium capitalize transition-colors ${
-                  viewMode === mode
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => (viewMode === 'week' ? changeWeek(-1) : changeMonth(-1))}
-              className="min-h-11 px-3 rounded-lg border dark:border-gray-600 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Prev
-            </button>
-            <span className="min-w-28 text-center text-sm font-semibold text-gray-900 dark:text-white">
-              {viewMode === 'week' ? weekRangeLabel(weekCursor) : monthLabel(monthCursor)}
-            </span>
-            <button
-              onClick={jumpToToday}
-              className="min-h-11 px-3 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => (viewMode === 'week' ? changeWeek(1) : changeMonth(1))}
-              className="min-h-11 px-3 rounded-lg border dark:border-gray-600 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Next
-            </button>
-          </div>
-        </section>
+      <main className="mx-auto flex max-w-3xl flex-col gap-3 px-3.5 pt-4">
+        <Segmented
+          label="View"
+          options={[
+            { key: 'week', label: 'Week' },
+            { key: 'month', label: 'Month' },
+          ]}
+          value={viewMode}
+          onChange={setViewMode}
+        />
+
+        <div className="wd-cal-nav">
+          <button
+            type="button"
+            aria-label={viewMode === 'week' ? 'Previous week' : 'Previous month'}
+            onClick={() => (viewMode === 'week' ? changeWeek(-1) : changeMonth(-1))}
+            className="wd-btn-sm wd-btn-ghost"
+          >
+            <Icon d={BACK} />
+          </button>
+          <span className="wd-cal-label" aria-live="polite">
+            {viewMode === 'week' ? weekRangeLabel(weekCursor) : monthLabel(monthCursor)}
+          </span>
+          <button type="button" onClick={jumpToToday} className="wd-btn-sm wd-btn-amber">
+            Today
+          </button>
+          <button
+            type="button"
+            aria-label={viewMode === 'week' ? 'Next week' : 'Next month'}
+            onClick={() => (viewMode === 'week' ? changeWeek(1) : changeMonth(1))}
+            className="wd-btn-sm wd-btn-ghost"
+          >
+            <Icon d={CHEV} />
+          </button>
+        </div>
+
+        {isLoading && <p className="py-6 text-center text-sm text-mu">Loading calendar…</p>}
 
         {viewMode === 'week' && (
-          <section className="space-y-2">
+          <section key="week" className="wd-pane flex flex-col gap-2" aria-label="Week">
             {weekDays.map(day => {
               const key = dateKey(day)
-              const jobsToday = dayJobs(key)
-              const recurringToday = recurringByDay[key] ?? []
+              const count = (jobsByDay[key] ?? []).length
+              const hasRecurring = (recurringByDay[key] ?? []).length > 0
               const total = dayTotal(key)
-              const isExpanded = key === expandedDay
+              const isOpen = key === expandedDay
               const isToday = key === todayKey
-              const count = jobsToday.length
 
               return (
-                <div
-                  key={key}
-                  className={`bg-white dark:bg-gray-800 rounded-2xl border shadow-sm overflow-hidden ${
-                    isToday ? 'border-indigo-400 dark:border-indigo-500' : 'dark:border-gray-700'
-                  }`}
-                >
+                <div key={key} className={`wd-day${isToday ? ' today' : ''}${isOpen ? ' open' : ''}`}>
                   <button
-                    onClick={() => setExpandedDay(isExpanded ? '' : key)}
-                    className="w-full min-h-14 px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    aria-expanded={isExpanded}
+                    type="button"
+                    onClick={() => setExpandedDay(isOpen ? '' : key)}
+                    className="wd-day-h"
+                    aria-expanded={isOpen}
                   >
-                    <div className="flex items-baseline gap-3 min-w-0">
-                      <span className={`text-sm font-semibold w-20 shrink-0 ${
-                        isToday ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-900 dark:text-white'
-                      }`}>
-                        {weekdayShort(key)} {dayNumber(key)}
-                        {isToday && <span className="ml-1 text-[10px] uppercase tracking-wide">Today</span>}
-                      </span>
-                      <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                        {count > 0 ? `${count} job${count === 1 ? '' : 's'}` : 'No jobs'}
-                        {recurringToday.length > 0 && (
-                          <span className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-purple-400 align-middle" aria-label="recurring expense due" />
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {showQuote && total > 0 && (
-                        <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(total)}</span>
-                      )}
-                      <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
-                    </div>
+                    <span className="wd-day-n">
+                      {weekdayShort(key)} {dayNumber(key)}
+                      {isToday && <em>Today</em>}
+                    </span>
+                    <span className="wd-day-c">
+                      {count > 0 ? plural(count, 'job') : 'No jobs'}
+                      {hasRecurring && ' · expense due'}
+                    </span>
+                    {showQuote && total > 0 && <span className="wd-day-t">{formatCurrency(total)}</span>}
+                    <Chevron />
                   </button>
-
-                  {isExpanded && (
-                    <div className="px-4 pb-4 pt-1 space-y-3 border-t dark:border-gray-700">
-                      {count === 0 && recurringToday.length === 0 ? (
-                        <p className="text-sm text-gray-400 dark:text-gray-500 pt-3">No confirmed jobs on this date.</p>
-                      ) : (
-                        <div className="pt-3 space-y-3">
-                          {recurringToday.map(recurringCard)}
-                          {jobsToday.map(jobCard)}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <Accordion open={isOpen}>
+                    <div className="wd-day-b">{dayBody(key)}</div>
+                  </Accordion>
                 </div>
               )
             })}
@@ -446,179 +435,88 @@ export function CalendarScreen() {
         )}
 
         {viewMode === 'month' && (
-          <>
-            <section className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm overflow-hidden">
-              <div className="grid grid-cols-7 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                {WEEKDAYS.map(label => (
-                  <div key={label} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                    {label}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7">
-                {monthDays.map(day => {
-                  const key = dateKey(day)
-                  const dJobs = jobsByDay[key] ?? []
-                  const inMonth = sameMonth(day, monthCursor)
-                  const isSelected = key === selectedDay
-                  const isToday = key === todayKey
-
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => setSelectedDay(key)}
-                      className={`min-h-24 border-b border-r dark:border-gray-700 p-2 text-left align-top transition-colors ${
-                        inMonth ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900/40'
-                      } ${
-                        isSelected ? 'ring-2 ring-inset ring-indigo-500 z-[1]' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-sm font-semibold ${
-                          inMonth ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-600'
-                        }`}>
-                          {day.getDate()}
-                        </span>
-                        {isToday && (
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
-                            Today
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-1">
-                        {[...dJobs].sort(compareJobsBySchedule).slice(0, 3).map(job => (
-                          <div
-                            key={job.id}
-                            className={`rounded-lg px-2 py-1 text-[11px] leading-tight ${
-                              job.has_google_calendar_event
-                                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-200'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
-                            }`}
+          <section key="month" className="wd-pane flex flex-col gap-3">
+            <div className="wd-mg">
+              <div role="grid" aria-label="Month" className="wd-mgr">
+                <div role="row" className="wd-mh">
+                  {WEEKDAYS.map(label => (
+                    <span key={label} role="columnheader" aria-label={label}>{label[0]}</span>
+                  ))}
+                </div>
+                {weeks.map(week => (
+                  <div role="row" key={dateKey(week[0])}>
+                    {week.map(day => {
+                      const key = dateKey(day)
+                      const count = (jobsByDay[key] ?? []).length
+                      const isToday = key === todayKey
+                      return (
+                        <div role="gridcell" key={key}>
+                          <button
+                            type="button"
+                            data-day={key}
+                            aria-pressed={key === selectedDay}
+                            aria-label={`${selectedLabel(key)}${isToday ? ', today' : ''}, ${count > 0 ? plural(count, 'job') : 'no jobs'}`}
+                            onClick={() => setSelectedDay(key)}
+                            className={`wd-mday${sameMonth(day, monthCursor) ? '' : ' out'}${isToday ? ' today' : ''}`}
                           >
-                            <p className="truncate font-medium">
-                              {job.appointment_time_slot ? `${fmtTimeSlot(job.appointment_time_slot)} - ` : ''}
-                              {job.customer_name ?? 'Unnamed customer'}
-                            </p>
-                            <p className="truncate opacity-80">{job.service_type}</p>
-                          </div>
-                        ))}
-                        {dJobs.length > 3 && (
-                          <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500">
-                            +{dJobs.length - 3} more
-                          </p>
-                        )}
-                        {(recurringByDay[key] ?? []).length > 0 && (
-                          <span className="inline-block h-1 w-1 rounded-full bg-purple-400" aria-hidden="true" />
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-
-            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">This Month</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{monthJobs.length}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Booked jobs on the {monthLabel(monthCursor)} board.</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Google Sync</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{syncedJobs}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {user?.role === 'admin'
-                    ? (calendarStatus?.connected ? 'Google Calendar is connected.' : 'Google Calendar is not connected yet.')
-                    : 'Jobs with an active Google Calendar event.'}
-                </p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Needs Date</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">{unscheduledJobs.length}</p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Booked jobs missing a confirmed calendar date.</p>
-              </div>
-            </section>
-
-            <section className="bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm p-4">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{dayLabel(selectedDay)}</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{selectedJobs.length} confirmed job{selectedJobs.length === 1 ? '' : 's'}</p>
-                </div>
-                {selectedJobs.length > 0 && (
-                  <button
-                    onClick={() => navigate('/jobs')}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
-                  >
-                    Open Jobs Board
-                  </button>
-                )}
-              </div>
-
-              {selectedJobs.length === 0 && selectedRecurring.length === 0 ? (
-                <p className="text-sm text-gray-400 dark:text-gray-500">No confirmed jobs on this date.</p>
-              ) : (
-                <div className="space-y-3">
-                  {selectedRecurring.map(recurringCard)}
-                  {selectedJobs.map(jobCard)}
-                </div>
-              )}
-            </section>
-          </>
-        )}
-
-        {/* Needs-a-date banner — shown in both views only when there is work to do */}
-        {unscheduledJobs.length > 0 && (
-          <section className="bg-white dark:bg-gray-800 rounded-2xl border border-amber-200 dark:border-amber-800 shadow-sm overflow-hidden">
-            <button
-              onClick={() => setShowUnscheduled(prev => !prev)}
-              className="w-full min-h-14 px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-amber-50 dark:hover:bg-amber-900/10"
-              aria-expanded={showUnscheduled}
-            >
-              <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-                ⚠ {unscheduledJobs.length} job{unscheduledJobs.length === 1 ? '' : 's'} need a date
-              </span>
-              <span className={`text-amber-500 transition-transform ${showUnscheduled ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
-            </button>
-            {showUnscheduled && (
-              <div className="px-4 pb-4 pt-1 space-y-3 border-t border-amber-200 dark:border-amber-800">
-                {unscheduledJobs.map(job => (
-                  <div key={job.id} className="rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3 mt-3 first:mt-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white">{job.customer_name ?? 'Unnamed customer'}</p>
-                          {isAllCities && job.city_name && (
-                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
-                              {job.city_name}
-                            </span>
-                          )}
+                            <span>{day.getDate()}</span>
+                            <i>{Array.from({ length: Math.min(count, 4) }, (_, n) => <b key={n} className="wd-dot" />)}</i>
+                          </button>
                         </div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">{job.service_type}</p>
-                        {showQuote && job.quoted_price_total != null && (
-                          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                            {formatCurrency(job.quoted_price_total)}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => openJob(job)}
-                        className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
-                      >
-                        {openTargetLabel(user?.role)}
-                      </button>
-                    </div>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{job.job_address || job.job_location || 'Address not set'}</p>
+                      )
+                    })}
                   </div>
                 ))}
               </div>
+            </div>
+
+            {user?.role === 'admin' && calendarStatus && !calendarStatus.connected && (
+              <p className="px-1 text-xs text-mu">Google Calendar isn't connected for this city yet. Jobs stay local.</p>
             )}
+
+            <h2 className="wd-label px-0.5 pt-1">
+              {selectedLabel(selectedDay)} · {plural(selectedJobs.length, 'job')}
+            </h2>
+            <div className="flex flex-col gap-2">{dayBody(selectedDay)}</div>
           </section>
         )}
 
-        {isLoading && (
-          <div className="text-sm text-gray-400 dark:text-gray-500">Loading calendar...</div>
+        {unscheduledJobs.length > 0 && (
+          <section className="wd-needs">
+            <div className="haz h-2" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => setShowUnscheduled(prev => !prev)}
+              className="wd-needs-h"
+              aria-expanded={showUnscheduled}
+            >
+              <Icon d={WARN} />
+              <span>{plural(unscheduledJobs.length, 'job')} {unscheduledJobs.length === 1 ? 'needs' : 'need'} a date</span>
+              <Chevron />
+            </button>
+            <Accordion open={showUnscheduled}>
+              <div className="grid gap-2 px-3 pb-3">
+                {unscheduledJobs.map(job => (
+                  <div key={job.id} className="wd-needs-i">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{job.customer_name ?? 'Unnamed customer'}</p>
+                      <p className="truncate text-xs text-mu">
+                        <span className="capitalize">{job.service_type}</span>
+                        {` · ${job.job_address || job.job_location || 'Address not set'}`}
+                        {isAllCities && job.city_name ? ` · ${job.city_name}` : ''}
+                      </p>
+                      {showQuote && job.quoted_price_total != null && (
+                        <p className="wd-cal-v">{formatCurrency(job.quoted_price_total)}</p>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => openJob(job)} className="wd-btn-sm shrink-0">
+                      {showQuote ? 'Set date' : 'Open jobs'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Accordion>
+          </section>
         )}
       </main>
       <BottomNav />
