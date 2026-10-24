@@ -154,3 +154,16 @@ def test_wheels_are_clipped_round(server, browser):
     page = st._login(browser, server)
     clips = page.locator(".wd-hero .wd-lg-whl").evaluate_all("els => els.map(e => getComputedStyle(e).clipPath)")
     assert len(clips) == 3 and all(c.startswith("ellipse") for c in clips)
+
+
+def test_wheels_slow_to_a_stop_on_burnout_in(server, browser):
+    # One long spin that eases out (the truck rolls to a stop), not a fixed-speed
+    # loop that just fades.
+    page = st._login(browser, server)
+    spins = page.evaluate("""() => document.getAnimations()
+        .filter(a => a.effect && a.effect.pseudoElement === '::before'
+                && a.effect.target.classList.contains('wd-lg-whl'))
+        .map(a => [a.animationName, a.effect.getTiming().iterations, a.effect.getKeyframes()[0].easing])""")
+    assert len(spins) == 3
+    for name, iterations, easing in spins:
+        assert name == "wd-whl-roll" and iterations == 1 and easing != "linear"
