@@ -23,7 +23,9 @@ const H = 560
 // Rays grow out of this point (just above the wordmark, under the truck).
 const FX = 290
 const FY = 520
-const WHEELS = [[146, 432, 17, 26], [289, 427, 30, 34], [414, 427, 23, 25]]
+// Spinning overlays sit on each tire's face (the narrow oval left of the tread),
+// measured from ll-truck.png: [cx, cy, rx, ry] in artwork pixels.
+const WHEELS = [[141, 428, 12, 26], [268, 423, 22, 32], [400, 428, 19, 27]]
 const SMOKE = [[138, 462], [278, 466]]
 const SKIDS: [string, number, number, number][] = [
   ['in', 8, 457, 138], ['in', 150, 461, 139], ['out', 146, 457, 429], ['out', 289, 461, 286],
