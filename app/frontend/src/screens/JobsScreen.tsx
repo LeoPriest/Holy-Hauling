@@ -8,6 +8,7 @@ import { BottomNav } from '../components/BottomNav'
 import { CrewAgenda } from '../components/CrewAgenda'
 import { JobChecklist } from '../components/JobChecklist'
 import { CitySwitcher } from '../components/CitySwitcher'
+import { Segmented } from '../components/Segmented'
 import { useCity } from '../context/CityContext'
 import {
   type Job,
@@ -22,6 +23,7 @@ import { useLead, useUploadScreenshot } from '../hooks/useLeads'
 import { type TeamMember, useUsers } from '../hooks/useUsers'
 import type { Screenshot } from '../types/lead'
 import { fmtDurationMinutes, fmtTimeSlot, parseUtc, fmtLocalTime, fmtLocalDateTime } from '../utils/time'
+import { Working } from '../components/Logo'
 
 const MAPS_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY ||
   import.meta.env.VITE_GOOGLE_MAPS_KEY) as string | undefined
@@ -51,9 +53,26 @@ function isPhaseLockedForNonAdmin(job: Job, phaseValue: PhaseValue): boolean {
 }
 
 function timerColor(level: 'red' | 'orange' | 'normal') {
-  if (level === 'red') return 'text-red-600 dark:text-red-400'
-  if (level === 'orange') return 'text-orange-500 dark:text-orange-400'
-  return 'text-gray-500 dark:text-gray-400'
+  if (level === 'red') return 'text-danger'
+  if (level === 'orange') return 'text-[#b86e00] dark:text-ac'
+  return 'text-mu'
+}
+
+/** A timer flag turns amber, then red, as a phase runs long. */
+function flagTone(level: 'red' | 'orange' | 'normal') {
+  if (level === 'red') return 'wd-flag-red'
+  if (level === 'orange') return 'wd-flag-amber'
+  return ''
+}
+
+const ICON = {
+  back: 'M15.75 19.5 8.25 12l7.5-7.5',
+  check: 'm4.5 12.75 6 6 9-13.5',
+  camera: 'M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316ZM16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z',
+}
+
+function Icon({ d }: { d: string }) {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
 }
 
 function threshold(ms: number, warnMs: number, critMs: number): 'red' | 'orange' | 'normal' {
@@ -85,14 +104,6 @@ function streetViewUrl(address: string): string | null {
 
 function googleMapsUrl(address: string) {
   return `https://maps.google.com/maps?q=${encodeURIComponent(address)}`
-}
-
-function photoLabel(type: JobPhotoType) {
-  return type === 'before_job' ? 'Before Photos' : 'After Photos'
-}
-
-function photoButtonLabel(type: JobPhotoType) {
-  return type === 'before_job' ? 'Add Before Pic' : 'Add After Pic'
 }
 
 function formatCurrency(amount: number) {
@@ -196,77 +207,45 @@ function JobCard({
 
   const badge = (() => {
     if (job.job_phase === 'started' && workingElapsed) {
-      return (
-        <span className={`rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium dark:border-amber-800 dark:bg-amber-900/30 ${timerColor(workingWarn)}`}>
-          Working {workingElapsed}
-        </span>
-      )
+      return <span className={`wd-flag ${flagTone(workingWarn)}`}>Working {workingElapsed}</span>
     }
     if (job.job_phase === 'arrived' && setupElapsed) {
-      return (
-        <span className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400">
-          On site {setupElapsed}
-        </span>
-      )
+      return <span className="wd-flag">On site {setupElapsed}</span>
     }
     if (job.job_phase === 'en_route' && travelElapsed) {
-      return (
-        <span className={`rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium dark:border-blue-800 dark:bg-blue-900/30 ${timerColor(travelWarn)}`}>
-          En route {travelElapsed}
-        </span>
-      )
+      return <span className={`wd-flag ${flagTone(travelWarn)}`}>En route {travelElapsed}</span>
     }
     if (job.job_phase === 'dispatched' && dispatchElapsed) {
-      return (
-        <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
-          Dispatch {dispatchElapsed}
-        </span>
-      )
+      return <span className="wd-flag !bg-ln !text-ink">Dispatch {dispatchElapsed}</span>
     }
     return null
   })()
 
   return (
-    <button
-      onClick={onClick}
-      className="w-full rounded-xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-colors hover:border-indigo-300 active:scale-[0.99] dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-600"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-gray-900 dark:text-white">
-              {job.customer_name ?? <span className="font-normal italic text-gray-400">Unnamed</span>}
-            </p>
-            {badge}
-            {showCity && job.city_name && (
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
-                {job.city_name}
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 text-sm capitalize text-gray-500 dark:text-gray-400">{job.service_type}</p>
-          {mapTarget && <p className="mt-0.5 truncate text-sm text-gray-400 dark:text-gray-500">Location: {mapTarget}</p>}
-          {fmtJobSchedule(job) && <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">Scheduled: {fmtJobSchedule(job)}</p>}
-          {job.estimated_job_duration_minutes != null && (
-            <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">
-              Est. duration: {fmtDurationMinutes(job.estimated_job_duration_minutes)}
-            </p>
-          )}
-          {showQuote && job.quoted_price_total != null && (
-            <p className="mt-0.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
-              Quoted: {formatCurrency(job.quoted_price_total)}
-            </p>
-          )}
-        </div>
-        <div className="mt-0.5 flex shrink-0 flex-col items-end gap-1.5">
-          {job.crew.length > 0 && (
-            <span className="max-w-32 break-words rounded-lg bg-blue-100 px-2 py-0.5 text-right text-xs text-blue-700 leading-snug dark:bg-blue-900 dark:text-blue-200">
-              {job.crew.join(', ')}
-            </span>
-          )}
-          <span className="text-xs text-gray-300 dark:text-gray-600">&gt;</span>
-        </div>
-      </div>
+    <button type="button" onClick={onClick} className="wd-card">
+      <span className="flex w-full items-start justify-between gap-2">
+        <span className="wd-disp min-w-0 text-[19px] leading-tight">
+          {job.customer_name ?? <i className="font-normal normal-case text-mu">Unnamed</i>}
+        </span>
+        {job.crew.length > 0 && (
+          <span className="max-w-[45%] shrink-0 truncate text-right text-xs text-mu">{job.crew.join(', ')}</span>
+        )}
+      </span>
+      <span className="text-[13px] capitalize text-mu">{job.service_type}</span>
+      {mapTarget && <span className="truncate text-[13px] text-mu">{mapTarget}</span>}
+      {fmtJobSchedule(job) && <span className="text-[13px] text-mu">{fmtJobSchedule(job)}</span>}
+      {job.estimated_job_duration_minutes != null && (
+        <span className="text-[13px] text-mu">Est. {fmtDurationMinutes(job.estimated_job_duration_minutes)}</span>
+      )}
+      {showQuote && job.quoted_price_total != null && (
+        <span className="text-sm font-semibold text-ok">Quoted {formatCurrency(job.quoted_price_total)}</span>
+      )}
+      {(badge || (showCity && job.city_name)) && (
+        <span className="mt-1 flex flex-wrap gap-1.5">
+          {badge}
+          {showCity && job.city_name && <span className="wd-flag !bg-ln !text-ink">{job.city_name}</span>}
+        </span>
+      )}
     </button>
   )
 }
@@ -289,18 +268,18 @@ function TimelineRow({
   if (!fromIso) return null
 
   return (
-    <div className={`flex items-baseline gap-1.5 text-sm ${live ? timerColor(warn) : 'text-gray-500 dark:text-gray-400'}`}>
+    <div className={`flex flex-wrap items-baseline gap-1.5 text-sm ${live ? timerColor(warn) : 'text-mu'}`}>
       <span className="font-medium">{label}</span>
       {live ? (
         <>
-          <span className="font-bold">{elapsed ?? '...'}</span>
-          <span className="text-xs text-gray-400">since {fmtTime(fromIso)}</span>
+          <span className="font-bold">{elapsed ?? '…'}</span>
+          <span className="text-xs text-mu">since {fmtTime(fromIso)}</span>
         </>
       ) : (
         <>
-          <span className="font-semibold">{toIso ? fmtDuration(fromIso, toIso) : elapsed ?? '...'}</span>
-          <span className="text-xs text-gray-400">
-            {fmtTime(fromIso)} - {fmtTime(toIso)}
+          <span className="font-semibold text-ink">{toIso ? fmtDuration(fromIso, toIso) : elapsed ?? '…'}</span>
+          <span className="text-xs">
+            {fmtTime(fromIso)} – {fmtTime(toIso)}
           </span>
         </>
       )}
@@ -308,66 +287,41 @@ function TimelineRow({
   )
 }
 
-function JobPhotoSection({
-  title,
-  screenshotType,
+function PhotoSlot({
+  type,
   photos,
   isUploading,
   onUpload,
 }: {
-  title: string
-  screenshotType: JobPhotoType
+  type: JobPhotoType
   photos: Screenshot[]
   isUploading: boolean
   onUpload: (type: JobPhotoType, event: ChangeEvent<HTMLInputElement>) => void
 }) {
+  const label = type === 'before_job' ? 'Before' : 'After'
+  const got = photos.length > 0
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{title}</p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {photos.length === 0 ? 'No photos uploaded yet.' : `${photos.length} photo${photos.length === 1 ? '' : 's'} uploaded`}
-          </p>
-        </div>
-        <label className="cursor-pointer rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">
-          {isUploading ? 'Uploading...' : photoButtonLabel(screenshotType)}
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={isUploading}
-            onChange={event => onUpload(screenshotType, event)}
-          />
-        </label>
-      </div>
-
-      {photos.length > 0 && (
-        <div className="mt-3 grid grid-cols-2 gap-3">
+    <div className="flex flex-col gap-2">
+      <label className={`wd-ph-slot cursor-pointer ${got ? 'got' : ''}`}>
+        <Icon d={got ? ICON.check : ICON.camera} />
+        <span className="wd-label !text-current">{label}</span>
+        <span>
+          {isUploading ? 'Uploading…' : got ? `${photos.length} photo${photos.length === 1 ? '' : 's'} · add more` : type === 'before_job' ? 'Add a before photo' : 'Add an after photo'}
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={isUploading}
+          aria-label={`Add ${label.toLowerCase()} photo`}
+          onChange={event => onUpload(type, event)}
+        />
+      </label>
+      {got && (
+        <div className="grid grid-cols-2 gap-2">
           {photos.map(photo => (
-            <a
-              key={photo.id}
-              href={buildUploadUrl(photo.stored_path)}
-              target="_blank"
-              rel="noreferrer"
-              className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-colors hover:border-indigo-300 dark:border-gray-700 dark:bg-gray-900"
-            >
-              <img
-                src={buildUploadUrl(photo.stored_path)}
-                alt={`${title} ${photo.original_filename}`}
-                className="h-28 w-full object-cover"
-              />
-              <div className="px-3 py-2">
-                <p className="truncate text-xs font-medium text-gray-700 dark:text-gray-200">{photo.original_filename}</p>
-                <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-                  {new Date(photo.created_at).toLocaleString([], {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}
-                </p>
-              </div>
+            <a key={photo.id} href={buildUploadUrl(photo.stored_path)} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-chip">
+              <img src={buildUploadUrl(photo.stored_path)} alt={`${label} photo ${photo.original_filename}`} className="h-24 w-full object-cover" />
             </a>
           ))}
         </div>
@@ -376,7 +330,25 @@ function JobPhotoSection({
   )
 }
 
-interface JobModalProps {
+/** The crew-facing stepper, Dispatched → Done. */
+const STEPS: { value: PhaseValue; label: string }[] = [
+  { value: 'dispatched', label: 'Dispatched' },
+  { value: 'en_route', label: 'En route' },
+  { value: 'arrived', label: 'On site' },
+  { value: 'started', label: 'Working' },
+  { value: 'completed', label: 'Done' },
+]
+
+/** What the one big button does next, from where the job is now. */
+const NEXT: Record<'none' | NonNullable<Job['job_phase']>, { status: PhaseValue; label: string }> = {
+  none: { status: 'dispatched', label: 'Dispatch' },
+  dispatched: { status: 'en_route', label: 'Start driving' },
+  en_route: { status: 'arrived', label: "I've arrived" },
+  arrived: { status: 'started', label: 'Start work' },
+  started: { status: 'completed', label: 'Finish job' },
+}
+
+interface JobDetailProps {
   job: Job
   userRole: string | undefined
   username: string | undefined
@@ -389,7 +361,7 @@ interface JobModalProps {
   onViewLead: () => void
 }
 
-function JobModal({
+function JobDetail({
   job,
   userRole,
   username,
@@ -400,8 +372,9 @@ function JobModal({
   onClose,
   onViewCalendar,
   onViewLead,
-}: JobModalProps) {
+}: JobDetailProps) {
   const [confirmComplete, setConfirmComplete] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const [note, setNote] = useState('')
   const [streetViewFailed, setStreetViewFailed] = useState(false)
   const [photoUploadTarget, setPhotoUploadTarget] = useState<JobPhotoType | null>(null)
@@ -441,17 +414,23 @@ function JobModal({
   const beforePhotos = (leadDetail?.screenshots ?? []).filter(photo => photo.screenshot_type === 'before_job')
   const afterPhotos = (leadDetail?.screenshots ?? []).filter(photo => photo.screenshot_type === 'after_job')
 
+  const currentStep = job.job_phase ? STEPS.findIndex(s => s.value === job.job_phase) : -1
+  const next = NEXT[job.job_phase ?? 'none']
+  const title = job.customer_name ?? 'Unnamed customer'
+
+  const close = () => {
+    if (leaving) return
+    setLeaving(true)
+    setTimeout(onClose, 280)
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') close()
     }
     document.addEventListener('keydown', onKeyDown)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = ''
-    }
-  }, [onClose])
+    return () => document.removeEventListener('keydown', onKeyDown)
+  })
 
   useEffect(() => {
     setStreetViewFailed(false)
@@ -460,8 +439,7 @@ function JobModal({
   const submitNote = () => {
     const body = note.trim()
     if (!body) return
-    addNote.mutate({ leadId: job.id, note: body, actor: username })
-    setNote('')
+    addNote.mutate({ leadId: job.id, note: body, actor: username }, { onSuccess: () => setNote('') })
   }
 
   const handlePhotoUpload = (type: JobPhotoType, event: ChangeEvent<HTMLInputElement>) => {
@@ -475,294 +453,269 @@ function JobModal({
     event.target.value = ''
   }
 
+  const goNext = () => {
+    if (next.status === 'completed') {
+      setConfirmComplete(true)
+      return
+    }
+    patchStatus.mutate({ id: job.id, status: next.status })
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
-      <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-label="Close job modal" />
+    <div className={`wd-jd ${leaving ? 'out' : ''}`} role="dialog" aria-label={title}>
+      <header className="wd-hdr shrink-0 !pl-2">
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={close} className="wd-ib" aria-label="Back to jobs">
+            <Icon d={ICON.back} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h2 className="wd-disp truncate text-[26px] leading-none">{title}</h2>
+            <p className="wd-h-s truncate capitalize">
+              {[job.service_type, job.appointment_time_slot ? fmtTimeSlot(job.appointment_time_slot) : null].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          {job.job_phase && <span className="wd-st wd-st-green shrink-0">{STEPS[currentStep]?.label}</span>}
+        </div>
+      </header>
 
-      <div className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl dark:bg-gray-900">
-        {streetView && !streetViewFailed ? (
-          <div className="relative h-52 shrink-0 bg-gray-200 dark:bg-gray-800">
-            <img
-              src={streetView}
-              alt={`Street view for ${mapTarget}`}
-              className="h-full w-full object-cover"
-              onError={event => {
-                const element = event.target as HTMLImageElement
-                element.style.display = 'none'
-                setStreetViewFailed(true)
-              }}
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-            <button
-              onClick={onClose}
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
-            >
-              X
-            </button>
-          </div>
-        ) : mapTarget ? (
-          <div className="relative shrink-0 overflow-hidden border-b bg-gray-100 px-5 py-4 dark:border-gray-700 dark:bg-gray-800">
-            <div className="pr-12">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                {MAPS_KEY ? 'Street View Unavailable' : 'Street View Needs Maps Key'}
-              </p>
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{mapTarget}</p>
-              {navUrl && (
-                <a
-                  href={navUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-flex rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-                >
-                  Open in Google Maps
-                </a>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="absolute right-4 top-4 text-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              X
-            </button>
-          </div>
-        ) : (
-          <div className="relative flex shrink-0 items-center justify-center pb-1 pt-3">
-            <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-gray-600" />
-            <button
-              onClick={onClose}
-              className="absolute right-4 text-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-            >
-              X
-            </button>
-          </div>
-        )}
-
-        <div className="flex-1 space-y-5 overflow-y-auto p-5 pb-10">
-          <div>
-            <h2 className="text-xl font-bold leading-tight text-gray-900 dark:text-white">
-              {job.customer_name ?? <span className="font-normal italic text-gray-400">Unnamed customer</span>}
-            </h2>
-            <p className="mt-0.5 capitalize text-gray-500 dark:text-gray-400">{job.service_type}</p>
-            {fmtJobSchedule(job) && (
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Scheduled: {fmtJobSchedule(job)}</p>
-            )}
-            {job.estimated_job_duration_minutes != null && (
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Est. duration: {fmtDurationMinutes(job.estimated_job_duration_minutes)}
-              </p>
-            )}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {job.job_date_requested && (
-                <button
-                  type="button"
-                  onClick={() => onViewCalendar(job)}
-                  className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 dark:hover:bg-indigo-900/50"
-                >
-                  View in Calendar
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onViewLead}
-                className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-              >
-                View Lead
+      <div className="flex-1 overflow-y-auto">
+        <div className="wd-pane mx-auto flex w-full max-w-3xl flex-col gap-3 px-3.5 pb-6 pt-3.5">
+          <section className="wd-box">
+            <ol className="wd-steps" aria-label="Job progress">
+              {STEPS.map((step, i) => {
+                const done = i < currentStep
+                const cur = i === currentStep
+                return (
+                  <li key={step.value} className={`wd-stp ${done ? 'done' : cur ? 'cur' : ''}`} aria-current={cur ? 'step' : undefined}>
+                    <i aria-hidden="true">{done ? '✓' : i + 1}</i>
+                    <span>{step.label}</span>
+                  </li>
+                )
+              })}
+            </ol>
+            {canManageStatus && !confirmComplete && (
+              <button type="button" onClick={goNext} disabled={patchStatus.isPending} className="wd-btn mt-4 w-full">
+                {patchStatus.isPending ? 'Saving…' : next.label}
               </button>
-            </div>
-          </div>
+            )}
+            {canManageStatus && confirmComplete && (
+              <div className="mt-4 rounded-card bg-tint p-3">
+                <p className="text-sm font-semibold">Mark job complete?</p>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" onClick={() => setConfirmComplete(false)} className="wd-btn wd-btn-ghost flex-1">
+                    Not yet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => patchStatus.mutate({ id: job.id, status: 'completed' }, { onSuccess: close, onSettled: () => setConfirmComplete(false) })}
+                    disabled={patchStatus.isPending}
+                    className="wd-btn flex-1"
+                  >
+                    {patchStatus.isPending ? 'Saving…' : "Yes, it's done"}
+                  </button>
+                </div>
+              </div>
+            )}
+            {patchStatus.isError && <p className="wd-err mt-2">Couldn't update the job. Try again.</p>}
+            {!canManageStatus && (
+              <p className="wd-hint">Your supervisor moves the job along as you go.</p>
+            )}
+            {(job.dispatched_at || job.en_route_at || job.arrived_at || job.started_at) && (
+              <div className="mt-3 space-y-1.5 border-t pt-3">
+                <TimelineRow label="Dispatch wait" fromIso={job.dispatched_at} toIso={job.en_route_at} elapsed={dispatchElapsed} warn="normal" live={!job.en_route_at} />
+                <TimelineRow label="Travel" fromIso={job.en_route_at} toIso={job.arrived_at} elapsed={travelElapsed} warn={travelWarn} live={!job.arrived_at} />
+                <TimelineRow label="On-site setup" fromIso={job.arrived_at} toIso={job.started_at} elapsed={setupElapsed} warn={setupWarn} live={!job.started_at} />
+                <TimelineRow label="Working" fromIso={job.started_at} toIso={null} elapsed={workingElapsed} warn={workingWarn} live={true} />
+              </div>
+            )}
+          </section>
 
           {mapTarget && (
-            <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">
-              <p className="flex-1 text-sm leading-snug text-gray-700 dark:text-gray-300">{mapTarget}</p>
-              {navUrl && (
-                <a
-                  href={navUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700"
-                >
-                  Navigate
-                </a>
+            <section className="wd-box wd-box-soft overflow-hidden !p-0">
+              {streetView && !streetViewFailed && (
+                <img
+                  src={streetView}
+                  alt={`Street view for ${mapTarget}`}
+                  className="h-44 w-full object-cover"
+                  onError={() => setStreetViewFailed(true)}
+                />
               )}
-            </div>
-          )}
-
-          {(job.dispatched_at || job.en_route_at || job.arrived_at || job.started_at) && (
-            <div className="space-y-2">
-              <TimelineRow
-                label="Dispatch wait"
-                fromIso={job.dispatched_at}
-                toIso={job.en_route_at}
-                elapsed={dispatchElapsed}
-                warn="normal"
-                live={!job.en_route_at}
-              />
-              <TimelineRow
-                label="Travel"
-                fromIso={job.en_route_at}
-                toIso={job.arrived_at}
-                elapsed={travelElapsed}
-                warn={travelWarn}
-                live={!job.arrived_at}
-              />
-              <TimelineRow
-                label="On-site setup"
-                fromIso={job.arrived_at}
-                toIso={job.started_at}
-                elapsed={setupElapsed}
-                warn={setupWarn}
-                live={!job.started_at}
-              />
-              <TimelineRow
-                label="Working"
-                fromIso={job.started_at}
-                toIso={null}
-                elapsed={workingElapsed}
-                warn={workingWarn}
-                live={true}
-              />
-            </div>
+              <div className="flex items-center gap-3 px-3.5 py-3">
+                <p className="min-w-0 flex-1 text-sm font-medium">{mapTarget}</p>
+                {navUrl && (
+                  <a href={navUrl} target="_blank" rel="noopener noreferrer" className="wd-btn-sm shrink-0">
+                    Navigate
+                  </a>
+                )}
+              </div>
+            </section>
           )}
 
           {job.customer_phone && (
-            <div className="flex gap-2">
-              <a href={`tel:${job.customer_phone}`} className="flex-1 rounded-xl bg-green-600 py-3 text-center text-sm font-semibold text-white hover:bg-green-700">
-                Call
-              </a>
-              <a href={`sms:${job.customer_phone}`} className="flex-1 rounded-xl bg-blue-600 py-3 text-center text-sm font-semibold text-white hover:bg-blue-700">
-                Text
-              </a>
+            <div className="wd-call">
+              <a href={`tel:${job.customer_phone}`} className="wd-btn">Call</a>
+              <a href={`sms:${job.customer_phone}`} className="wd-btn wd-btn-ghost">Text</a>
             </div>
           )}
 
           {job.scope_notes && (
-            <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-800">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400">Scope</p>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">{job.scope_notes}</p>
-            </div>
+            <section className="wd-box wd-heads">
+              <div className="haz h-2" aria-hidden="true" />
+              <div>
+                <p className="wd-fl !mb-1">Heads up</p>
+                {job.scope_notes}
+              </div>
+            </section>
           )}
 
           {job.quote_context && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/20">
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Quote Context</p>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-amber-900 dark:text-amber-200">{job.quote_context}</p>
-            </div>
+            <section className="wd-box wd-box-soft !shadow-[inset_0_0_0_1.5px_var(--ac)]">
+              <p className="wd-fl">Quote context</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">{job.quote_context}</p>
+            </section>
           )}
 
           {showQuote && job.quoted_price_total != null && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-900/20">
+            <section className="wd-box wd-box-soft">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Quoted Price</p>
-                <p className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
-                  {formatCurrency(job.quoted_price_total)}
-                </p>
+                <p className="wd-fl !mb-0">Quoted price</p>
+                <p className="wd-disp text-[22px] text-ok">{formatCurrency(job.quoted_price_total)}</p>
               </div>
               {job.quote_modifiers && job.quote_modifiers.length > 0 && (
-                <div className="mt-3 space-y-2 border-t border-emerald-200 pt-3 dark:border-emerald-800">
+                <div className="mt-2 space-y-1.5 border-t pt-2">
                   {job.quote_modifiers.map((modifier, index) => (
                     <div key={`${modifier.note}-${index}`} className="flex items-start justify-between gap-3 text-sm">
-                      <span className="text-emerald-900 dark:text-emerald-100">{modifier.note}</span>
-                      <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(modifier.amount)}
-                      </span>
+                      <span>{modifier.note}</span>
+                      <span className="font-semibold tabular-nums">{formatCurrency(modifier.amount)}</span>
                     </div>
                   ))}
                 </div>
               )}
               {leadDetail && (
-                <div className="mt-3 border-t border-emerald-200 pt-3 dark:border-emerald-800">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const text = buildConfirmationText(leadDetail, job.quoted_price_total!)
-                      navigator.clipboard.writeText(text).then(() => {
-                        setConfirmationCopied(true)
-                        setTimeout(() => setConfirmationCopied(false), 2500)
-                      })
-                    }}
-                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                  >
-                    {confirmationCopied ? 'Copied!' : 'Copy Confirmation'}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = buildConfirmationText(leadDetail, job.quoted_price_total!)
+                    navigator.clipboard.writeText(text).then(() => {
+                      setConfirmationCopied(true)
+                      setTimeout(() => setConfirmationCopied(false), 2500)
+                    })
+                  }}
+                  className="wd-btn-sm wd-btn-ghost mt-3"
+                >
+                  {confirmationCopied ? 'Copied' : 'Copy confirmation'}
+                </button>
               )}
-            </div>
+            </section>
           )}
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Job Photos</p>
-              {uploadScreenshot.isError && (
-                <p className="text-xs text-red-500">
-                  {(uploadScreenshot.error as Error)?.message ?? 'Upload failed'}
-                </p>
-              )}
-            </div>
-            <JobPhotoSection
-              title={photoLabel('before_job')}
-              screenshotType="before_job"
-              photos={beforePhotos}
-              isUploading={uploadScreenshot.isPending && photoUploadTarget === 'before_job'}
-              onUpload={handlePhotoUpload}
-            />
-            <JobPhotoSection
-              title={photoLabel('after_job')}
-              screenshotType="after_job"
-              photos={afterPhotos}
-              isUploading={uploadScreenshot.isPending && photoUploadTarget === 'after_job'}
-              onUpload={handlePhotoUpload}
-            />
-          </div>
-
-          <div className="space-y-3">
+          <section className="wd-box wd-box-soft">
             <JobChecklist leadId={job.id} />
-          </div>
+          </section>
+
+          <section className="wd-box wd-box-soft">
+            <p className="wd-fl">Before &amp; after photos</p>
+            <div className="grid grid-cols-2 gap-2">
+              <PhotoSlot type="before_job" photos={beforePhotos} isUploading={uploadScreenshot.isPending && photoUploadTarget === 'before_job'} onUpload={handlePhotoUpload} />
+              <PhotoSlot type="after_job" photos={afterPhotos} isUploading={uploadScreenshot.isPending && photoUploadTarget === 'after_job'} onUpload={handlePhotoUpload} />
+            </div>
+            {uploadScreenshot.isError && (
+              <p className="wd-err mt-2">{(uploadScreenshot.error as Error)?.message ?? 'Upload failed'}</p>
+            )}
+          </section>
 
           {job.crew.length > 0 && !canAssign && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Crew</p>
+            <section className="wd-box wd-box-soft">
+              <p className="wd-fl">Crew</p>
               <div className="flex flex-wrap gap-1.5">
-                {job.crew.map(name => (
-                  <span key={name} className="rounded-full bg-blue-100 px-2.5 py-1 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                    {name}
-                  </span>
-                ))}
+                {job.crew.map(name => <span key={name} className="wd-flag">{name}</span>)}
               </div>
-            </div>
+            </section>
           )}
 
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Add Job Note</p>
+          {canAssign && (
+            <section className="wd-box wd-box-soft">
+              <p className="wd-fl">Crew</p>
+              {jobDate && blockedUsers.length > 0 && (
+                <p className="mb-2 text-xs font-semibold text-[#b86e00] dark:text-ac">
+                  Unavailable for this day: {blockedUsers.map(user => user.username).join(', ')}
+                </p>
+              )}
+              <select
+                className="wd-input"
+                aria-label="Add crew member"
+                defaultValue=""
+                onChange={event => {
+                  if (!event.target.value) return
+                  addAssignment.mutate({ jobId: job.id, userId: event.target.value })
+                  event.target.value = ''
+                }}
+              >
+                <option value="" disabled>Add member…</option>
+                {cityUsers
+                  .filter(user => user.is_active && !job.crew.includes(user.username))
+                  .map(user => {
+                    const blocked = isUnavailableOnDate(user, jobDate)
+                    return (
+                      <option key={user.id} value={user.id} disabled={blocked}>
+                        {user.username} ({user.role}){blocked ? ' - unavailable' : ''}
+                      </option>
+                    )
+                  })}
+              </select>
+              {job.crew.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {job.crew.map(crewName => {
+                    const crewUser = users.find(user => user.username === crewName)
+                    const blocked = isUnavailableOnDate(crewUser, jobDate)
+                    return (
+                      <span key={crewName} className={`inline-flex items-center gap-1 rounded-chip pl-3 text-sm font-semibold ${blocked ? 'bg-bg shadow-[inset_0_0_0_1.5px_var(--ac)]' : 'bg-tint text-ok'}`}>
+                        {crewName}
+                        {blocked && <span className="text-xs font-normal">(unavailable)</span>}
+                        <button
+                          type="button"
+                          onClick={() => crewUser && removeAssignment.mutate({ jobId: job.id, userId: crewUser.id })}
+                          disabled={!crewUser}
+                          aria-label={`Remove ${crewName}`}
+                          className="flex h-11 w-11 items-center justify-center disabled:opacity-40"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    )
+                  })}
+                </div>
+              )}
+              {(addAssignment.isError || removeAssignment.isError) && <p className="wd-err mt-2">Couldn't change the crew. Try again.</p>}
+            </section>
+          )}
+
+          <section className="wd-box wd-box-soft">
+            <label htmlFor="job-note" className="wd-fl">Add job note</label>
             <div className="flex gap-2">
-              <textarea
+              <input
+                id="job-note"
                 value={note}
                 onChange={event => setNote(event.target.value)}
-                onKeyDown={event => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    submitNote()
-                  }
-                }}
-                placeholder="Flag an issue, scope change, or customer request."
-                rows={2}
-                className="flex-1 resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                onKeyDown={event => { if (event.key === 'Enter') submitNote() }}
+                placeholder="Flag an issue, scope change, or request."
+                className="wd-input min-w-0 flex-1"
               />
-              <button
-                onClick={submitNote}
-                disabled={!note.trim() || addNote.isPending}
-                className="self-end rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-40"
-              >
-                {addNote.isPending ? '...' : 'Log'}
+              <button onClick={submitNote} disabled={!note.trim() || addNote.isPending} className="wd-btn shrink-0">
+                {addNote.isPending ? 'Saving…' : 'Log'}
               </button>
             </div>
-            {addNote.isSuccess && <p className="mt-1 text-xs text-green-600 dark:text-green-400">Note logged.</p>}
-            {addNote.isError && <p className="mt-1 text-xs text-red-500">Failed to log note.</p>}
-          </div>
+            {addNote.isSuccess && <p className="wd-hint !text-ok font-semibold">Note logged.</p>}
+            {addNote.isError && <p className="wd-err mt-1.5">Couldn't log the note. Try again.</p>}
+          </section>
 
           {canManageStatus && (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Update Status</p>
-              <div className="flex flex-wrap gap-2">
+            <details className="wd-box wd-box-soft group">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold">
+                Set a phase by hand
+                <span className="text-mu transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-2">
                 {PHASES.map(button => {
                   if (button.value === 'completed') return null
                   const isActive = job.job_phase === button.value
@@ -772,124 +725,39 @@ function JobModal({
                       key={button.value}
                       onClick={() => patchStatus.mutate({ id: job.id, status: button.value })}
                       disabled={patchStatus.isPending || isLocked}
-                      title={isLocked ? 'Already passed. Only admins can re-stamp.' : undefined}
-                      className={`rounded-xl px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                        isActive
-                          ? 'bg-indigo-600 text-white ring-2 ring-indigo-300 dark:ring-indigo-700'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
-                      }`}
+                      aria-pressed={isActive}
+                      className={isActive ? 'wd-btn-sm !bg-ink !text-bg' : 'wd-btn-sm wd-btn-ghost !shadow-[inset_0_0_0_1.5px_var(--ln)]'}
                     >
                       {button.label}
                     </button>
                   )
                 })}
               </div>
-
-              {!confirmComplete ? (
-                <button
-                  onClick={() => setConfirmComplete(true)}
-                  disabled={patchStatus.isPending}
-                  className="rounded-xl bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-40"
-                >
-                  Complete
-                </button>
-              ) : (
-                <div className="flex items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20">
-                  <p className="text-sm font-medium text-green-800 dark:text-green-200">Mark job complete?</p>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      onClick={() => setConfirmComplete(false)}
-                      className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        setConfirmComplete(false)
-                        patchStatus.mutate({ id: job.id, status: 'completed' }, { onSuccess: onClose })
-                      }}
-                      disabled={patchStatus.isPending}
-                      className="rounded-lg bg-green-600 px-3 py-1.5 text-xs text-white hover:bg-green-700 disabled:opacity-50"
-                    >
-                      Confirm
-                    </button>
-                  </div>
-                </div>
-              )}
-
+              {!isAdmin && <p className="wd-hint">Phases already passed can only be re-stamped by an admin.</p>}
               {isAdmin && (job.dispatched_at || job.en_route_at || job.arrived_at || job.started_at) && (
                 <button
                   onClick={() => patchStatus.mutate({ id: job.id, status: 'reset' })}
                   disabled={patchStatus.isPending}
-                  className="text-xs text-red-500 underline hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                  className="wd-btn-sm wd-btn-ghost mt-3 !text-danger !shadow-[inset_0_0_0_1.5px_var(--red)]"
                 >
                   Reset phase timers
                 </button>
               )}
-
-              {patchStatus.isError && <p className="text-xs text-red-500">Failed to update status.</p>}
-            </div>
+            </details>
           )}
 
-          {canAssign && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Crew</p>
-              {jobDate && blockedUsers.length > 0 && (
-                <p className="mb-2 text-xs text-amber-600 dark:text-amber-400">
-                  Unavailable for this day: {blockedUsers.map(user => user.username).join(', ')}
-                </p>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                  defaultValue=""
-                  onChange={event => {
-                    if (!event.target.value) return
-                    addAssignment.mutate({ jobId: job.id, userId: event.target.value })
-                    event.target.value = ''
-                  }}
-                >
-                  <option value="" disabled>
-                    Add member...
-                  </option>
-                  {cityUsers
-                    .filter(user => user.is_active && !job.crew.includes(user.username))
-                    .map(user => {
-                      const blocked = isUnavailableOnDate(user, jobDate)
-                      return (
-                        <option key={user.id} value={user.id} disabled={blocked}>
-                          {user.username} ({user.role}){blocked ? ' - unavailable' : ''}
-                        </option>
-                      )
-                    })}
-                </select>
-                {job.crew.map(crewName => {
-                  const crewUser = users.find(user => user.username === crewName)
-                  const blocked = isUnavailableOnDate(crewUser, jobDate)
-                  return (
-                    <span
-                      key={crewName}
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs ${
-                        blocked
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
-                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
-                      }`}
-                    >
-                      {crewName}
-                      {blocked && <span className="font-medium">(Unavailable)</span>}
-                      <button
-                        onClick={() => crewUser && removeAssignment.mutate({ jobId: job.id, userId: crewUser.id })}
-                        disabled={!crewUser}
-                        className="font-bold leading-none text-blue-400 hover:text-blue-700 disabled:opacity-40 dark:hover:text-blue-100"
-                      >
-                        x
-                      </button>
-                    </span>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {job.job_date_requested && (
+              <button type="button" onClick={() => onViewCalendar(job)} className="wd-btn-sm wd-btn-ghost">
+                View in calendar
+              </button>
+            )}
+            {userRole !== 'crew' && (
+              <button type="button" onClick={onViewLead} className="wd-btn-sm wd-btn-ghost">
+                View lead
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -931,18 +799,16 @@ export function JobsScreen() {
   })
 
   const liveSelectedJob = selectedJob ? jobs.find(job => job.id === selectedJob.id) ?? null : null
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Jobs</h1>
-        <div className="flex items-center gap-3">
-          {user?.role === 'admin' && <CitySwitcher />}
-          <button onClick={() => navigate('/settings')} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200" title="Settings">
-            Settings
-          </button>
-          <span className="text-xs text-gray-500 dark:text-gray-400">{user?.username}</span>
+    <div className="min-h-screen bg-bg text-ink">
+      <header className="wd-hdr flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="wd-disp text-[26px] leading-none">Jobs</h1>
+          <p className="wd-h-s truncate">{today}{user?.username ? ` · ${user.username}` : ''}</p>
         </div>
+        {user?.role === 'admin' && <CitySwitcher variant="pill" />}
       </header>
 
       {user?.role === 'crew' ? (
@@ -953,135 +819,99 @@ export function JobsScreen() {
           onOpenJob={setSelectedJob}
         />
       ) : (
-        <>
-      {lateJobs.length > 0 && (
-        <div className="flex items-center gap-2 bg-red-600 px-4 py-2.5 text-white">
-          <p className="text-sm font-medium">
-            {lateJobs.length === 1
-              ? `${lateJobs[0].customer_name ?? 'A job'} may need attention. Check In Progress.`
-              : `${lateJobs.length} jobs may need attention. Check In Progress.`}
-          </p>
+        <div className="mx-auto max-w-3xl">
+          <div className="px-3.5 pt-4">
+            <Segmented
+              options={[
+                { key: 'scheduled', label: 'Scheduled' },
+                { key: 'in_progress', label: 'In progress', badge: inProgressCount },
+                { key: 'completed', label: 'Completed' },
+              ]}
+              value={jobView}
+              onChange={setJobView}
+            />
+          </div>
+
+          <main key={jobView} className="wd-pane flex flex-col gap-3 px-3.5 pb-6 pt-4">
+            {lateJobs.length > 0 && (
+              <div className="wd-box wd-warn" role="alert">
+                <div className="haz h-2" aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-semibold">
+                    {lateJobs.length === 1
+                      ? `${lateJobs[0].customer_name ?? 'A job'} may need attention. Check In progress.`
+                      : `${lateJobs.length} jobs may need attention. Check In progress.`}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {jobView !== 'completed' && (
+              <>
+                {isLoading && <Working label="Loading jobs…" />}
+                {!isLoading && jobGroups.length === 0 && (
+                  <p className="py-10 text-center text-sm text-mu">
+                    {jobView === 'scheduled' ? 'No scheduled jobs.' : 'No jobs in progress right now.'}
+                  </p>
+                )}
+                {jobGroups.map(group => (
+                  <section key={group.key} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-3 px-0.5 pt-1">
+                      <h2 className="wd-label">{group.label}</h2>
+                      <span className="text-xs text-mu">
+                        {group.jobs.length} {group.jobs.length === 1 ? 'job' : 'jobs'}
+                      </span>
+                    </div>
+                    {group.jobs.map(job => (
+                      <JobCard key={job.id} job={job} showQuote={showQuote} showCity={isAllCities} onClick={() => setSelectedJob(job)} />
+                    ))}
+                  </section>
+                ))}
+              </>
+            )}
+
+            {jobView === 'completed' && (
+              <>
+                <p className="px-1 text-sm text-mu">
+                  {completedJobs.length} completed · {fmtMoney(completedJobs.reduce((sum, j) => sum + (j.realized_revenue_cents ?? 0), 0) / 100)} realized
+                </p>
+                {completedJobs.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-mu">No completed jobs yet.</p>
+                ) : (
+                  completedJobs.map(job => (
+                    <button key={job.id} type="button" onClick={() => navigate(`/leads/${job.id}`)} className="wd-card">
+                      <span className="flex w-full items-start justify-between gap-2">
+                        <span className="wd-disp min-w-0 text-[19px] leading-tight">
+                          {job.customer_name ?? <i className="font-normal normal-case text-mu">Unnamed</i>}
+                        </span>
+                        {isAllCities && job.city_name && <span className="wd-flag !bg-ln !text-ink">{job.city_name}</span>}
+                      </span>
+                      <span className="text-[13px] capitalize text-mu">{job.service_type}</span>
+                      {job.crew.length > 0 && <span className="text-[13px] text-mu">Crew: {job.crew.join(', ')}</span>}
+                      {job.arrived_at && job.started_at && (
+                        <span className="text-[13px] text-mu">On-site: {fmtDuration(job.arrived_at, job.started_at)}</span>
+                      )}
+                      {job.completed_at && (
+                        <span className="text-[13px] text-mu">Completed {fmtLocalDateTime(job.completed_at)}</span>
+                      )}
+                      <span className="mt-1 flex flex-wrap gap-3 text-sm">
+                        {job.quoted_price_total != null && <span className="text-mu">Quoted {fmtMoney(job.quoted_price_total)}</span>}
+                        <span className={job.realized_revenue_cents != null ? 'font-semibold text-ok' : 'text-mu'}>
+                          Realized {job.realized_revenue_cents != null ? fmtMoney(job.realized_revenue_cents / 100) : '—'}
+                        </span>
+                      </span>
+                    </button>
+                  ))
+                )}
+              </>
+            )}
+          </main>
         </div>
       )}
 
-      <div className="flex border-b bg-white px-4 dark:border-gray-700 dark:bg-gray-800">
-        {([
-          { key: 'scheduled' as JobView, label: 'Scheduled' },
-          { key: 'in_progress' as JobView, label: 'In Progress', badge: inProgressCount },
-          { key: 'completed' as JobView, label: 'Completed' },
-        ]).map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setJobView(tab.key)}
-            className={`flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              jobView === tab.key
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            {tab.label}
-            {tab.badge != null && tab.badge > 0 && (
-              <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold leading-none text-white ${lateJobs.length > 0 ? 'bg-red-500' : 'bg-amber-500'}`}>
-                {tab.badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <main className="space-y-3 p-4 pb-10">
-        {jobView !== 'completed' && (
-          <>
-            {isLoading && <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">Loading jobs...</p>}
-            {!isLoading && jobGroups.length === 0 && (
-              <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">
-                {jobView === 'scheduled' ? 'No scheduled jobs.' : 'No jobs currently in progress.'}
-              </p>
-            )}
-            {jobGroups.map(group => (
-              <section key={group.key} className="space-y-3 pt-1 first:pt-0">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{group.label}</h2>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">
-                    {group.jobs.length} {group.jobs.length === 1 ? 'job' : 'jobs'}
-                  </span>
-                </div>
-                <div className="space-y-3">
-                  {group.jobs.map(job => (
-                    <JobCard key={job.id} job={job} showQuote={showQuote} showCity={isAllCities} onClick={() => setSelectedJob(job)} />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </>
-        )}
-
-        {jobView === 'completed' && (
-          <>
-            <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
-              {completedJobs.length} completed · {fmtMoney(completedJobs.reduce((sum, j) => sum + (j.realized_revenue_cents ?? 0), 0) / 100)} realized
-            </div>
-            {completedJobs.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400 dark:text-gray-500">No completed jobs yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {completedJobs.map(job => (
-                  <button
-                    key={job.id}
-                    onClick={() => navigate(`/leads/${job.id}`)}
-                    className="w-full rounded-xl border border-gray-100 bg-white p-4 text-left shadow-sm transition-colors hover:border-indigo-300 active:scale-[0.99] dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-600"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {job.customer_name ?? <span className="font-normal italic text-gray-400">Unnamed</span>}
-                          </p>
-                          {isAllCities && job.city_name && (
-                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-200">
-                              {job.city_name}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-sm capitalize text-gray-500 dark:text-gray-400">{job.service_type}</p>
-                        {job.crew.length > 0 && (
-                          <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">Crew: {job.crew.join(', ')}</p>
-                        )}
-                        {job.arrived_at && job.started_at && (
-                          <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">
-                            On-site: {fmtDuration(job.arrived_at, job.started_at)}
-                          </p>
-                        )}
-                        {job.completed_at && (
-                          <p className="mt-0.5 text-sm text-gray-400 dark:text-gray-500">
-                            Completed: {fmtLocalDateTime(job.completed_at)}
-                          </p>
-                        )}
-                        <div className="mt-1.5 flex flex-wrap gap-3">
-                          {job.quoted_price_total != null && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Quoted: {fmtMoney(job.quoted_price_total)}
-                            </p>
-                          )}
-                          <p className={`text-sm font-medium ${job.realized_revenue_cents != null ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                            Realized: {job.realized_revenue_cents != null ? fmtMoney(job.realized_revenue_cents / 100) : '—'}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="mt-0.5 shrink-0 text-xs text-gray-300 dark:text-gray-600">&gt;</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </main>
-        </>
-      )}
-
       {liveSelectedJob && (
-        <JobModal
+        <JobDetail
+          key={liveSelectedJob.id}
           job={liveSelectedJob}
           userRole={user?.role}
           username={user?.username}

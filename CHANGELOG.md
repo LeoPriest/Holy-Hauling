@@ -27,6 +27,102 @@ Finished work that is not live. `main` itself is ahead of `origin/main` (Thumbta
 
 ---
 
+## [2026-10-24] Workday design, stage 8 of 8 — the animated logo and the final pass
+
+- **`Logo.tsx` (new):** the logo rebuilt from 12 layered pieces (9 rays, cross, truck, wordmark) in `public/brand/ll/`. Each piece is a mask tinted with any color, so one image set covers white, ink and black. Modes from the handoff: **arrive** (burnout in: the truck skids in with spinning wheels, smoke and skid marks, rays pop out from the center, the word wipes in), **leave** (burnout out: shake, squat, launch), **load** (the working pulse) and **still**. The keyframes follow the handoff's `workday.css`. Under reduced motion every mode shows the plain logo.
+- **Where it plays:**
+  - Login: the hero burns in on load. After a good sign-in it burns out, and "You're in" burns in (the app opens at about 2s).
+  - "Booked" and "In the queue": the logo burns in. On "In the queue", Open lead / Back to queue play the burnout out first, then go.
+  - New-lead reading panel: the black pulse on amber. Upload failed: the logo dimmed on dark.
+- **`Working` (new):** the working pulse plus a label, replacing every loading line in the app. That covers the app start, queue, lead, jobs, calendar, Settings, every admin screen, and the small loads inside cards (compact row). The one real spinner (payroll) is gone.
+- **Final pass:** login, queue, lead, crew jobs, calendar, Settings and Admin checked at 390×844 and 1024×768 in light and dark, with no tap target under 44px and no sideways scroll.
+- **Fix (from Ron's phone preview):** the spinning wheels showed as squares on iPhone. Safari drops a rounded clip while the pattern inside spins, so each wheel is now also clipped with an ellipse `clip-path`, and the pattern's blur is gone.
+- **Fix (Ron, second look):** the spinning wheels now match the still ones. Each disc sits on its tire face (measured from the truck art, not the handoff's numbers), and its size matches the tire.
+- **Fix (Ron, third look):** arriving, the wheels now slow to a stop with the truck (one easing-out spin) instead of spinning at full speed and fading.
+- **Tweak (Ron):** the wheel spin is back to the handoff's mostly-black spoked pattern with a white hub, keeping the new fit and the slow stop.
+- **Fix (Ron):** the far wheel's spin is cropped to the tire face you can see, behind the bumper and skid plate, so it no longer draws over the truck.
+- **Tests:** `app/frontend/tests/test_workday_logo.py`, 18 tests (three check the wheels: the round clip, the slow stop, and the far wheel's crop). The test helper can hold a request open (`"hang"`) to show loading states.
+
+## [2026-10-24] Workday design, stage 7 of 8 — login, Settings, Admin
+
+- **Login (`LoginScreen.tsx`):** a dark hero with the white logo and an amber bar, "Welcome back", a username field, four PIN dots that pop green, and a 3×4 keypad (52px keys, press flash). A hardware keyboard types digits, Backspace and Enter when the username box isn't focused. Sign in fills amber with "Loading up…", then a green "You're in" overlay shows for 0.9s before the app opens. A wrong PIN shakes the dots, clears them and says "Invalid username or PIN". No signal says so.
+- **Settings (`SettingsScreen.tsx`):** the shared dark header, rows to Admin and the help guide, and every section as a Workday card. It uses the shared switch (dark mode, alert channels, quiet hours), 44px availability cells (red when blocked) and Workday inputs and buttons.
+  - **Bug fixed:** the page went blank when `/settings/notification-status` answered with something other than the three channels (an empty list was seen). It now treats that as unknown.
+  - **New failure state:** "Save settings" now shows "Couldn't save settings…" when the save fails (before, nothing). Test alerts read "Sending…" while they run.
+- **Admin hub (`AdminScreen.tsx`):** "Admin" / "Settings · user" with a back arrow to Settings. Nine rows each have a 44px mint icon tile, a display-caps title, a one-line description and a chevron. Recurring has a red count badge.
+- **Admin screens:** Metrics, Quote grounding, Finances, Rentals, Payroll, Recurring, Due, Team, Cities, Thumbtack and the help guide get the shared header with a back arrow. Old colors are swapped for tokens and every control is at least 44px. Add / Recurring buttons moved from the header to a row under it. This is a header, color and size pass, not a redesign.
+- **New shared pieces:** `ScreenHeader.tsx`, `Switch.tsx` (LeadCreate now uses it too) and `NavRow.tsx`. The test helper can open the app signed out (`role=None`).
+- **Tests:** `app/frontend/tests/test_workday_settings.py`, 30 tests (28 failed against the old screens first).
+
+## [2026-10-23] Workday design, stage 6 of 8 — the calendar
+
+- **Header (`CalendarScreen.tsx`):** dark header, "Calendar" / "Confirmed jobs by day", the city pill for admins. The back arrow left (Calendar is a dock tab).
+- **Week / Month** uses the shared segmented control. The nav row is a ghost back arrow, the week or month label, an amber "Today" and a ghost forward arrow (44px each, labelled "Previous week" / "Next month" and so on).
+- **Week:** 7 day rows, 50px tall. Today has a 2px amber outline and a "TODAY" tag. Each row shows the job count and the green day total (office only). Rows open and close with a grid-rows slide and the chevron turns 90°. Closed rows are `inert`, so their buttons stay out of the tab order.
+- **Job cards:** a sync chip ("Google synced" mint / "Local only"), a details list (time, duration, status, crew, address, quoted, scope), and Open lead / Sync to Google. Sync shows "Syncing…", then the chip turns synced with a bump. A failure shows the server's message in red under the card.
+- **Month:** a 7×6 grid of day buttons with green dots per job (up to 4). Today is ringed amber, the chosen day is ink. The chosen day's jobs list underneath. Cells stop growing at 56px tall on tablets.
+- **Needs a date:** a hazard-striped card ("1 job needs a date") that opens to the unscheduled jobs, each with a "Set date" button to its lead (crew get "Open jobs").
+- **Dropped:** the three summary tiles under the month (This month / Google sync / Needs date), which the design leaves out. Admins get a one-line note when Google Calendar isn't connected for the city. Recurring expenses (admin) moved from purple cards to plain cards with an amber edge.
+- **Tests:** `app/frontend/tests/test_workday_calendar.py`, 12 tests. Frontend 80 passed; backend 527 passed.
+
+## [2026-10-23] Workday design, stage 5 of 8 — crew jobs and the Jobs list
+
+- **Header (`JobsScreen.tsx`):** dark header, "Jobs", today's date and the user, and the city pill for admins. The old "Settings" text link left (Settings is in the dock).
+- **Segmented control (`Segmented.tsx`, new):** an ink pill slides between parts. Crew get Upcoming / Completed; the office gets Scheduled / In progress (with a red count) / Completed.
+- **Crew agenda (`CrewAgenda.tsx`):** "▸ Active now" card (mint, green outline, name in display caps, phase badge, address link, "Continue job →"), then Today / Tomorrow / … rows with the time on the left and a ghost "Go" button to the map.
+- **Job detail:** slides in from the right above the dock.
+  - A dark header with back, name, service and time.
+  - The 5-step stepper (Dispatched / En route / On site / Working / Done): done steps green, the current one amber with a ring.
+  - The phase timers, the address with street view and Navigate, Call / Text when the phone is shared, and a hazard-striped "Heads up" card from the scope notes.
+  - Quote and context for the office; items to bring (progress bar, 24px boxes that pop green, strikethrough, scope tag); before & after photo slots (striped until a photo exists, then mint with ✓); crew; and a job note.
+- **Next-action button (supervisor/admin only, as the server allows):** reads Dispatch / Start driving / I've arrived / Start work / Finish job. Finish asks "Mark job complete?" first, and a failed change says so. The old phase buttons and Reset sit under "Set a phase by hand". Crew see the stepper read-only, with "Your supervisor moves the job along as you go."
+- **Office list:** job cards in the Workday card style with timer flags that turn amber then red; late jobs show as a hazard warning card; completed cards keep quoted / realized.
+- **Not in this stage:** photos don't block "Finish job" and crew can't move a job themselves. Both are new rules (brief question 2); this stage only changes the look.
+- **Tests:** `app/frontend/tests/test_workday_jobs.py`, 12 tests (the test helper now hands query strings to the fake server). Frontend 68 passed; backend 527 passed.
+
+## [2026-10-23] Workday design, stage 4 of 8 — the new-lead flow
+
+- **One full-screen flow (`LeadCreate.tsx`)** replaces both the old pop-ups. The dock's Screenshot and Type it in open it at "choose" and "manual". `IngestProgressFlow.tsx` is deleted (nothing else used it).
+- **Choose:** source chips (Thumbtack / Yelp / Google), the city picker when there's more than one city, a big "Choose screenshots" button, 9:16 thumbnails with remove buttons and an Add tile (up to 5, the backend's cap), and "Manual entry instead →". The footer reads "Read N screenshots", or "Choose a screenshot first" while empty.
+- **Reading:** an amber panel with the black logo, the three steps (Uploading N screenshots → Reading lead details → Running AI review), and the thumbnails with an amber scan line. Reading is the existing ingest call followed by the AI review, as the dock's Screenshot path already did. The step from "Uploading" to "Reading" moves on a 1.2 s timer, because fetch can't report upload progress.
+- **Upload failed:** the dark panel, a red first step, a hazard-striped "No connection" card, and Cancel / Try again. Try again re-sends the same shots, which stay selected while the screen is open. Keeping them on the phone across a reload (IndexedDB) is a later step.
+- **Review:** the dark "AI review ready" card (range, floor, readiness), or a warning when the review didn't run. A mint note lists what was filled in; READ tags mark those fields. Service is a 4-way control, plus requested dates, booking date, notes and a "Mark as urgent" switch. Close / Add to queue; a name is required, and a refusal shakes the button and says why.
+- **Shots disagree:** a hazard card names the fields. Each stays empty with a pulsing amber outline and one button per shot's value ("$21.00 · shot 2"). Add to queue is blocked until each is set. Lead cost, bonus and pros counts get their own field here and are written to the lead (`lead_cost_cents` etc.).
+- **In the queue:** a green screen with the logo, "Name · Service · Town", and Open lead / Back to queue. The burnout animation comes in stage 8.
+- **Manual entry:** source chips Manual / Website form / Thumbtack, then the same fields and Back / Create lead. Failed saves say so.
+- **Tests:** `app/frontend/tests/test_workday_newlead.py`, 12 tests. Frontend 56 passed; backend 527 passed.
+
+## [2026-10-23] Workday design, stage 3 of 8 — quote builder, price buttons, "Booked"
+
+- **One-tap price buttons (new behavior):** the two lever prices on the AI review card are buttons. A tap sets the quote to that price as a single "Base quote" line, shows "Quote set to $325", updates the quote bar, and rings the chosen price amber. Nothing is saved until Lock & book, same as typing it. Read-only on released/lost leads.
+- **Quote builder (`QuoteBuilder.tsx`):** the price in a 56px display field with the floor hint (red when below the floor), duration chips 1h / 1.5h / 2h / 2.5h / 3h / 4h plus "Other" for the hours/minutes picker, breakdown rows (amount | note | ✕) with "+ Modifier", and the sum box (difference green at $0.00, amber otherwise). Validation messages are unchanged (`validateQuote`).
+- **Lock & book:** a refused or failed booking shakes the button and shows the reason under the builder. Before booking the button lives in the pinned bar only; booked leads keep "Update & re-confirm" in the panel.
+- **"Booked" (`BookingConfirmation`):** a green full screen with the white logo, "Booked", the date and price, the editable message, Copy message / Done. Copy says when the phone refuses to copy. The burnout logo animation comes in stage 8.
+- **Quote tab (`QuotePanel.tsx`):** the builder now comes first, then scope, context, AI pricing guidance (amber outline, internal only), and the pricing chat. Save context and Run AI review say when they fail. `QuoteBasis.tsx`, `AiChatThread.tsx` moved to the tokens; the match dots lost their hover-only `title`.
+- **Tests:** `app/frontend/tests/test_workday_quote.py`, 11 tests. Frontend 44 passed; backend 527 passed.
+
+## [2026-10-23] Workday design, stage 2 of 8 — the lead screen
+
+- **Header (`LeadCommandCenter.tsx`):** dark slab with back, the name in display caps, status badge, URGENT, short age, follow-up and payment chips, the primary action (Mark replied amber / View jobs green) and a More button. Mark replied and Mark released now show a toast on success and on failure (before, a failed status change said nothing).
+- **Gates (`GateIndicator.tsx`):** five bars under the name — done green, current a moving hazard stripe, still to come faint.
+- **Decision card (`LeadDecisionCard.tsx`):** green band ("Ready to quote" / amber "Check before quoting" / grey "Hold"), the range in 40px display type, the red floor, the reason, the lever box, the red "If they push back" box, Call + Text. Loading, failed, never-reviewed and no-number states keep their logic and buttons. The lever prices are read-only boxes; the one-tap price buttons wait on Ron's answer (brief question 2).
+- **Tabs:** Brief / Quote / Log use the Workday dock (`TabDock.tsx`, new) instead of the old tab bar; the pinned quote bar sits above it. On a tablet the content keeps a readable column.
+- **More menu:** a bottom sheet with a grab bar and a Close button. Schedule date, Follow up and Escalate to owner open as bottom sheets too; Follow up now says so when saving or removing fails.
+- **Brief tab (`BriefPanel.tsx`):** acknowledgment strip, "Customer says" (scope notes plus the lead screenshot), "Job details" rows, lead cost, assigned to, quick read, next best message, truck rental and payroll, all in Workday cards. Fixed broken characters that showed on this tab ("Savingâ€¦", "â€” Unassigned â€”": the file had been saved double-encoded).
+- **Log tab (`LogPanel.tsx`):** activity timeline (latest six, "Show all" for the rest), a note box with Add, status buttons, Escalate, screenshots with Extract / Apply. Delete now confirms on screen ("Yes, delete for good" / "Keep it") instead of a browser pop-up. Note, upload, extract, apply and status changes say so when they fail.
+- **Restyled to the tokens:** escalation card, refund banner, phone numbers, requested dates, duration picker, lead cost, truck rental, payroll. Plain `border` lines use the hairline token everywhere.
+- **Not in this stage:** the Quote tab's builder and the "Booked" overlay (stage 3).
+- **Tests:** `app/frontend/tests/test_workday_lead.py`, 22 Playwright tests at 390 and 1024 wide (shared helpers moved to `tests/workday.py` and `tests/conftest.py`). Frontend 33 passed; backend 527 passed.
+
+## [2026-10-23] Workday design, stage 1 of 8 — colors, fonts, dock, lead queue and cards
+
+- **Tokens app-wide:** Linen / Night backgrounds, Chapel Green, Safety Amber, Barlow Condensed for display type, Figtree for body (`index.css` variables, `tailwind.config.js`, Google Fonts in `index.html`, `viewport-fit=cover`). All motion stops under `prefers-reduced-motion: reduce`.
+- **Dock (`BottomNav.tsx`):** floating bar with the sliding amber tab, filled resting icons, hop on tap, red count of `status === 'new'` leads on Queue, and a green + (admin/facilitator only) that bursts rays and offers Screenshot / Type it in. Admin left the bar and is an entry at the top of Settings. Crew see Jobs and Settings only.
+- **Lead card (`LeadCard.tsx`):** name + age, title from service and move size, "Town · Source", status badge, hazard band on new leads. Phone, full address and timestamp came off the card. Overdue/aging, escalated, urgent, follow-up and truck stay as visible flags. The card is now a real button.
+- **Lead queue (`LeadQueue.tsx`):** dark header with the rays mark and city pill, title + open count, greeting, sliding filter chips (All / New / Review / Quote / Closed — Closed replaces the old Active/Closed tabs), restyled source/handler filters, escalation and refund panels, and new leads dropping in with an amber toast. The header's New Lead / Manual buttons moved to the dock's +.
+- **Tests:** `app/frontend/tests/test_workday_queue.py` (Playwright, 11 tests at 390 and 1024 wide, every API call faked). Run from `app/frontend`: `python -m pytest -q tests`. Backend suite unchanged: 527 passed.
+- Not live: the design ships in 8 stages and each stays local until Ron pushes.
+
 ## [2026-09-01] Intake — Several Screenshots per Lead *(backfilled 2026-10-22)*
 
 ### Added

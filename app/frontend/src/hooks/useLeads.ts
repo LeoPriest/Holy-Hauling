@@ -25,13 +25,17 @@ import { useCity } from '../context/CityContext'
 import type { QuoteGroundingEval, QuoteSnapshot } from '../services/api'
 import type { LeadCreate, LeadSourceType, LeadStatus, LeadUpdate, QuoteModifier } from '../types/lead'
 
-export function useLeads(filters?: { status?: LeadStatus; source_type?: LeadSourceType; assigned_to?: string }) {
+export function useLeads(
+  filters?: { status?: LeadStatus; source_type?: LeadSourceType; assigned_to?: string },
+  opts?: { enabled?: boolean },
+) {
   const { cityQueryId } = useCity()
   const scopedFilters = { ...filters, city_id: cityQueryId }
   return useQuery({
     queryKey: ['leads', scopedFilters],
     queryFn: () => fetchLeads(scopedFilters),
     refetchInterval: 30_000,
+    enabled: opts?.enabled ?? true,
   })
 }
 
