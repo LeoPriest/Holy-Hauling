@@ -19,6 +19,7 @@ from app.schemas.thumbtack import (
     ConnectionOut,
     ConnectionPatch,
     EventOut,
+    RetryResult,
 )
 from app.services import thumbtack_service
 
@@ -225,4 +226,20 @@ async def list_events(
 ):
     return await thumbtack_service.list_events(
         db, connection_id=connection_id, limit=limit
+    )
+
+
+@router.post("/admin/thumbtack/events/{event_id}/retry", response_model=RetryResult)
+async def retry_event(
+    event_id: str,
+    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    event, created = await thumbtack_service.retry_event(db, event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return RetryResult(
+        event=EventOut.model_validate(event),
+        created=created,
+        lead_id=event.lead_id,
     )

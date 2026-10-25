@@ -1,7 +1,7 @@
+import { useState } from 'react'
 import type { Lead } from '../types/lead'
-import { fmtLocalDateTime } from '../utils/time'
-import { AgeIndicator } from './AgeIndicator'
-import { SourceBadge } from './SourceBadge'
+import { parseUtc } from '../utils/time'
+import { leadTitle, leadTown, shortAge, sourceShort } from '../utils/leadCard'
 import { StatusBadge } from './StatusBadge'
 
 interface Props {
@@ -11,6 +11,10 @@ interface Props {
   idleMinutes?: number
   hasTruckRental?: boolean
   isEscalated?: boolean
+  /** Stagger index for the arrive animation. */
+  index?: number
+  /** True when this lead just landed while the queue was open. */
+  dropped?: boolean
 }
 
 function fmtIdle(minutes?: number) {
@@ -20,103 +24,60 @@ function fmtIdle(minutes?: number) {
   return `${Math.floor(minutes / 1440)}d`
 }
 
-export function LeadCard({ lead, onClick, staleness, idleMinutes, hasTruckRental, isEscalated }: Props) {
-  const leftBorder = lead.urgency_flag ? 'border-l-4 border-l-orange-500' : 'border-gray-200'
+export function LeadCard({ lead, onClick, staleness, idleMinutes, hasTruckRental, isEscalated, index = 0, dropped }: Props) {
+  const age = shortAge(parseUtc(lead.created_at))
+  const town = leadTown(lead)
+  const isNew = lead.status === 'new'
+  const hasFlags = staleness || isEscalated || lead.urgency_flag || lead.active_followup || hasTruckRental
+  // Only cards there on load rise; one that dropped in settles with no second animation.
+  const [rises] = useState(!dropped)
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => onClick(lead.id)}
-      className={[
-        'bg-white rounded-xl border p-4 cursor-pointer transition-colors active:bg-gray-50',
-        leftBorder,
-        !lead.acknowledged_at ? 'ring-1 ring-red-200' : '',
-      ].join(' ')}
+      className={['wd-card', dropped ? 'wd-card-drop' : rises ? 'wd-rise' : '', lead.urgency_flag ? 'wd-card-urgent' : ''].join(' ')}
+      style={{ '--i': index } as React.CSSProperties}
     >
-      {/* Top row: badges + age + followup chip */}
-      <div className="flex items-start justify-between gap-2 mb-1.5">
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+      {isNew && (
+        <span className="wd-card-band haz">New lead · {age === 'just now' ? age : `${age} ago`}</span>
+      )}
+
+      <span className="flex w-full items-center justify-between gap-2">
+        <span className={`min-w-0 truncate text-[13px] font-medium ${lead.customer_name ? 'text-mu' : 'italic text-mu'}`}>
+          {lead.customer_name ?? 'No name yet'}
+        </span>
+        <span className="shrink-0 text-xs tabular-nums text-mu">{age}</span>
+      </span>
+
+      <span className="wd-disp block text-[19px] leading-[1.15]">{leadTitle(lead)}</span>
+
+      {hasFlags && (
+        <span className="flex flex-wrap items-center gap-1.5 py-0.5">
           {staleness && (
-            <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
-                staleness === 'overdue'
-                  ? 'bg-red-100 text-red-700 border-red-200'
-                  : 'bg-amber-100 text-amber-700 border-amber-200'
-              }`}
-            >
+            <span className={`wd-flag ${staleness === 'overdue' ? 'wd-flag-red' : 'wd-flag-amber'}`}>
               {staleness === 'overdue' ? 'Overdue' : 'Aging'}
               {idleMinutes != null ? ` · ${fmtIdle(idleMinutes)}` : ''}
             </span>
           )}
-          {isEscalated && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-              ⚠ Escalated
-            </span>
-          )}
-          {lead.urgency_flag && (
-            <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">Urgent</span>
-          )}
-          {!lead.acknowledged_at && (
-            <span className="text-[10px] font-bold text-red-500 uppercase tracking-wide">New</span>
-          )}
-          <StatusBadge status={lead.status} />
-          <SourceBadge source={lead.source_type} />
-          {hasTruckRental && (
-            <span
-              title="Truck rental booked"
-              aria-label="Truck rental booked"
-              className="inline-flex items-center"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                className="w-3.5 h-3.5 text-orange-500"
-              >
-                <path d="M8.25 18.75a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 0 1-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 0 0-3.213-9.193 2.056 2.056 0 0 0-1.58-.86H14.25M8.25 18.75H16.5M3.375 18.75H2.25m2.625-9.75H14.25" />
-              </svg>
-            </span>
-          )}
-        </div>
-
-        {/* Right column: age + followup chip */}
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <AgeIndicator createdAt={lead.created_at} />
+          {isEscalated && <span className="wd-flag wd-flag-amber">Escalated</span>}
+          {lead.urgency_flag && <span className="wd-flag wd-flag-amber">Urgent</span>}
           {lead.active_followup && (
-            <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200">
-              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
+            <span className="wd-flag">
+              Follow up{' '}
               {new Date(lead.active_followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </span>
           )}
-        </div>
-      </div>
-
-      {/* Name */}
-      {lead.customer_name
-        ? <p className="font-semibold text-gray-900 truncate">{lead.customer_name}</p>
-        : <p className="font-semibold text-gray-400 truncate italic">No name yet</p>
-      }
-
-      {/* Contact + location */}
-      {lead.customer_phone && (
-        <p className="text-sm text-gray-500 mt-0.5">{lead.customer_phone}</p>
-      )}
-      {lead.job_location && (
-        <p className="text-xs text-gray-400 truncate mt-0.5">{lead.job_location}</p>
+          {hasTruckRental && <span className="wd-flag">Truck</span>}
+        </span>
       )}
 
-      {/* Footer: timestamp + ingested by */}
-      <div className="flex items-center justify-between mt-2 gap-2">
-        <span className="text-xs text-gray-400">{fmtLocalDateTime(lead.created_at)}</span>
-        {lead.ingested_by && (
-          <span className="text-xs text-gray-400 truncate">via {lead.ingested_by}</span>
-        )}
-      </div>
-    </div>
+      <span className="flex w-full items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-[13px] text-mu">
+          {town ? `${town} · ` : ''}{sourceShort(lead.source_type)}
+        </span>
+        <StatusBadge status={lead.status} />
+      </span>
+    </button>
   )
 }

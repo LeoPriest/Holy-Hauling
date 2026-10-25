@@ -57,3 +57,14 @@ class EventOut(BaseModel):
     lead_id: Optional[str] = None
     received_at: datetime
     processed_at: Optional[datetime] = None
+
+
+class RetryResult(BaseModel):
+    """Response for POST /admin/thumbtack/events/{id}/retry."""
+    event: EventOut
+    created: bool          # True only when this retry inserted a new lead.
+    # False covers every other outcome that still carries a lead_id: found an
+    # existing lead via the idempotency lookup, or healed one's missing cost
+    # sync. Distinguish "found existing" from "no lead at all" as
+    # `lead_id is not None and not created`.
+    lead_id: Optional[str] = None

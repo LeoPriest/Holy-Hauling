@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.models.lead import Lead, LeadSourceType, LeadStatus
 from app.models.lead_event import LeadEvent
 from app.models.screenshot import Screenshot
-from app.schemas.lead import LeadCreate, LeadStatusUpdate, LeadUpdate, NoteCreate
+from app.schemas.lead import LeadCreate, LeadDetailOut, LeadStatusUpdate, LeadUpdate, NoteCreate
 
 # Resolved at import time. Tests monkeypatch this before any fixture runs.
 _SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -95,6 +95,44 @@ def _id() -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def visible_raw_payload(
+    raw_payload: Optional[str], source_type: LeadSourceType, role: str
+) -> Optional[str]:
+    """Redact a Thumbtack-captured webhook body from every role but admin.
+
+    customer_name, customer_phone, and scope_notes (which carries the street
+    address) already surface as first-class columns to every authenticated
+    role — raw_payload is not their only path to that data. But Thumbtack's
+    stored body carries more than those: business.accessCode, a working
+    refundRequestLink into Thumbtack's own refund flow, customerID, and
+    requestID. That is a real privilege step-up Phase 1 deliberately kept
+    behind require_role("admin") on the Thumbtack admin surface — a plain
+    GET /leads or GET /leads/{id} must not hand it to supervisor or crew.
+    Every other source's raw_payload (an OCR screenshot capture, or a
+    manually-created lead) carries no comparable step-up and is unaffected.
+    """
+    if source_type == LeadSourceType.thumbtack_api and role != "admin":
+        return None
+    return raw_payload
+
+
+def to_lead_detail_out(lead: Lead, role: str) -> LeadDetailOut:
+    """The one sanctioned way to build a LeadDetailOut.
+
+    LeadDetailOut is the single schema raw_payload is reachable through at
+    all (LeadOut, used everywhere else, does not declare the field). Every
+    caller that needs a LeadDetailOut goes through this function rather than
+    calling `LeadDetailOut.model_validate(lead)` directly, so the redaction
+    is not a step a route handler can forget — there is no other way to get
+    one. Two callers today (GET /leads/{id}, POST /ingest/screenshot); any
+    future one is safe the same way, by construction, not by remembering to
+    also call visible_raw_payload.
+    """
+    dto = LeadDetailOut.model_validate(lead)
+    dto.raw_payload = visible_raw_payload(dto.raw_payload, lead.source_type, role)
+    return dto
 
 
 def _apply_acknowledgement(

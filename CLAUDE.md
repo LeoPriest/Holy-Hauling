@@ -23,7 +23,7 @@ When deciding what to do or what is currently implemented:
 
 ## Current State (as of 2026-04-22 — Slice 8)
 
-**Built and working:** Lead CRUD with audit trail, screenshot-first OCR intake, Claude-powered extraction (16 fields), A–O AI review grounded in pricing SOP, facilitator queue + detail UI, field provenance tracking, Thumbtack webhook normalization, 108 passing pytest tests.
+**Built and working:** Lead CRUD with audit trail, screenshot-first OCR intake, Claude-powered extraction (16 fields), A–O AI review grounded in pricing SOP, facilitator queue + detail UI, field provenance tracking, Thumbtack webhook normalization, 480 passing pytest tests (baseline 2026-10-22).
 
 **Active wave — automatic intake/review:** Replace contact-lock with auto-review semantics; make OCR + AI review trigger automatically on screenshot upload; treat masked Thumbtack phones as unavailable.
 
@@ -42,7 +42,7 @@ When deciding what to do or what is currently implemented:
 | Add or change state transitions | `app/backend/app/services/lead_service.py` | `CAPABILITIES.md`, `docs/` specs | State logic lives here only — not in routes or schemas |
 | Add or change AI review logic | `app/backend/app/services/ai_review_service.py` | `docs/sops/`, `CAPABILITIES.md` | A–O structure is locked; changes are additive |
 | Add or change OCR extraction | `app/backend/app/services/ocr_service.py` | `CAPABILITIES.md` | Masked phone handling lives here |
-| Write or update tests | `app/backend/tests/` | The service file being tested | 108 passing tests is the baseline — do not regress |
+| Write or update tests | `app/backend/tests/` | The service file being tested | 480 passing tests is the baseline (2026-10-22) — do not regress |
 | Update the SOP grounding document | `docs/sops/` | Current SOP, `ai_review_service.py` | Path configurable via `GROUNDING_FILE_PATH` env var |
 | Add or change a database model | `app/backend/app/models/` | Existing model, current schema version | Schema is at v8 — track all migrations |
 | Add or change an API schema | `app/backend/app/schemas/` | Existing schema, relevant model | Never return raw SQLAlchemy objects |
@@ -60,7 +60,7 @@ When deciding what to do or what is currently implemented:
 | Database | SQLite via aiosqlite — schema v8 |
 | AI / ML | Claude API — OCR field extraction + A–O AI review |
 | State management | TanStack Query (React Query) |
-| Testing | pytest (backend, 108 tests); Playwright + Jest (frontend, configured, not yet used) |
+| Testing | pytest (backend, 480 tests as of 2026-10-22); Playwright + Jest (frontend, configured, not yet used) |
 | Run | `python run.py` — local only, no Docker required |
 
 ---
@@ -77,7 +77,7 @@ When deciding what to do or what is currently implemented:
 | `app/backend/app/services/ingest_service.py` | Screenshot-first intake orchestration |
 | `app/backend/app/services/ocr_service.py` | Claude OCR extraction, masked phone handling |
 | `app/backend/app/services/ai_review_service.py` | A–O review generation grounded in pricing SOP |
-| `app/backend/tests/` | 108 pytest tests across all services |
+| `app/backend/tests/` | 480 pytest tests across all services (2026-10-22) |
 | `app/frontend/src/screens/` | LeadQueue, LeadDetail, LeadCreate |
 | `app/frontend/src/components/` | LeadCard, StatusBadge, SourceBadge, AgeIndicator, FieldSourceBadge |
 | `app/frontend/src/hooks/useLeads.ts` | React Query hooks for all lead operations |
@@ -114,7 +114,7 @@ When deciding what to do or what is currently implemented:
 - The app must remain runnable locally via `run.py` without Docker.
 
 **Tests:**
-- 108 passing tests is the baseline — do not regress.
+- 480 passing tests is the baseline (2026-10-22) — do not regress.
 - Run `pytest` from `app/backend/` before declaring any slice complete.
 
 ---

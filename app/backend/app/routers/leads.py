@@ -114,6 +114,8 @@ async def list_leads(
         assigned_to=assigned_to,
         city_id=city_scope(current_user, city_id),
     )
+    # LeadOut carries no raw_payload field at all (see its docstring) -- there
+    # is nothing to redact here any more, by construction, not by memory.
     return await _enrich(db, leads)
 
 
@@ -124,7 +126,8 @@ async def get_lead(
     db: AsyncSession = Depends(get_db),
 ):
     lead = await lead_service.get_lead(db, lead_id, detailed=True, city_id=city_scope(current_user))
-    return await _enrich(db, lead)
+    await _enrich(db, lead)
+    return lead_service.to_lead_detail_out(lead, current_user.role)
 
 
 @router.delete("/{lead_id}", status_code=204)

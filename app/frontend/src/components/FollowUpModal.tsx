@@ -14,6 +14,7 @@ export default function FollowUpModal({ existing, onSave, onCancel, onClose, sav
   const [date, setDate] = useState('')
   const [time, setTime] = useState('09:00')
   const [note, setNote] = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (existing) {
@@ -32,69 +33,81 @@ export default function FollowUpModal({ existing, onSave, onCancel, onClose, sav
 
   const handleSave = async () => {
     if (!date) return
+    setError('')
     const iso = `${date}T${time}:00`
-    await onSave(iso, note.trim() || null)
-    onClose()
+    try {
+      await onSave(iso, note.trim() || null)
+      onClose()
+    } catch {
+      setError("Couldn't save the follow-up. Try again.")
+    }
   }
 
   const handleCancel = async () => {
-    await onCancel()
-    onClose()
+    setError('')
+    try {
+      await onCancel()
+      onClose()
+    } catch {
+      setError("Couldn't remove the follow-up. Try again.")
+    }
   }
 
   const minDate = new Date().toISOString().slice(0, 10)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(10,12,11,.45)]"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-800">Schedule Follow-Up</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+      <div role="dialog" aria-label="Follow-up" className="w-full max-w-lg rounded-t-sheet bg-bg px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-2.5 text-ink">
+        <div className="wd-grab" aria-hidden="true" />
+        <div className="flex items-center justify-between">
+          <h2 className="wd-disp text-[22px] leading-none">Follow up</h2>
+          <button onClick={onClose} className="wd-btn-sm wd-btn-ghost min-w-11 !shadow-none text-xl" aria-label="Close">&times;</button>
         </div>
 
-        <div className="space-y-4 p-4">
+        <div className="space-y-4 py-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Date</label>
+            <label className="wd-fl !mb-1">Date</label>
             <input
               type="date"
               value={date}
               min={minDate}
               onChange={e => setDate(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="wd-input"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Time</label>
+            <label className="wd-fl !mb-1">Time</label>
             <input
               type="time"
               value={time}
               onChange={e => setTime(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="wd-input"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-600">Note (optional)</label>
+            <label className="wd-fl !mb-1">Note (optional)</label>
             <textarea
               value={note}
               onChange={e => setNote(e.target.value)}
               rows={3}
               placeholder="What do you want to follow up on?"
-              className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="wd-input"
             />
           </div>
         </div>
 
-        <div className="flex gap-2 border-t px-4 py-3">
+        {error && <p className="wd-err pb-2">{error}</p>}
+        <div className="flex gap-2">
           {existing && (
             <button
               onClick={handleCancel}
               disabled={saving}
-              className="flex-1 rounded-lg border border-red-200 py-2 text-sm font-medium text-red-600 active:bg-red-50 disabled:opacity-50"
+              className="wd-btn wd-btn-ghost flex-1 !text-danger !shadow-[inset_0_0_0_1.5px_var(--red)]"
             >
               Remove
             </button>
@@ -102,16 +115,16 @@ export default function FollowUpModal({ existing, onSave, onCancel, onClose, sav
           <button
             onClick={onClose}
             disabled={saving}
-            className="flex-1 rounded-lg border border-gray-200 py-2 text-sm font-medium text-gray-600 active:bg-gray-50 disabled:opacity-50"
+            className="wd-btn wd-btn-ghost flex-1"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !date}
-            className="flex-1 rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white active:bg-indigo-700 disabled:opacity-50"
+            className="wd-btn flex-1"
           >
-            {saving ? 'Saving...' : existing ? 'Update' : 'Set Reminder'}
+            {saving ? 'Saving…' : existing ? 'Update' : 'Set reminder'}
           </button>
         </div>
       </div>

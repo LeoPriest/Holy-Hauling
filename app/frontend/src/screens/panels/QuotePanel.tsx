@@ -34,11 +34,10 @@ interface Props {
   leadId: string
   quoteDraft: QuoteDraft
   onLockAndBook: () => void
-  bookError: string
   isBooking: boolean
 }
 
-export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, bookError, isBooking }: Props) {
+export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, isBooking }: Props) {
   const patch = usePatchLead()
   // Separate mutation instance so duration saves don't drive the Save Context
   // button's pending/success label.
@@ -136,13 +135,58 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
   const isBooked = lead.status === 'booked'
 
   return (
-    <div className="p-4 space-y-5 pb-24">
+    <div className="wd-pane flex flex-col gap-3 px-3.5 pb-6 pt-3">
+
+      {/* ── Build & lock quote ─────────────────────────────────────── */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="wd-fl !mb-0">
+            Build &amp; lock quote{isBooked && <span className="ml-2 text-ok">· Booked</span>}
+          </h3>
+          <button onClick={handleSuggest} disabled={suggest.isPending} className="wd-btn-sm wd-btn-ghost shrink-0">
+            {suggest.isPending ? 'Drafting…' : '✨ Suggest with AI'}
+          </button>
+        </div>
+
+        {(() => {
+          const basis = liveBasis ?? (snapshot ? { comparables: snapshot.comparables, rationale: snapshot.rationale } : null)
+          return basis ? <QuoteBasis comparables={basis.comparables} rationale={basis.rationale} /> : null
+        })()}
+        {suggestError && <p className="wd-err">{suggestError}</p>}
+
+        {rental?.rental_cost_cents != null && rental.rental_cost_cents > 0 && (
+          <button onClick={addRentalLine} className="wd-btn-sm wd-btn-ghost w-full !shadow-[inset_0_0_0_1.5px_var(--ac)]">
+            + Add truck rental (${(rental.rental_cost_cents / 100).toFixed(2)}) as a line
+          </button>
+        )}
+
+        <QuoteBuilderFields
+          draft={quoteDraft}
+          /* A hold review's figures are suppressed on the decision card, so the
+             floor must not survive here — otherwise the walkaway is the only
+             number on the screen, sitting beside the price input. */
+          floor={aiReview?.sections.sayability === 'hold' ? null : (aiReview?.sections.floor ?? null)}
+          onDurationCommit={saveDuration}
+          durationSaveState={durationSaveState}
+        />
+
+        {/* Before booking, Lock & book lives in the pinned bar. A booked lead's
+            bar says View jobs, so re-confirming a changed quote happens here. */}
+        {isBooked && (
+          <button onClick={onLockAndBook} disabled={isBooking} className="wd-btn w-full">
+            {isBooking ? 'Booking…' : 'Update & re-confirm'}
+          </button>
+        )}
+
+        <Link to="/admin/quote-grounding" className="flex min-h-11 items-center text-sm font-semibold text-ok underline">
+          How grounded quoting is performing →
+        </Link>
+      </section>
 
       {/* ── Scope ──────────────────────────────────────────────────── */}
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Scope</h3>
-        <div className="bg-white rounded-xl border divide-y">
-
+      <section className="wd-box wd-box-soft">
+        <h3 className="wd-fl">Scope</h3>
+        <dl className="wd-dl !gap-y-0">
           <ScopeRow label="Service" value={lead.service_type} />
 
           {(lead.job_origin || lead.job_destination) ? (
@@ -150,10 +194,8 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
               label="Route"
               value={`${lead.job_origin || '?'} → ${lead.job_destination || '?'}`}
             />
-          ) : lead.job_location ? (
-            <ScopeRow label="Location" value={lead.job_location} />
           ) : (
-            <ScopeRow label="Location" value={null} />
+            <ScopeRow label="Location" value={lead.job_location} />
           )}
 
           {lead.move_date_options && lead.move_date_options.length > 0 ? (
@@ -176,69 +218,62 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
               ].filter(Boolean).join(' · ')}
             />
           )}
-          {lead.scope_notes && (
-            <div className="px-4 py-3">
-              <p className="text-xs text-gray-400 mb-1">Scope notes</p>
-              <p className="text-sm text-gray-800 leading-relaxed">{lead.scope_notes}</p>
-            </div>
-          )}
-        </div>
+        </dl>
+        {lead.scope_notes && (
+          <p className="mt-3 rounded-card bg-bg p-3 text-sm italic leading-relaxed">"{lead.scope_notes}"</p>
+        )}
       </section>
 
       {/* ── Quote context ──────────────────────────────────────────── */}
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-          Add Context Before Re-running Review
-        </h3>
+      <section className="wd-box wd-box-soft">
+        <label htmlFor="quote-context" className="wd-fl">Add context before re-running the review</label>
         <textarea
+          id="quote-context"
           rows={3}
-          className="w-full border rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="wd-input"
           placeholder="e.g. Elevator is passenger-style not freight. Has a piano. Customer confirmed wrapping needed."
           value={context}
           onChange={e => setContext(e.target.value)}
         />
-        <button
-          onClick={handleSaveContext}
-          disabled={patch.isPending}
-          className={`mt-2 text-xs rounded-lg px-4 py-1.5 disabled:opacity-50 transition-colors ${
-            saved
-              ? 'bg-emerald-600 text-white'
-              : 'bg-gray-800 text-white hover:bg-gray-700'
-          }`}
-        >
-          {patch.isPending ? 'Saving…' : saved ? '✓ Saved' : 'Save Context'}
-        </button>
+        <div className="mt-2 flex items-center gap-2">
+          <button onClick={handleSaveContext} disabled={patch.isPending} className="wd-btn-sm">
+            {patch.isPending ? 'Saving…' : saved ? '✓ Saved' : 'Save context'}
+          </button>
+          {patch.isError && <span className="wd-err">Couldn’t save. Try again.</span>}
+        </div>
       </section>
 
       {/* ── AI Pricing (F–L) ───────────────────────────────────────── */}
-      <section>
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-semibold text-orange-600 uppercase tracking-wider">
-              AI Pricing Guidance
-            </h3>
-            <span className="text-xs font-bold text-orange-500 uppercase">— Internal Only</span>
-          </div>
+      <section className="wd-box wd-box-soft !shadow-[inset_0_0_0_1.5px_var(--ac)]">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h3 className="wd-fl !mb-0">
+            AI pricing guidance <span className="text-[#b86e00] dark:text-ac">· internal only</span>
+          </h3>
           <button
             onClick={() => triggerReview.mutate({ leadId })}
             disabled={triggerReview.isPending}
-            className="text-xs bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700 disabled:opacity-50 shrink-0 font-medium"
+            className="wd-btn-sm wd-btn-ghost shrink-0"
           >
-            {triggerReview.isPending ? 'Running…' : aiReview ? 'Re-run AI' : 'Run AI Review'}
+            {triggerReview.isPending ? 'Running…' : aiReview ? 'Re-run AI' : 'Run AI review'}
           </button>
         </div>
+        {triggerReview.isError && (
+          <p className="wd-err mb-2">
+            {triggerReview.error instanceof Error ? triggerReview.error.message : 'Could not run the review.'}
+          </p>
+        )}
 
         {aiReview ? (
-          <details className="group rounded-xl border border-orange-200 bg-orange-50">
-            <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-orange-800">
+          <details className="group">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-chip bg-bg px-3 text-sm font-semibold">
               Full analysis
-              <span className="text-orange-600 transition-transform group-open:rotate-180">⌄</span>
+              <span className="text-mu transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
             </summary>
-            <div className="space-y-2 p-3 pt-0">
+            <div className="mt-2 space-y-2">
               {PRICING_SECTIONS.map(({ key, label }) => (
-                <div key={key} className="rounded-xl border border-orange-200 bg-white p-3">
-                  <p className="mb-1 text-xs font-semibold text-orange-700">{label}</p>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800">
+                <div key={key} className="rounded-card bg-bg p-3">
+                  <p className="wd-fl !mb-1">{label}</p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
                     {aiReview.sections[key] || '—'}
                   </p>
                 </div>
@@ -246,76 +281,13 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
             </div>
           </details>
         ) : (
-          <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 text-center">
-            <p className="text-sm text-gray-400">
-              Run AI Review to see pricing guidance.
-            </p>
-          </div>
+          <p className="text-sm text-mu">Run the AI review to see pricing guidance.</p>
         )}
-      </section>
-
-      {/* ── Build & Lock Quote ─────────────────────────────────────── */}
-      <section>
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Build &amp; Lock Quote</h3>
-          <div className="flex items-center gap-2 shrink-0">
-            {isBooked && (
-              <span className="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-green-400">Booked</span>
-            )}
-            <button
-              onClick={handleSuggest}
-              disabled={suggest.isPending}
-              className="text-xs bg-violet-600 text-white rounded-lg px-3 py-1.5 hover:bg-violet-700 disabled:opacity-50 font-medium"
-            >
-              {suggest.isPending ? 'Drafting…' : '✨ Suggest with AI'}
-            </button>
-          </div>
-        </div>
-
-        {(() => {
-          const basis = liveBasis ?? (snapshot ? { comparables: snapshot.comparables, rationale: snapshot.rationale } : null)
-          return basis ? <QuoteBasis comparables={basis.comparables} rationale={basis.rationale} /> : null
-        })()}
-        <Link to="/admin/quote-grounding" className="mb-3 inline-block text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
-          How grounded quoting is performing →
-        </Link>
-        {suggestError && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{suggestError}</p>}
-
-        {rental?.rental_cost_cents != null && rental.rental_cost_cents > 0 && (
-          <button
-            onClick={addRentalLine}
-            className="mb-3 w-full rounded-lg border border-orange-300 dark:border-orange-700 px-3 py-2 text-sm font-medium text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20"
-          >
-            + Add truck rental (${(rental.rental_cost_cents / 100).toFixed(2)}) as line item
-          </button>
-        )}
-
-        <QuoteBuilderFields
-          draft={quoteDraft}
-          /* A hold review's figures are suppressed on the decision card, so the
-             floor must not survive here — otherwise the walkaway is the only
-             number on the screen, sitting beside the price input. */
-          floor={aiReview?.sections.sayability === 'hold' ? null : (aiReview?.sections.floor ?? null)}
-          onDurationCommit={saveDuration}
-          durationSaveState={durationSaveState}
-        />
-
-        {bookError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{bookError}</p>}
-
-        <button
-          onClick={onLockAndBook}
-          disabled={isBooking}
-          className="mt-4 w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-        >
-          {isBooking ? 'Booking…' : isBooked ? 'Update & Re-confirm' : 'Lock & Book'}
-        </button>
       </section>
 
       {/* ── AI Pricing Chat ────────────────────────────────────────── */}
-      <section>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-          Challenge / Refine Pricing
-        </h3>
+      <section className="wd-box wd-box-soft">
+        <h3 className="wd-fl">Challenge / refine pricing</h3>
         <AiChatThread
           leadId={leadId}
           aiReviewId={aiReview?.id}
@@ -329,11 +301,11 @@ export function QuotePanel({ lead, aiReview, leadId, quoteDraft, onLockAndBook, 
 
 function ScopeRow({ label, value }: { label: string; value: string | null | undefined }) {
   return (
-    <div className="flex items-start gap-3 px-4 py-2.5">
-      <span className="text-xs text-gray-400 w-24 shrink-0 mt-0.5">{label}</span>
-      <span className="text-sm text-gray-800 flex-1">
-        {value || <span className="italic text-gray-300">—</span>}
-      </span>
-    </div>
+    <>
+      <dt className="!pt-2">{label}</dt>
+      <dd className="py-2 font-medium">
+        {value || <span className="font-normal italic text-mu">—</span>}
+      </dd>
+    </>
   )
 }
