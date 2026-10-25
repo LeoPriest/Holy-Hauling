@@ -38,16 +38,3 @@ export interface ThumbtackConnectionCreate {
   city_id: string
   business: ThumbtackBusiness
 }
-
-export interface RetryResult {
-  event: ThumbtackEvent
-  /**
-   * True only when this retry inserted a new Lead row.
-   * False covers every other outcome that still carries a lead_id: the
-   * retry found an existing lead (idempotency lookup), or healed one's
-   * missing cost sync. Distinguish "found existing" from "no lead at all"
-   * as `lead_id !== null && !created`.
-   */
-  created: boolean
-  lead_id: string | null
-}

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { AgeIndicator } from '../components/AgeIndicator'
 import FollowUpModal from '../components/FollowUpModal'
 import { GateIndicator } from '../components/GateIndicator'
 import { ScheduleDateModal } from '../components/ScheduleDateModal'
 import { StatusBadge } from '../components/StatusBadge'
-import { TabDock, type DockTab } from '../components/TabDock'
 import { useFollowup } from '../hooks/useFollowup'
 import { usePayment } from '../hooks/usePayment'
 import { useLead, useLatestAiReview, useUpdateStatus } from '../hooks/useLeads'
@@ -12,93 +12,119 @@ import { useAuth } from '../context/AuthContext'
 import { BriefPanel } from './panels/BriefPanel'
 import { LogPanel } from './panels/LogPanel'
 import { QuotePanel } from './panels/QuotePanel'
-import { BookingConfirmation, createLineItem, formatCurrency, parseMoney, useQuoteDraft, validateQuote } from '../components/QuoteBuilder'
+import { BookingConfirmation, formatCurrency, parseMoney, useQuoteDraft, validateQuote } from '../components/QuoteBuilder'
 import { buildConfirmationText } from '../utils/confirmationText'
 import { EscalationCard } from '../components/EscalationCard'
 import { RefundBanner } from '../components/RefundBanner'
 import { LeadDecisionCard } from '../components/LeadDecisionCard'
-import { shortAge } from '../utils/leadCard'
-import { parseUtc } from '../utils/time'
-import type { LeadStatus } from '../types/lead'
-import { Working } from '../components/Logo'
 
 type Tab = 'brief' | 'quote' | 'log'
 
-/** "Sat, Oct 24" from a stored YYYY-MM-DD, read as a calendar day (no timezone shift). */
-function bookedDay(iso: string | null | undefined): string | null {
-  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (!m) return null
-  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+// ── Inline SVG icons ───────────────────────────────────────────────────────
+
+function IconCalendar() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+    </svg>
+  )
 }
 
-// ── Icons (Heroicons outline paths) ───────────────────────────────────────
-
-const ICON = {
-  back: 'M15.75 19.5 8.25 12l7.5-7.5',
-  dots: 'M12 5h.01M12 12h.01M12 19h.01',
-  calendar: 'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5',
-  clock: 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
-  pin: 'M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z',
-  check: 'm4.5 12.75 6 6 9-13.5',
-  briefcase: 'M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0',
-  x: 'M6 18 18 6M6 6l12 12',
-  card: 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z',
+function IconClock() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    </svg>
+  )
 }
 
-function Icon({ d }: { d: string }) {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
+function IconMapPin() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+      <path d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+    </svg>
+  )
 }
 
-const TABS: DockTab<Tab>[] = [
-  {
-    key: 'brief', label: 'Brief',
-    outline: 'M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z',
-    filled: <><path d="M6 2.5h6.2a1 1 0 0 1 .7.3l5.8 5.8a1 1 0 0 1 .3.7V20a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 20V4A1.5 1.5 0 0 1 6 2.5Z" /><path className="cut" d="M8.5 13h7M8.5 16.5h4.5" /></>,
-  },
-  {
-    key: 'quote', label: 'Quote',
-    outline: 'M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
-    filled: <><path d="M12 2.75a9.25 9.25 0 1 1 0 18.5 9.25 9.25 0 0 1 0-18.5Z" /><path className="cut" d="M12 6.5v11m-2.6-2.6.8.6c1 .8 2.6.8 3.6 0 1-.8 1-2 0-2.8-.5-.4-1.1-.6-1.8-.6-.6 0-1.3-.2-1.8-.6-.9-.8-.9-2 0-2.8.9-.8 2.5-.8 3.4 0l.4.3" /></>,
-  },
-  {
-    key: 'log', label: 'Log',
-    outline: ICON.clock,
-    filled: <><path d="M12 2.75a9.25 9.25 0 1 1 0 18.5 9.25 9.25 0 0 1 0-18.5Z" /><path className="cut" d="M12 7v5h4" /></>,
-  },
-]
+function IconCheck() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  )
+}
 
-// ── More menu: a bottom sheet ─────────────────────────────────────────────
+function IconBriefcase() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 0 0 .75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 0 0-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0 1 12 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 0 1-.673-.38m0 0A2.18 2.18 0 0 1 3 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 0 1 3.413-.387m7.5 0V5.25A2.25 2.25 0 0 0 13.5 3h-3a2.25 2.25 0 0 0-2.25 2.25v.894m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+    </svg>
+  )
+}
+
+function IconXMark() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 18 18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+function IconCreditCard() {
+  return (
+    <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+    </svg>
+  )
+}
+
+// ── Action sheet ───────────────────────────────────────────────────────────
 
 interface ActionItem {
   label: string
-  icon: string
+  icon: React.ReactNode
   onClick: () => void
   variant?: 'default' | 'primary' | 'destructive'
 }
 
-function ActionSheet({ open, items, onClose }: { open: boolean; items: ActionItem[]; onClose: () => void }) {
+function ActionSheet({ items, onClose }: { items: ActionItem[]; onClose: () => void }) {
   return (
-    <>
-      <div className={`wd-scrim ${open ? 'show' : ''}`} onClick={onClose} aria-hidden="true" />
-      <div role="dialog" aria-label="More actions" aria-hidden={!open} className={`wd-sheet ${open ? 'show' : ''}`}>
-        <div className="wd-grab" aria-hidden="true" />
-        {items.map(item => (
-          <button
-            key={item.label}
-            type="button"
-            tabIndex={open ? 0 : -1}
-            onClick={() => { item.onClick(); onClose() }}
-            className={`wd-si ${item.variant === 'primary' ? 'wd-si-pr' : item.variant === 'destructive' ? 'wd-si-red' : ''}`}
-          >
-            <Icon d={item.icon} />
-            {item.label}
-          </button>
-        ))}
-        <button type="button" tabIndex={open ? 0 : -1} onClick={onClose} className="wd-btn wd-btn-ghost mt-2">
-          Close
-        </button>
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-t-2xl shadow-2xl pb-8"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mt-3 mb-3" />
+        <div className="px-4 space-y-0.5">
+          {items.map((item, i) => {
+            const colorClass =
+              item.variant === 'primary'
+                ? 'text-teal-700 dark:text-teal-400'
+                : item.variant === 'destructive'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-gray-800 dark:text-gray-100'
+            const bgClass =
+              item.variant === 'destructive'
+                ? 'hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100'
+                : 'hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600'
+            return (
+              <button
+                key={i}
+                onClick={() => { item.onClick(); onClose() }}
+                className={`flex items-center gap-3 w-full px-3 py-3.5 rounded-xl text-sm font-medium transition-colors ${colorClass} ${bgClass}`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -113,14 +139,7 @@ export function LeadCommandCenter() {
   const [showActionSheet, setShowActionSheet] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [bookError, setBookError] = useState('')
-  const priceWarning = useRef('')
-  const [booked, setBooked] = useState<{ text: string; total: number; when: string | null } | null>(null)
-  // Bumped on every refused Lock & book so the button shakes again.
-  const [shake, setShake] = useState(0)
-  const [toast, setToast] = useState<string | null>(null)
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>()
-  const mainRef = useRef<HTMLElement>(null)
-  const paneRef = useRef<HTMLDivElement>(null)
+  const [confirmText, setConfirmText] = useState<string | null>(null)
 
   const { user } = useAuth()
   const { data: lead, isLoading } = useLead(id!)
@@ -135,45 +154,19 @@ export function LeadCommandCenter() {
   const { payment, saving: paymentSaving, error: paymentError, sendRequest: sendPaymentRequest, cancel: cancelPaymentRequest } = usePayment(id!)
   const quoteDraft = useQuoteDraft(lead)
 
-  useEffect(() => () => clearTimeout(toastTimer.current), [])
-
-  // A fixed price clears the warning about it; a server's refusal stays.
-  useEffect(() => {
-    setBookError(e => (e && e === priceWarning.current ? '' : e))
-  }, [quoteDraft.quotedPriceTotal])
-
-  function say(text: string) {
-    clearTimeout(toastTimer.current)
-    setToast(text)
-    toastTimer.current = setTimeout(() => setToast(null), 2200)
-  }
-
-  function switchTab(next: Tab) {
-    setTab(next)
-    mainRef.current?.scrollTo?.({ top: 0 })
-  }
-
-  // The Quote tab opens on the quote itself, as the design shows; the decision
-  // card stays one scroll up. Runs after the pane is drawn so it can be measured.
-  useEffect(() => {
-    const main = mainRef.current, pane = paneRef.current
-    if (tab !== 'quote' || !main || !pane) return
-    main.scrollTo?.({ top: pane.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop })
-  }, [tab])
-
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-bg">
-        <Working label="Loading lead…" />
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+        <p className="text-sm text-gray-400">Loading…</p>
       </div>
     )
   }
 
   if (!lead) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-bg">
-        <p className="text-sm text-mu">Lead not found.</p>
-        <button onClick={() => navigate('/')} className="wd-btn wd-btn-ghost">
+      <div className="flex flex-col items-center justify-center h-screen bg-gray-50 dark:bg-gray-900 gap-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400">Lead not found.</p>
+        <button onClick={() => navigate('/')} className="text-sm text-blue-600 dark:text-blue-400 underline">
           Back to queue
         </button>
       </div>
@@ -183,44 +176,41 @@ export function LeadCommandCenter() {
   const isActive = lead.status !== 'released' && lead.status !== 'lost'
   const canReply = lead.status === 'new' || lead.status === 'in_review'
 
-  function setStatus(status: LeadStatus, done: string, failed: string) {
-    updateStatus.mutate(
-      { id: id!, status, actor: user?.username },
-      { onSuccess: () => say(done), onError: () => say(failed) },
-    )
-  }
-  const markReplied = () => setStatus('replied', 'Marked replied', "Couldn't mark replied. Try again.")
+  // Context-aware primary action shown in the header
+  const primaryAction = canReply
+    ? { label: 'Mark Replied', color: 'bg-teal-600 hover:bg-teal-700 text-white', action: () => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username }) }
+    : lead.status === 'booked'
+    ? { label: 'View Jobs', color: 'bg-green-600 hover:bg-green-700 text-white', action: () => navigate('/jobs') }
+    : null
 
   const canRequestPayment = isActive && !!lead.quoted_price_total && (!payment || payment.status === 'failed' || payment.status === 'cancelled')
   const paymentLabel = payment?.status === 'pending'
-    ? `Resend payment ($${(payment.amount_cents / 100).toFixed(2)})`
+    ? `Resend Payment ($${(payment.amount_cents / 100).toFixed(2)})`
     : lead.quoted_price_total
-    ? `Request payment ($${lead.quoted_price_total.toFixed(2)})`
-    : 'Request payment'
+    ? `Request Payment ($${lead.quoted_price_total.toFixed(2)})`
+    : 'Request Payment'
 
   const actionSheetItems: ActionItem[] = [
-    ...(isActive ? [{ label: 'Schedule date', icon: ICON.calendar, onClick: () => setShowScheduleModal(true) }] : []),
-    { label: followup ? 'Edit follow-up' : 'Set follow-up', icon: ICON.clock, onClick: () => setShowFollowUpModal(true) },
+    ...(isActive ? [{ label: 'Schedule Date', icon: <IconCalendar />, onClick: () => setShowScheduleModal(true) }] : []),
+    { label: followup ? 'Edit Follow-Up' : 'Set Follow-Up', icon: <IconClock />, onClick: () => setShowFollowUpModal(true) },
     ...(canRequestPayment || payment?.status === 'pending' ? [{
       label: paymentLabel,
-      icon: ICON.card,
+      icon: <IconCreditCard />,
       onClick: () => sendPaymentRequest(),
       variant: (payment?.status === 'paid' ? undefined : 'primary') as ActionItem['variant'],
     }] : []),
-    { label: 'View in calendar', icon: ICON.pin, onClick: () => navigate(lead.job_date_requested ? `/calendar?date=${lead.job_date_requested}` : '/calendar') },
-    ...(canReply ? [{ label: 'Mark replied', icon: ICON.check, onClick: markReplied, variant: 'primary' as const }] : []),
-    ...(lead.status === 'booked' ? [{ label: 'View in jobs', icon: ICON.briefcase, onClick: () => navigate('/jobs') }] : []),
-    ...(isActive ? [{ label: 'Mark released', icon: ICON.x, onClick: () => setStatus('lost', 'Marked released', "Couldn't release it. Try again."), variant: 'destructive' as const }] : []),
+    { label: 'View in Calendar', icon: <IconMapPin />, onClick: () => navigate(lead.job_date_requested ? `/calendar?date=${lead.job_date_requested}` : '/calendar') },
+    ...(canReply ? [{ label: 'Mark Replied', icon: <IconCheck />, onClick: () => updateStatus.mutate({ id: id!, status: 'replied', actor: user?.username }), variant: 'primary' as const }] : []),
+    ...(lead.status === 'booked' ? [{ label: 'View in Jobs', icon: <IconBriefcase />, onClick: () => navigate('/jobs') }] : []),
+    ...(isActive ? [{ label: 'Mark Released', icon: <IconXMark />, onClick: () => updateStatus.mutate({ id: id!, status: 'lost', actor: user?.username }), variant: 'destructive' as const }] : []),
   ]
 
   function lockAndBook() {
     if (!lead) return
     const v = validateQuote(quoteDraft)
     if (!v.ok) {
-      priceWarning.current = v.error
       setBookError(v.error)
-      setShake(n => n + 1)
-      if (tab !== 'quote') switchTab('quote')
+      if (tab !== 'quote') setTab('quote')
       return
     }
     setBookError('')
@@ -234,98 +224,119 @@ export function LeadCommandCenter() {
         estimatedJobDurationMinutes: v.duration,
       },
       {
-        onSuccess: () => setBooked({ text: buildConfirmationText(lead, v.total), total: v.total, when: bookedDay(lead.job_date_requested) }),
-        onError: error => {
-          setBookError((error as Error)?.message ?? 'Failed to book lead.')
-          setShake(n => n + 1)
-        },
+        onSuccess: () => setConfirmText(buildConfirmationText(lead, v.total)),
+        onError: error => setBookError((error as Error)?.message ?? 'Failed to book lead.'),
       },
     )
   }
 
-  const quoted = parseMoney(quoteDraft.quotedPriceTotal)
-
-  // One tap on a review price sets the whole quote to it, as a single base line.
-  function pickPrice(price: number) {
-    quoteDraft.setQuotedPriceTotal(price.toFixed(2))
-    quoteDraft.setLineItems([createLineItem('Base quote', String(price))])
-    setBookError('')
-    say(`Quote set to $${price.toLocaleString('en-US')}`)
-  }
-
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg text-ink">
-      <div className={`wd-toast ${toast ? 'show' : ''}`} role="status" aria-live="polite">{toast}</div>
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
 
-      {/* ── Header ─────────────────────────────────────────── */}
-      <header className="wd-hdr z-20 shrink-0 !pb-5 !pl-2">
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => navigate('/')} className="wd-ib" aria-label="Back to queue">
-            <Icon d={ICON.back} />
+      {/* ── Fixed header ─────────────────────────────────── */}
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 pt-3 pb-2.5 shrink-0 z-20">
+        <div className="flex items-start gap-3">
+
+          {/* Back */}
+          <button
+            onClick={() => navigate('/')}
+            className="mt-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 shrink-0"
+            aria-label="Back to queue"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
           </button>
 
-          <div className="min-w-0 flex-1">
-            <h1 className="wd-disp truncate text-[26px] leading-none">
-              {lead.customer_name ?? <span className="normal-case italic text-[#b9b5ac]">No name yet</span>}
+          {/* Name + badges */}
+          <div className="flex-1 min-w-0">
+            <h1 className="font-semibold text-gray-900 dark:text-white text-base leading-snug">
+              {lead.customer_name ?? <span className="italic text-gray-400 font-normal">No name yet</span>}
             </h1>
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <StatusBadge status={lead.status} />
-              {lead.urgency_flag && <span className="wd-urg">Urgent</span>}
-              <span className="wd-age tabular-nums">{shortAge(parseUtc(lead.created_at))}</span>
+              {lead.urgency_flag && (
+                <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">Urgent</span>
+              )}
+              <AgeIndicator createdAt={lead.created_at} />
+              {followup && (
+                <button
+                  onClick={() => setShowFollowUpModal(true)}
+                  className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 border border-amber-200"
+                >
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                  {new Date(followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </button>
+              )}
+              {payment && payment.status !== 'cancelled' && (
+                <button
+                  onClick={() => {
+                    if (payment.payment_link_url && payment.status === 'pending') {
+                      navigator.clipboard.writeText(payment.payment_link_url)
+                      setLinkCopied(true)
+                      setTimeout(() => setLinkCopied(false), 2500)
+                    }
+                  }}
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                    payment.status === 'paid'
+                      ? 'bg-green-100 text-green-700 border-green-200'
+                      : payment.status === 'pending'
+                      ? 'bg-blue-100 text-blue-700 border-blue-200 active:bg-blue-200'
+                      : 'bg-gray-100 text-gray-500 border-gray-200'
+                  }`}
+                >
+                  <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+                  </svg>
+                  {linkCopied ? 'Copied!' : payment.status === 'paid' ? 'Paid' : payment.status === 'pending' ? 'Copy Link' : payment.status}
+                </button>
+              )}
             </div>
           </div>
 
-          {canReply ? (
-            <button onClick={markReplied} disabled={updateStatus.isPending} className="wd-btn-sm wd-btn-amber shrink-0">
-              {updateStatus.isPending ? 'Saving…' : 'Mark replied'}
+          {/* Primary action + overflow menu */}
+          <div className="flex items-center gap-2 shrink-0 mt-0.5">
+            {primaryAction && (
+              <button
+                onClick={primaryAction.action}
+                disabled={updateStatus.isPending}
+                className={`text-xs rounded-lg px-3 py-2 font-semibold disabled:opacity-50 transition-colors ${primaryAction.color}`}
+              >
+                {primaryAction.label}
+              </button>
+            )}
+            <button
+              onClick={() => setShowActionSheet(true)}
+              className="flex items-center justify-center w-8 h-8 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              aria-label="More actions"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+              </svg>
             </button>
-          ) : lead.status === 'booked' ? (
-            <button onClick={() => navigate('/jobs')} className="wd-btn-sm shrink-0">View jobs</button>
-          ) : null}
-          <button onClick={() => setShowActionSheet(true)} className="wd-ib" aria-label="More actions">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICON.dots} strokeWidth={3} /></svg>
-          </button>
+          </div>
         </div>
 
-        {(followup || (payment && payment.status !== 'cancelled')) && (
-          <div className="mt-2 flex flex-wrap gap-2 pl-[50px]">
-            {followup && (
-              <button onClick={() => setShowFollowUpModal(true)} className="wd-hchip">
-                Follow up {new Date(followup.scheduled_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-              </button>
-            )}
-            {payment && payment.status !== 'cancelled' && (
-              <button
-                onClick={() => {
-                  if (payment.payment_link_url && payment.status === 'pending') {
-                    navigator.clipboard.writeText(payment.payment_link_url)
-                    setLinkCopied(true)
-                    setTimeout(() => setLinkCopied(false), 2500)
-                  }
-                }}
-                className={`wd-hchip ${payment.status === 'paid' ? 'wd-hchip-ok' : ''}`}
-              >
-                {linkCopied ? 'Copied' : payment.status === 'paid' ? 'Paid' : payment.status === 'pending' ? 'Copy pay link' : payment.status}
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="pl-2">
+        {/* Gate progress — separate row so it never wraps into the button area */}
+        <div className="mt-2 pl-8">
           <GateIndicator status={lead.status} />
         </div>
       </header>
 
+      {/* Payment error banner */}
+      {paymentError && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-2">
+          <p className="text-xs text-red-700">{paymentError}</p>
+        </div>
+      )}
+
+      {/* An open escalation is a genuine interrupt — it stays pinned. */}
+      <EscalationCard leadId={lead.id} />
+
       {/* ── Scrollable panel ─────────────────────────────── */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl">
-        {paymentError && (
-          <p className="wd-box mx-3.5 mt-3.5 !shadow-[inset_0_0_0_1.5px_var(--red)] text-sm text-danger">{paymentError}</p>
-        )}
-
-        {/* An open escalation is a genuine interrupt — it sits first. */}
-        <EscalationCard leadId={lead.id} />
-
+      <main className="flex-1 overflow-y-auto">
         {/* First thing on open, on every tab; scrolls away once read. */}
         <LeadDecisionCard
           lead={lead}
@@ -333,64 +344,95 @@ export function LeadCommandCenter() {
           reviewLoading={aiReviewLoading}
           reviewError={aiReviewError}
           onRetryLoad={() => { void refetchAiReview() }}
-          pickedPrice={quoted}
-          onPickPrice={isActive ? pickPrice : undefined}
         />
-        <div className="px-3.5 pt-3 empty:hidden">
-          <RefundBanner lead={lead} />
-        </div>
-        <div key={tab} ref={paneRef}>
-          {tab === 'brief' && (
-            <BriefPanel
-              lead={lead}
-              aiReview={aiReview}
-              onBookingDateSet={() => switchTab('quote')}
-            />
-          )}
-          {tab === 'quote' && (
-            <QuotePanel
-              lead={lead}
-              aiReview={aiReview}
-              leadId={id!}
-              quoteDraft={quoteDraft}
-              onLockAndBook={lockAndBook}
-              isBooking={updateStatus.isPending}
-            />
-          )}
-          {tab === 'log' && (
-            <LogPanel
-              lead={lead}
-              leadId={id!}
-              onGoToQuote={() => switchTab('quote')}
-            />
-          )}
-        </div>
-        </div>
+        {/* Moved inside the scroll region so it stops eating permanent
+            vertical space on a phone. */}
+        <RefundBanner lead={lead} />
+        {tab === 'brief' && (
+          <BriefPanel
+            lead={lead}
+            aiReview={aiReview}
+            onBookingDateSet={() => setTab('quote')}
+          />
+        )}
+        {tab === 'quote' && (
+          <QuotePanel
+            lead={lead}
+            aiReview={aiReview}
+            leadId={id!}
+            quoteDraft={quoteDraft}
+            onLockAndBook={lockAndBook}
+            bookError={bookError}
+            isBooking={updateStatus.isPending}
+          />
+        )}
+        {tab === 'log' && (
+          <LogPanel
+            lead={lead}
+            leadId={id!}
+            onGoToQuote={() => setTab('quote')}
+          />
+        )}
       </main>
 
       {/* ── Pinned quote bar ─────────────────────────────── */}
-      {isActive && bookError && (
-        <p className="wd-qbar-err mx-auto w-full max-w-3xl wd-err" role="alert">{bookError}</p>
-      )}
       {isActive && (
-        <div className="wd-qbar mx-auto w-full max-w-3xl">
+        <div className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 px-4 py-2 flex items-center justify-between gap-3 shrink-0">
           <div className="min-w-0">
-            <p className="wd-qb-l">Quote{lead.status === 'booked' ? ' · Booked' : ''}</p>
-            <p className="wd-qb-v truncate">{quoted != null ? formatCurrency(quoted) : 'Not set'}</p>
+            <p className="text-[10px] uppercase tracking-wide text-gray-400">Quote{lead.status === 'booked' ? ' · Booked' : ''}</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              {parseMoney(quoteDraft.quotedPriceTotal) != null ? formatCurrency(parseMoney(quoteDraft.quotedPriceTotal)!) : 'Not set'}
+            </p>
           </div>
           {lead.status === 'booked' ? (
-            <button onClick={() => navigate('/jobs')} className="wd-btn shrink-0">View jobs</button>
+            <button onClick={() => navigate('/jobs')} className="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
+              View Jobs
+            </button>
           ) : tab === 'quote' ? (
-            <button key={shake} onClick={lockAndBook} disabled={updateStatus.isPending} className={`wd-btn shrink-0 ${shake ? 'wd-shake' : ''}`}>
-              {updateStatus.isPending ? 'Booking…' : 'Lock & book'}
+            <button onClick={lockAndBook} disabled={updateStatus.isPending} className="shrink-0 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50">
+              {updateStatus.isPending ? 'Booking…' : 'Lock & Book'}
             </button>
           ) : (
-            <button onClick={() => switchTab('quote')} className="wd-btn wd-btn-amber shrink-0">Open quote</button>
+            <button onClick={() => setTab('quote')} className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
+              Open Quote
+            </button>
           )}
         </div>
       )}
 
-      <TabDock tabs={TABS} active={tab} onChange={switchTab} label="Lead" />
+      {/* ── Bottom tab bar ───────────────────────────────── */}
+      <nav className="bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex shrink-0">
+        {([
+          { id: 'brief', label: 'Brief', icon: (active: boolean) => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+          )},
+          { id: 'quote', label: 'Quote', icon: (active: boolean) => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          )},
+          { id: 'log', label: 'Log', icon: (active: boolean) => (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          )},
+        ] as { id: Tab; label: string; icon: (active: boolean) => React.ReactNode }[]).map(({ id, label, icon }) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 pb-3 transition-colors ${
+              tab === id
+                ? 'text-indigo-600 dark:text-indigo-400'
+                : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            {icon(tab === id)}
+            <span className="text-[10px] font-medium leading-none">{label}</span>
+          </button>
+        ))}
+      </nav>
 
       {/* ── Modals & overlays ─────────────────────────────── */}
       {showScheduleModal && (
@@ -408,11 +450,14 @@ export function LeadCommandCenter() {
         />
       )}
 
-      <ActionSheet open={showActionSheet} items={actionSheetItems} onClose={() => setShowActionSheet(false)} />
-
-      {booked && (
-        <BookingConfirmation text={booked.text} total={booked.total} when={booked.when} onClose={() => setBooked(null)} />
+      {showActionSheet && (
+        <ActionSheet items={actionSheetItems} onClose={() => setShowActionSheet(false)} />
       )}
+
+      {confirmText !== null && (
+        <BookingConfirmation text={confirmText} onClose={() => setConfirmText(null)} />
+      )}
+
     </div>
   )
 }

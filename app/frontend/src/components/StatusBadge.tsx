@@ -1,18 +1,16 @@
 import type { LeadStatus } from '../types/lead'
 
-// Workday badges: New = amber, review/replied = outline, quote/book/booked =
-// green, waiting and closed = soft, escalated = red.
-const tones: Record<LeadStatus, string> = {
-  new: 'wd-st-new',
-  in_review: 'wd-st-line',
-  replied: 'wd-st-line',
-  waiting_on_customer: 'wd-st-soft',
-  ready_for_quote: 'wd-st-green',
-  ready_for_booking: 'wd-st-green',
-  escalated: 'wd-st-red',
-  booked: 'wd-st-green',
-  released: 'wd-st-soft',
-  lost: 'wd-st-soft',
+const colors: Record<LeadStatus, string> = {
+  new: 'bg-red-100 text-red-800',
+  in_review: 'bg-yellow-100 text-yellow-800',
+  replied: 'bg-teal-100 text-teal-800',
+  waiting_on_customer: 'bg-blue-100 text-blue-800',
+  ready_for_quote: 'bg-purple-100 text-purple-800',
+  ready_for_booking: 'bg-green-100 text-green-800',
+  escalated: 'bg-orange-100 text-orange-800',
+  booked: 'bg-green-200 text-green-900',
+  released: 'bg-emerald-100 text-emerald-700',
+  lost: 'bg-gray-100 text-gray-500',
 }
 
 const labels: Record<LeadStatus, string> = {
@@ -29,5 +27,9 @@ const labels: Record<LeadStatus, string> = {
 }
 
 export function StatusBadge({ status }: { status: LeadStatus }) {
-  return <span className={`wd-st ${tones[status]}`}>{labels[status]}</span>
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[status]}`}>
+      {labels[status]}
+    </span>
+  )
 }

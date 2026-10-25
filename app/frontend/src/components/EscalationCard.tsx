@@ -21,23 +21,21 @@ export function EscalationCard({ leadId }: { leadId: string }) {
   }
 
   return (
-    <div className="wd-box mx-3.5 mt-3.5 overflow-hidden !p-0">
-      <div className="haz h-1.5" aria-hidden="true" />
-      <div className="px-3.5 py-3">
+    <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-900/20">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="wd-fl !mb-1 !text-[#b86e00] dark:!text-ac">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
             ⚠ Escalated · {LEVEL_LABELS[esc.level]}
             {esc.source === 'auto_idle' && ' · auto'}
           </p>
-          <p className="text-sm font-semibold">Decision needed: {esc.decision_needed}</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-mu">{esc.summary}</p>
-          <p className="wd-hint">Raised by {esc.raised_by ?? 'system'}</p>
+          <p className="mt-0.5 text-sm font-medium text-gray-900 dark:text-white">Decision needed: {esc.decision_needed}</p>
+          <p className="mt-1 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-300">{esc.summary}</p>
+          <p className="mt-1 text-[11px] text-gray-400">Raised by {esc.raised_by ?? 'system'}</p>
         </div>
         {!showResolve && (
           <button
             onClick={() => setShowResolve(true)}
-            className="wd-btn-sm wd-btn-amber shrink-0"
+            className="shrink-0 min-h-11 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700"
           >
             Resolve
           </button>
@@ -49,8 +47,7 @@ export function EscalationCard({ leadId }: { leadId: string }) {
           <select
             value={outcome}
             onChange={e => setOutcome(e.target.value as EscalationOutcome)}
-            className="wd-input"
-            aria-label="Decision"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           >
             {OUTCOMES.map(o => <option key={o} value={o}>{OUTCOME_LABELS[o]}</option>)}
           </select>
@@ -58,26 +55,25 @@ export function EscalationCard({ leadId }: { leadId: string }) {
             value={note}
             onChange={e => setNote(e.target.value)}
             placeholder="Decision note (sent back to the handler)"
-            className="wd-input"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           />
           {resolve.isError && (
-            <p className="wd-err">{(resolve.error as Error).message}</p>
+            <p className="text-xs text-red-600 dark:text-red-400">{(resolve.error as Error).message}</p>
           )}
           <div className="flex justify-end gap-2">
-            <button onClick={() => setShowResolve(false)} className="wd-btn-sm wd-btn-ghost">
+            <button onClick={() => setShowResolve(false)} className="min-h-11 rounded-lg px-4 py-2 text-sm text-gray-600 dark:text-gray-300">
               Cancel
             </button>
             <button
               onClick={handleResolve}
               disabled={resolve.isPending}
-              className="wd-btn-sm"
+              className="min-h-11 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
             >
               {resolve.isPending ? 'Resolving…' : 'Confirm decision'}
             </button>
           </div>
         </div>
       )}
-      </div>
     </div>
   )
 }

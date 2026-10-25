@@ -28,71 +28,71 @@ export function EscalateSheet({ leadId, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(10,12,11,.45)]" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" onClick={onClose}>
       <div
-        role="dialog"
-        aria-label="Escalate to owner"
-        className="max-h-[92dvh] overflow-y-auto w-full max-w-lg rounded-t-sheet bg-bg px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-2.5 text-ink"
+        className="w-full max-w-lg rounded-t-2xl bg-white p-4 dark:bg-gray-800 sm:rounded-2xl"
         onClick={e => e.stopPropagation()}
       >
-        <div className="wd-grab" aria-hidden="true" />
-        <h3 className="wd-disp mb-3 text-[22px] leading-none">Escalate to owner</h3>
+        <h3 className="mb-3 text-base font-semibold text-gray-900 dark:text-white">Escalate to owner</h3>
 
-        <label className="wd-fl !mb-1">Level</label>
+        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Level</label>
         <div className="mb-3 flex flex-wrap gap-2">
           {LEVELS.map(l => (
             <button
               key={l}
               onClick={() => setLevel(l)}
-              aria-pressed={level === l}
-              className={`wd-btn-sm ${level === l ? 'wd-btn-amber' : 'wd-btn-ghost !shadow-[inset_0_0_0_1.5px_var(--ln)]'}`}
+              className={`min-h-11 rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                level === l
+                  ? 'border-amber-600 bg-amber-600 text-white'
+                  : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100'
+              }`}
             >
               {LEVEL_LABELS[l]}
             </button>
           ))}
         </div>
 
-        <label className="wd-fl !mb-1">Decision needed</label>
+        <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Decision needed</label>
         <select
           value={decision}
           onChange={e => setDecision(e.target.value)}
-          className="wd-input mb-3"
+          className="mb-3 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
         >
           {DECISION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
 
         <div className="mb-1 flex items-center justify-between">
-          <label className="wd-fl !mb-0">Summary</label>
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Summary</label>
           <button
             onClick={handleSuggest}
             disabled={suggest.isPending}
-            className="wd-btn-sm wd-btn-ghost -mr-2 !shadow-none !text-ok"
+            className="min-h-11 px-2 -mr-2 text-xs font-medium text-indigo-600 hover:text-indigo-800 disabled:opacity-50 dark:text-indigo-400"
           >
             {suggest.isPending ? 'Drafting…' : '✨ Suggest with AI'}
           </button>
         </div>
         {suggest.isError && (
-          <p className="wd-err mb-1">{(suggest.error as Error).message}</p>
+          <p className="mb-1 text-xs text-red-600 dark:text-red-400">{(suggest.error as Error).message}</p>
         )}
         <textarea
           rows={6}
           value={summary}
           onChange={e => setSummary(e.target.value)}
           placeholder="What changed / why this needs the owner. Tap to draft from the lead."
-          className="wd-input mb-3"
+          className="mb-3 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
         />
 
         {raise.isError && (
-          <p className="wd-err mb-2">{(raise.error as Error).message}</p>
+          <p className="mb-2 text-xs text-red-600 dark:text-red-400">{(raise.error as Error).message}</p>
         )}
-        <div className="flex gap-2">
-          <button onClick={onClose} className="wd-btn wd-btn-ghost flex-1">
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="min-h-11 rounded-lg px-4 py-2 text-sm text-gray-600 dark:text-gray-300">
             Cancel
           </button>
           <button
             onClick={handleEscalate}
             disabled={raise.isPending || !summary.trim()}
-            className="wd-btn wd-btn-amber flex-1"
+            className="min-h-11 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
           >
             {raise.isPending ? 'Escalating…' : 'Escalate'}
           </button>

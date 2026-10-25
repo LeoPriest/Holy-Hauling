@@ -16,31 +16,37 @@ interface Props {
   status: LeadStatus
 }
 
-// Workday gates: five bars on the dark header. Done = green, current = moving
-// hazard stripe, still to come = faint white.
 export function GateIndicator({ status }: Props) {
   const current = STATUS_TO_STEP[status] ?? -1
 
   if (current === -1) {
     return (
-      <p className="wd-label mt-3 text-[#b9b5ac]">
-        {status === 'released' ? 'Completed' : status === 'lost' ? 'Released' : 'Escalated'}
-      </p>
+      <span className="text-xs text-gray-400 italic">
+        {status === 'released' ? 'Released' : 'Escalated'}
+      </span>
     )
   }
 
   return (
-    <ol className="wd-gates" aria-label="Gates">
-      {STEPS.map((label, i) => {
-        const done = i < current
-        const cur = i === current
-        return (
-          <li key={label} className={`wd-gate ${done ? 'done' : cur ? 'cur' : ''}`} aria-current={cur ? 'step' : undefined}>
-            <i className={cur && i < STEPS.length - 1 ? 'haz' : cur ? 'wd-gate-end' : ''} aria-hidden="true" />
-            <span>{done ? '✓ ' : ''}{label}</span>
-          </li>
-        )
-      })}
-    </ol>
+    <div className="flex items-center gap-1">
+      {STEPS.map((label, i) => (
+        <div key={label} className="flex items-center gap-1">
+          <div
+            className={`flex items-center justify-center rounded-full text-[9px] font-bold w-5 h-5 shrink-0 ${
+              i < current
+                ? 'bg-green-500 text-white'
+                : i === current
+                ? 'bg-indigo-600 text-white ring-2 ring-indigo-200'
+                : 'bg-gray-200 text-gray-400'
+            }`}
+          >
+            {i < current ? '✓' : i + 1}
+          </div>
+          {i < STEPS.length - 1 && (
+            <div className={`w-3 h-px shrink-0 ${i < current ? 'bg-green-400' : 'bg-gray-200'}`} />
+          )}
+        </div>
+      ))}
+    </div>
   )
 }

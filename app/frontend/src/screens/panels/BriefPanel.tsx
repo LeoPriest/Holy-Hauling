@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { DateOptionsEditor } from '../../components/DateOptionsEditor'
 import { TruckRentalSection } from '../../components/TruckRentalSection'
 import { PayrollSection } from '../../components/PayrollSection'
@@ -19,7 +19,7 @@ interface Props {
   onBookingDateSet?: () => void
 }
 
-// ── Inline editable field ─────────────────────────────────────────────────────
+// â”€â”€ Inline editable field â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface EditableFieldProps {
   value: string | null | undefined
@@ -33,7 +33,7 @@ interface EditableFieldProps {
 function EditableField({
   value,
   onSave,
-  placeholder = 'Tap to add…',
+  placeholder = 'Tap to addâ€¦',
   type = 'text',
   options,
   display,
@@ -71,13 +71,25 @@ function EditableField({
 
   if (!editing) {
     return (
-      <button onClick={open} className="wd-ed">
-        {displayValue ? displayValue : <span className="ph">{placeholder}</span>}
+      <button
+        onClick={open}
+        className="w-full min-w-0 text-left group"
+      >
+        {displayValue ? (
+          <span className="block text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-normal break-words">
+            {displayValue}
+          </span>
+        ) : (
+          <span className="text-sm text-gray-300 dark:text-gray-600 italic">
+            {placeholder}
+          </span>
+        )}
       </button>
     )
   }
 
-  const inputClass = 'wd-input my-1'
+  const inputClass =
+    'w-full text-sm border border-indigo-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white dark:border-indigo-500'
 
   if (type === 'select' && options) {
     return (
@@ -123,7 +135,7 @@ function EditableField({
   )
 }
 
-// ── Address field with Places Autocomplete (New) via REST ────────────────────
+// â”€â”€ Address field with Places Autocomplete (New) via REST â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface PlacePrediction {
   placeId: string
@@ -283,7 +295,8 @@ function AddressField({ value, onSave }: AddressFieldProps) {
     }
   }, [])
 
-  const inputClass = 'wd-input my-1'
+  const inputClass =
+    'w-full text-sm border border-indigo-400 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 dark:text-white dark:border-indigo-500'
 
   const mapsUrl = value
     ? `https://maps.google.com/maps?q=${encodeURIComponent(value)}`
@@ -292,15 +305,23 @@ function AddressField({ value, onSave }: AddressFieldProps) {
   if (!editing) {
     return (
       <div className="flex items-center gap-2">
-        <button onClick={open} className="wd-ed min-w-0 flex-1">
-          {value ? value : <span className="ph">Confirmed street address — books job</span>}
+        <button onClick={open} className="flex-1 text-left group min-w-0">
+          {value ? (
+            <span className="text-sm text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors break-words">
+              {value}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-300 dark:text-gray-600 italic">
+              Confirmed street address â€” books job
+            </span>
+          )}
         </button>
         {mapsUrl && (
           <a
             href={mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="wd-btn-sm wd-btn-ghost shrink-0"
+            className="shrink-0 text-xs bg-indigo-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-indigo-700"
           >
             Navigate
           </a>
@@ -318,28 +339,28 @@ function AddressField({ value, onSave }: AddressFieldProps) {
         onChange={handleChange}
         onBlur={commit}
         onKeyDown={onKey}
-        placeholder={MAPS_KEY ? 'Start typing an address…' : 'Enter address…'}
+        placeholder={MAPS_KEY ? 'Start typing an addressâ€¦' : 'Enter addressâ€¦'}
         className={inputClass}
         autoComplete="off"
       />
       {lookupError && (
-        <p className="wd-hint !text-[#b86e00] dark:!text-ac">{lookupError}</p>
+        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">{lookupError}</p>
       )}
       {suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 z-50 mt-1 overflow-hidden rounded-card bg-sf shadow-[inset_0_0_0_1.5px_var(--edge),0_10px_24px_rgba(0,0,0,.2)]">
+        <ul className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg overflow-hidden">
           {suggestions.map((pred, i) => (
             <li key={i}>
               <button
                 type="button"
                 onMouseDown={e => e.preventDefault()}
                 onClick={() => { void selectSuggestion(pred) }}
-                className="min-h-11 w-full border-b px-3 py-2 text-left text-sm last:border-0 active:bg-tint"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 dark:hover:bg-gray-700 border-b last:border-0 dark:border-gray-700"
               >
-                <span className="font-medium">
+                <span className="font-medium text-gray-900 dark:text-white">
                   {pred.structuredFormat?.mainText?.text ?? pred.text.text}
                 </span>
                 {pred.structuredFormat?.secondaryText && (
-                  <span className="ml-1 text-mu">
+                  <span className="text-gray-400 dark:text-gray-500 ml-1">
                     {pred.structuredFormat.secondaryText.text}
                   </span>
                 )}
@@ -352,7 +373,7 @@ function AddressField({ value, onSave }: AddressFieldProps) {
   )
 }
 
-// ── Panel ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SERVICE_OPTIONS = [
   { value: 'unknown', label: 'Unknown' },
@@ -363,9 +384,9 @@ const SERVICE_OPTIONS = [
 
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[92px_minmax(0,1fr)] gap-x-2.5 border-b last:border-0">
-      <span className="pt-3 text-[13px] text-mu">{label}</span>
-      <div className="min-w-0">{children}</div>
+    <div className="flex items-start gap-3 px-4 py-2.5 border-b last:border-0 dark:border-gray-700">
+      <span className="text-xs text-gray-400 w-24 shrink-0 mt-1.5">{label}</span>
+      <div className="flex-1 min-w-0">{children}</div>
     </div>
   )
 }
@@ -476,83 +497,73 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
   }
 
   return (
-    <div className="wd-pane flex flex-col gap-3 px-3.5 pb-6 pt-3">
+    <div className="p-4 space-y-4 pb-24">
 
-      {/* Acknowledgment */}
-      {!lead.acknowledged_at ? (
-        <div className="wd-box overflow-hidden !p-0">
-          <div className="haz h-1.5" aria-hidden="true" />
-          <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
-            <span className="text-sm font-semibold">Not yet acknowledged</span>
-            <button
-              onClick={() => acknowledge.mutate({ id: lead.id })}
-              disabled={acknowledge.isPending}
-              className="wd-btn-sm wd-btn-amber shrink-0"
-            >
-              {acknowledge.isPending ? 'Saving…' : 'Acknowledge'}
-            </button>
-          </div>
-          {acknowledge.isError && <p className="wd-err px-3.5 pb-2.5">Couldn't save. Try again.</p>}
-        </div>
-      ) : (
-        <p className="rounded-card bg-tint px-3.5 py-2.5 text-sm text-ok">
-          Acknowledged {fmtLocalDateTime(lead.acknowledged_at!)}
-        </p>
-      )}
-
-      {/* What the customer said, with the screenshot it came from */}
-      <section className="wd-box wd-box-soft">
-        <h3 className="wd-fl">Customer says</h3>
-        <div className="italic">
-          <EditableField
-            value={lead.scope_notes}
-            onSave={v => save('scope_notes', v)}
-            placeholder="Tap to add scope notes…"
-            type="textarea"
-          />
-        </div>
-        {intakeShot && (
+      {/* Screenshot thumbnail */}
+      {intakeShot && (
+        <section>
           <a
             href={buildUploadUrl(intakeShot.stored_path)}
             target="_blank"
             rel="noreferrer"
-            className="mt-2 flex items-center gap-3 rounded-card bg-bg p-2 active:bg-tint"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-2 active:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:active:bg-gray-700"
           >
             <img
               src={buildUploadUrl(intakeShot.stored_path)}
               alt="Intake screenshot"
-              className="h-16 w-16 shrink-0 rounded-chip object-cover"
+              className="h-16 w-16 shrink-0 rounded-lg object-cover"
             />
             <span className="min-w-0">
-              <span className="block text-sm font-semibold">Lead screenshot</span>
-              <span className="block text-xs text-mu">Tap to open</span>
+              <span className="block text-sm font-medium text-gray-900 dark:text-white">
+                Intake screenshot
+              </span>
+              <span className="block text-xs text-gray-400 dark:text-gray-500">Tap to open</span>
             </span>
           </a>
-        )}
-      </section>
+        </section>
+      )}
+
+      {/* Acknowledgment banner */}
+      {!lead.acknowledged_at ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between gap-3">
+          <span className="text-sm text-red-700 font-medium">Not yet acknowledged</span>
+          <button
+            onClick={() => acknowledge.mutate({ id: lead.id })}
+            disabled={acknowledge.isPending}
+            className="text-xs bg-red-600 text-white rounded-lg px-3 py-1.5 hover:bg-red-700 disabled:opacity-50 shrink-0"
+          >
+            {acknowledge.isPending ? 'Savingâ€¦' : 'Acknowledge'}
+          </button>
+        </div>
+      ) : (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+          <p className="text-sm text-green-700">
+            Acknowledged {fmtLocalDateTime(lead.acknowledged_at!)}
+          </p>
+        </div>
+      )}
 
       {/* Editable lead fields */}
-      <section className="wd-box wd-box-soft">
-        <h3 className="wd-fl">Job details</h3>
-        <div>
+      <section>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Lead Info</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 divide-y dark:divide-gray-700">
+
           <FieldRow label="Name">
             <EditableField
               value={lead.customer_name}
               onSave={v => save('customer_name', v)}
-              placeholder="Tap to add name…"
+              placeholder="Tap to add nameâ€¦"
             />
           </FieldRow>
 
-          <FieldRow label="Ingested by">
-            <span className="block py-3 text-sm font-medium [overflow-wrap:anywhere]">
+          <FieldRow label="Ingested By">
+            <span className="block text-sm text-gray-900 dark:text-white whitespace-normal break-words">
               {lead.ingested_by ?? 'Unknown'}
             </span>
           </FieldRow>
 
           <FieldRow label="Phone">
-            <div className="py-1.5">
-              <LeadContact lead={lead} save={save} />
-            </div>
+            <LeadContact lead={lead} save={save} />
           </FieldRow>
 
           <FieldRow label="Service">
@@ -569,7 +580,7 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
             <EditableField
               value={lead.job_location}
               onSave={v => save('job_location', v)}
-              placeholder="City / zip from lead…"
+              placeholder="City / zip from leadâ€¦"
             />
           </FieldRow>
 
@@ -580,9 +591,9 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
             />
           </FieldRow>
 
-          <FieldRow label="Moving to">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="min-w-0 flex-1">
+          <FieldRow label="Moving To">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex-1 min-w-0">
                 <EditableField
                   value={lead.job_destination}
                   onSave={v => save('job_destination', v)}
@@ -594,62 +605,67 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
                   href={`https://maps.google.com/maps?q=${encodeURIComponent(lead.job_destination)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="wd-btn-sm wd-btn-ghost shrink-0"
+                  className="shrink-0 text-xs bg-indigo-600 text-white rounded-lg px-2 py-1 font-medium hover:bg-indigo-700"
                 >
                   Navigate
                 </a>
               ) : lead.job_destination ? (
-                <span className="shrink-0 text-xs text-mu">Nav at dispatch</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">Nav at dispatch</span>
               ) : null}
             </div>
           </FieldRow>
 
-          <FieldRow label="Requested dates">
-            <div className="py-1.5">
-              <DateOptionsEditor
-                values={lead.move_date_options ?? []}
-                onChange={saveMoveDateOptions}
-                onSelectDate={d => { saveJobDateRange(d, null); onBookingDateSet?.() }}
-              />
-            </div>
+          <FieldRow label="Requested Dates">
+            <DateOptionsEditor
+              values={lead.move_date_options ?? []}
+              onChange={saveMoveDateOptions}
+              onSelectDate={d => { saveJobDateRange(d, null); onBookingDateSet?.() }}
+            />
           </FieldRow>
 
-          <FieldRow label="Time slot">
+          <FieldRow label="Time Slot">
             <EditableField
               value={lead.appointment_time_slot}
               onSave={v => save('appointment_time_slot', v)}
-              placeholder="Tap to add time…"
+              placeholder="Tap to add timeâ€¦"
               type="time"
               display={fmtTimeSlot}
             />
           </FieldRow>
 
-          <FieldRow label="Est. duration">
+          <FieldRow label="Est. Duration">
             {lead.estimated_job_duration_minutes != null ? (
-              <p className="py-3 text-sm font-medium">
+              <p className="text-sm text-gray-900 dark:text-white">
                 {fmtDurationMinutes(lead.estimated_job_duration_minutes)}
-                <span className="ml-2 text-xs font-normal text-mu">set on Quote</span>
+                <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">set on Quote</span>
               </p>
             ) : (
-              <p className="py-3 text-sm text-mu">Set on the Quote tab</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500">Set on the Quote tab</p>
             )}
           </FieldRow>
 
-          <FieldRow label="Booking date">
-            <div>
+          <FieldRow label="Notes">
+            <EditableField
+              value={lead.scope_notes}
+              onSave={v => save('scope_notes', v)}
+              placeholder="Tap to add scope notesâ€¦"
+              type="textarea"
+            />
+          </FieldRow>
+
+          <FieldRow label="Booking Date">
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <EditableField
-                    value={lead.job_date_requested}
-                    onSave={v => { saveJobDateRange(v, v ? (lead.job_date_end ?? null) : null); if (v) onBookingDateSet?.() }}
-                    placeholder="Tap to set date…"
-                    type="date"
-                  />
-                </div>
+                <EditableField
+                  value={lead.job_date_requested}
+                  onSave={v => { saveJobDateRange(v, v ? (lead.job_date_end ?? null) : null); if (v) onBookingDateSet?.() }}
+                  placeholder="Tap to set dateâ€¦"
+                  type="date"
+                />
                 {lead.job_date_requested && (
                   <button
                     onClick={() => saveJobDateRange(null, null)}
-                    className="wd-btn-sm wd-btn-ghost shrink-0"
+                    className="text-xs text-gray-400 hover:text-red-500 shrink-0 transition-colors"
                   >
                     Clear
                   </button>
@@ -657,15 +673,13 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
               </div>
               {lead.job_date_requested && (
                 <div className="flex items-center gap-2">
-                  <span className="w-14 shrink-0 text-xs text-mu">Through</span>
-                  <div className="min-w-0 flex-1">
-                    <EditableField
-                      value={lead.job_date_end ?? null}
-                      onSave={v => save('job_date_end', v)}
-                      placeholder="End date (optional)…"
-                      type="date"
-                    />
-                  </div>
+                  <span className="text-xs text-gray-400 shrink-0 w-14">Through</span>
+                  <EditableField
+                    value={lead.job_date_end ?? null}
+                    onSave={v => save('job_date_end', v)}
+                    placeholder="End date (optional)â€¦"
+                    type="date"
+                  />
                 </div>
               )}
             </div>
@@ -673,9 +687,9 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
 
           {lead.status === 'booked' && (
             <FieldRow label="$/quote">
-              <div className="space-y-1 py-1">
+              <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-mu">$</span>
+                  <span className="text-sm text-gray-500">$</span>
                   <input
                     type="number"
                     min="0"
@@ -684,25 +698,27 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
                     onChange={e => setQuoteInput(e.target.value)}
                     onBlur={handleQuoteBlur}
                     placeholder="0.00"
-                    aria-label="Quote"
-                    className="wd-input min-w-0 flex-1"
+                    className="flex-1 text-sm text-gray-900 dark:text-white dark:bg-transparent focus:outline-none"
                   />
                   {lead.quote_cents !== null && lead.quote_cents !== undefined && (
-                    <span className="shrink-0 text-xs text-mu">
+                    <span className="text-xs text-gray-400 shrink-0">
                       {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(lead.quote_cents / 100)}
                     </span>
                   )}
                 </div>
                 {quoteError && (
-                  <p className="wd-err">{quoteError}</p>
+                  <p className="text-xs text-red-500">{quoteError}</p>
                 )}
                 {showClearQuoteWarning && (
-                  <div className="rounded-card bg-bg p-2.5 shadow-[inset_0_0_0_1.5px_var(--ac)]">
-                    <p className="mb-2 text-xs">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 dark:bg-amber-900/20 dark:border-amber-700">
+                    <p className="text-xs text-amber-800 dark:text-amber-300 mb-2">
                       Clearing the quote will remove facilitator pay calculations for this job. Continue?
                     </p>
                     <div className="flex gap-2">
-                      <button onClick={confirmClearQuote} className="wd-btn-sm !bg-danger">
+                      <button
+                        onClick={confirmClearQuote}
+                        className="text-xs font-semibold text-red-600 hover:underline"
+                      >
                         Yes, clear
                       </button>
                       <button
@@ -714,7 +730,7 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
                               : ''
                           )
                         }}
-                        className="wd-btn-sm wd-btn-ghost"
+                        className="text-xs text-gray-500 hover:underline"
                       >
                         Cancel
                       </button>
@@ -724,82 +740,96 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
               </div>
             </FieldRow>
           )}
+
         </div>
         {patch.isPending && (
-          <p className="wd-hint">Saving…</p>
+          <p className="text-xs text-gray-400 mt-1 px-1">Savingâ€¦</p>
         )}
         {patch.isError && (
-          <p className="wd-err mt-1.5">Failed to save — please try again.</p>
+          <p className="text-xs text-red-500 mt-1 px-1">Failed to save â€” please try again.</p>
         )}
       </section>
 
       {/* Lead cost */}
-      <LeadCostCard
-        leadCostCents={lead.lead_cost_cents}
-        leadCostGrossCents={lead.lead_cost_gross_cents}
-        leadCostBonusCents={lead.lead_cost_bonus_cents}
-        prosContacted={lead.pros_contacted}
-        prosResponded={lead.pros_responded}
-        fieldSources={lead.field_sources ? JSON.stringify(lead.field_sources) : null}
-        onSave={costPatch => patch.mutateAsync({ id: lead.id, data: costPatch })}
-      />
+      <section>
+        <LeadCostCard
+          leadCostCents={lead.lead_cost_cents}
+          leadCostGrossCents={lead.lead_cost_gross_cents}
+          leadCostBonusCents={lead.lead_cost_bonus_cents}
+          prosContacted={lead.pros_contacted}
+          prosResponded={lead.pros_responded}
+          fieldSources={lead.field_sources ? JSON.stringify(lead.field_sources) : null}
+          onSave={costPatch => patch.mutateAsync({ id: lead.id, data: costPatch })}
+        />
+      </section>
 
       {/* Assigned to */}
-      <section className="wd-box wd-box-soft">
-        <label htmlFor="assigned-to" className="wd-fl">Assigned to</label>
-        <select
-          id="assigned-to"
-          className="wd-input"
-          value={lead.assigned_to ?? ''}
-          onChange={e => patch.mutate(
-            { id: lead.id, data: { assigned_to: e.target.value || null } },
-            { onError: (err) => console.error('Failed to update assigned_to:', err) }
-          )}
-        >
-          <option value="">— Unassigned —</option>
-          {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {
-            const members = teamMembers.filter(m => m.role === role && m.is_active)
-            if (members.length === 0) return null
-            return (
-              <optgroup key={role} label={role.charAt(0).toUpperCase() + role.slice(1)}>
-                {members.map(m => (
-                  <option key={m.id} value={m.username}>{m.username}</option>
-                ))}
-              </optgroup>
-            )
-          })}
-        </select>
+      <section>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Assigned To</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-3">
+          <select
+            className="w-full text-sm text-gray-900 dark:text-white dark:bg-gray-800 focus:outline-none"
+            value={lead.assigned_to ?? ''}
+            onChange={e => patch.mutate(
+              { id: lead.id, data: { assigned_to: e.target.value || null } },
+              { onError: (err) => console.error('Failed to update assigned_to:', err) }
+            )}
+          >
+            <option value="">â€” Unassigned â€”</option>
+            {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {
+              const members = teamMembers.filter(m => m.role === role && m.is_active)
+              if (members.length === 0) return null
+              return (
+                <optgroup key={role} label={role.charAt(0).toUpperCase() + role.slice(1)}>
+                  {members.map(m => (
+                    <option key={m.id} value={m.username}>{m.username}</option>
+                  ))}
+                </optgroup>
+              )
+            })}
+          </select>
+        </div>
       </section>
 
       {/* AI Quick Read */}
       {aiReview ? (
         <>
-          <section className="wd-box wd-box-soft">
-            <h3 className="wd-fl">Quick read</h3>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {aiReview.sections.m_quick_read || '—'}
-            </p>
+          <section>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Quick Read
+            </h3>
+            <div className="bg-white rounded-xl border p-4">
+              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                {aiReview.sections.m_quick_read || 'â€”'}
+              </p>
+            </div>
           </section>
 
-          <section className="wd-box wd-box-soft">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="wd-fl !mb-0">Next best message</h3>
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Next Best Message
+              </h3>
               <button
                 onClick={() => handleCopy(aiReview.sections.a_next_message)}
-                className="wd-btn-sm wd-btn-ghost"
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
               >
-                {copied ? '✓ Copied' : 'Copy'}
+                {copied ? 'âœ“ Copied' : 'Copy'}
               </button>
             </div>
-            <p className="whitespace-pre-wrap rounded-card bg-tint p-3 text-sm leading-relaxed">
-              {aiReview.sections.a_next_message || '—'}
-            </p>
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+              <p className="text-sm text-indigo-900 leading-relaxed whitespace-pre-wrap">
+                {aiReview.sections.a_next_message || 'â€”'}
+              </p>
+            </div>
           </section>
         </>
       ) : (
-        <p className="rounded-card bg-sf p-4 text-center text-sm text-mu shadow-[inset_0_0_0_1px_var(--ln)]">
-          No AI review yet — tap <strong>Run AI review</strong> above.
-        </p>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+          <p className="text-sm text-gray-400">
+            No AI review yet â€” tap <strong>Run AI Review</strong> above.
+          </p>
+        </div>
       )}
 
       <TruckRentalSection lead={lead} />
@@ -808,3 +838,4 @@ export function BriefPanel({ lead, aiReview, onBookingDateSet }: Props) {
     </div>
   )
 }
+

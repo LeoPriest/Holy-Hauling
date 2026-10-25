@@ -12,8 +12,6 @@ import {
 } from '../hooks/useRecurringExpenses'
 import { centsToDisplay, intervalLabel } from '../types/recurringExpense'
 import type { IntervalUnit, RecurringExpense } from '../types/recurringExpense'
-import { ScreenHeader } from '../components/ScreenHeader'
-import { Working } from '../components/Logo'
 
 function dollarsToCents(value: string): number {
   const parsed = parseFloat(value.replace(/[^0-9.]/g, ''))
@@ -116,50 +114,65 @@ export function AdminRecurringExpensesScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-bg pb-16">
-      <ScreenHeader title="Recurring expenses" onBack={() => navigate('/admin/finances')} right={<CitySwitcher variant="pill" />} />
-      <div className="mx-auto flex max-w-3xl flex-wrap gap-2 px-3.5 pt-3">
-        <button type="button" onClick={openCreate} className="wd-btn-sm">Add</button>
-      </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/admin/finances')} aria-label="Back" className="text-gray-500 dark:text-gray-400">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Recurring Expenses</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openCreate}
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Add
+          </button>
+          <CitySwitcher />
+        </div>
+      </header>
 
       <main className="p-4 space-y-3">
-        {isLoading && <Working label="Loading expenses…" />}
+        {isLoading && <p className="text-center text-sm text-gray-400 py-8">Loading…</p>}
         {!isLoading && expenses.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-mu text-sm">No recurring expenses yet</p>
-            <p className="text-mu text-xs mt-1">Tap Add to set one up</p>
+            <p className="text-gray-400 text-sm">No recurring expenses yet</p>
+            <p className="text-gray-400 text-xs mt-1">Tap Add to set one up</p>
           </div>
         )}
         {expenses.map(exp => (
-          <div key={exp.id} className={`rounded-card border bg-sf   p-4 ${!exp.is_active ? 'opacity-60' : ''}`}>
+          <div key={exp.id} className={`rounded-xl border bg-white dark:bg-gray-800 dark:border-gray-700 p-4 ${!exp.is_active ? 'opacity-60' : ''}`}>
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <p className="font-semibold text-ink truncate">{exp.name}</p>
+                  <p className="font-semibold text-gray-900 dark:text-white truncate">{exp.name}</p>
                   {!exp.is_active && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-bg text-mu">Paused</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">Paused</span>
                   )}
                 </div>
-                <p className="text-sm text-mu">{exp.category} · {intervalLabel(exp.interval_value, exp.interval_unit as IntervalUnit)}</p>
-                <p className="text-sm font-medium text-ink mt-1">{centsToDisplay(exp.amount_cents)}</p>
-                <p className="text-xs text-mu mt-0.5">Next: {exp.next_due_date}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{exp.category} · {intervalLabel(exp.interval_value, exp.interval_unit as IntervalUnit)}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white mt-1">{centsToDisplay(exp.amount_cents)}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Next: {exp.next_due_date}</p>
               </div>
               <div className="flex items-center gap-2 ml-2 shrink-0">
                 <button
                   onClick={() => patchMutation.mutate({ id: exp.id, body: { is_active: !exp.is_active } })}
-                  className="text-xs px-2 py-1.5 rounded text-ok hover:underline"
+                  className="text-xs px-2 py-1.5 rounded text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   {exp.is_active ? 'Pause' : 'Activate'}
                 </button>
                 <button
                   onClick={() => openEdit(exp)}
-                  className="text-xs px-2 py-1.5 rounded text-mu hover:underline"
+                  className="text-xs px-2 py-1.5 rounded text-gray-500 dark:text-gray-400 hover:underline"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => setConfirmDeleteId(exp.id)}
-                  className="text-xs px-2 py-1.5 rounded text-danger hover:underline"
+                  className="text-xs px-2 py-1.5 rounded text-red-500 hover:underline"
                 >
                   Delete
                 </button>
@@ -172,15 +185,15 @@ export function AdminRecurringExpensesScreen() {
       {/* Create / Edit Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
-          <div className="bg-sf rounded-panel p-6 w-full max-w-sm space-y-3 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-ink">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm space-y-3 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
               {editingId ? 'Edit Recurring Expense' : 'Add Recurring Expense'}
             </h2>
 
             <div>
-              <label className="block text-xs text-mu mb-1">Name *</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name *</label>
               <input
-                className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Truck insurance"
@@ -188,9 +201,9 @@ export function AdminRecurringExpensesScreen() {
             </div>
 
             <div>
-              <label className="block text-xs text-mu mb-1">Category *</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Category *</label>
               <input
-                className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 value={form.category}
                 onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                 placeholder="e.g. Insurance"
@@ -198,12 +211,12 @@ export function AdminRecurringExpensesScreen() {
             </div>
 
             <div>
-              <label className="block text-xs text-mu mb-1">Amount ($) *</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Amount ($) *</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 value={form.amountDollars}
                 onChange={e => setForm(f => ({ ...f, amountDollars: e.target.value }))}
                 placeholder="0.00"
@@ -212,19 +225,19 @@ export function AdminRecurringExpensesScreen() {
 
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="block text-xs text-mu mb-1">Every</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Every</label>
                 <input
                   type="number"
                   min="1"
-                  className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                  className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   value={form.interval_value}
                   onChange={e => setForm(f => ({ ...f, interval_value: e.target.value }))}
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-xs text-mu mb-1">Unit</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Unit</label>
                 <select
-                  className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                  className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   value={form.interval_unit}
                   onChange={e => setForm(f => ({ ...f, interval_unit: e.target.value as IntervalUnit }))}
                 >
@@ -236,19 +249,19 @@ export function AdminRecurringExpensesScreen() {
             </div>
 
             <div>
-              <label className="block text-xs text-mu mb-1">Next due date *</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Next due date *</label>
               <input
                 type="date"
-                className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 value={form.next_due_date}
                 onChange={e => setForm(f => ({ ...f, next_due_date: e.target.value }))}
               />
             </div>
 
             <div>
-              <label className="block text-xs text-mu mb-1">Payment method</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Payment method</label>
               <input
-                className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 value={form.payment_method}
                 onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}
                 placeholder="e.g. ACH"
@@ -256,9 +269,9 @@ export function AdminRecurringExpensesScreen() {
             </div>
 
             <div>
-              <label className="block text-xs text-mu mb-1">Vendor</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Vendor</label>
               <input
-                className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 value={form.vendor_customer}
                 onChange={e => setForm(f => ({ ...f, vendor_customer: e.target.value }))}
                 placeholder="e.g. State Farm"
@@ -266,28 +279,28 @@ export function AdminRecurringExpensesScreen() {
             </div>
 
             <div>
-              <label className="block text-xs text-mu mb-1">Notes</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Notes</label>
               <textarea
                 rows={2}
-                className="w-full border rounded-chip px-3 py-2 text-sm bg-sf text-ink"
+                className="w-full border dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               />
             </div>
 
-            {formError && <p className="text-xs text-danger">{formError}</p>}
+            {formError && <p className="text-xs text-red-500">{formError}</p>}
 
             <div className="flex gap-3 pt-1">
               <button
                 onClick={handleSave}
                 disabled={createMutation.isPending || patchMutation.isPending}
-                className="flex-1 py-2 rounded-card bg-pr text-white text-sm font-semibold disabled:opacity-40"
+                className="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold disabled:opacity-40"
               >
                 {createMutation.isPending || patchMutation.isPending ? 'Saving…' : 'Save'}
               </button>
               <button
                 onClick={() => setShowForm(false)}
-                className="flex-1 py-2 rounded-card bg-bg text-ink text-sm font-semibold"
+                className="flex-1 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-semibold"
               >
                 Cancel
               </button>
@@ -299,20 +312,20 @@ export function AdminRecurringExpensesScreen() {
       {/* Delete confirmation */}
       {confirmDeleteId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-sf rounded-panel p-6 w-full max-w-sm">
-            <p className="text-ink font-semibold mb-2">Delete recurring expense?</p>
-            <p className="text-sm text-mu mb-4">This will remove the schedule and delete the Google Calendar event. Logged transactions are kept.</p>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm">
+            <p className="text-gray-900 dark:text-white font-semibold mb-2">Delete recurring expense?</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">This will remove the schedule and delete the Google Calendar event. Logged transactions are kept.</p>
             <div className="flex gap-3">
               <button
                 onClick={() => handleDelete(confirmDeleteId)}
                 disabled={deleteMutation.isPending}
-                className="flex-1 py-2 rounded-card bg-danger text-white text-sm font-semibold disabled:opacity-40"
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-40"
               >
                 {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
               </button>
               <button
                 onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 py-2 rounded-card bg-bg text-ink text-sm font-semibold"
+                className="flex-1 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-semibold"
               >
                 Cancel
               </button>

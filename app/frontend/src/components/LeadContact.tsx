@@ -6,8 +6,8 @@ const isThumbtack = (s?: string | null) => !!s && s.startsWith('thumbtack')
 function CallText({ phone }: { phone: string }) {
   return (
     <div className="flex shrink-0 gap-1">
-      <a href={`tel:${phone}`} className="wd-btn-sm">Call</a>
-      <a href={`sms:${phone}`} className="wd-btn-sm wd-btn-ghost">Text</a>
+      <a href={`tel:${phone}`} className="min-h-11 flex items-center rounded-lg bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700">Call</a>
+      <a href={`sms:${phone}`} className="min-h-11 flex items-center rounded-lg bg-blue-600 px-3 text-xs font-medium text-white hover:bg-blue-700">Text</a>
     </div>
   )
 }
@@ -23,14 +23,14 @@ function NumberSaver({ label, placeholder, initial = '', onSave, onCancel }: {
         onChange={e => setV(e.target.value)}
         inputMode="tel"
         placeholder={placeholder}
-        className="wd-input min-w-0 flex-1"
+        className="min-h-11 flex-1 rounded-lg border border-gray-200 bg-white px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
         aria-label={label}
       />
       <button type="button" onClick={() => { if (v.trim()) onSave(v.trim()) }} disabled={!v.trim()}
-        className="wd-btn-sm shrink-0">Save</button>
+        className="min-h-11 rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-white disabled:opacity-40">Save</button>
       {onCancel && (
         <button type="button" onClick={onCancel}
-          className="wd-btn-sm wd-btn-ghost shrink-0">Cancel</button>
+          className="min-h-11 rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">Cancel</button>
       )}
     </div>
   )
@@ -39,7 +39,7 @@ function NumberSaver({ label, placeholder, initial = '', onSave, onCancel }: {
 function EditLink({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" onClick={onClick}
-      className="wd-btn-sm wd-btn-ghost min-w-11 !shadow-none !px-2 text-mu">Edit</button>
+      className="text-[11px] font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">Edit</button>
   )
 }
 
@@ -55,7 +55,7 @@ export function LeadContact({ lead, save }: { lead: Lead; save: (field: string, 
       {/* Needs a number: Thumbtack lead, nothing usable yet */}
       {tt && !hasContact && (
         <div className="space-y-2">
-          <div className="rounded-chip bg-bg px-3 py-2 text-xs shadow-[inset_0_0_0_1.5px_var(--ac)]">
+          <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
             ⚠ <b>Reply on Thumbtack to get the customer's number</b> — it's hidden until you respond. Once it shows, add it here.
           </div>
           <NumberSaver label="Customer number" placeholder="Customer's number (once revealed)…" onSave={v => save('customer_phone', v)} />
@@ -64,11 +64,11 @@ export function LeadContact({ lead, save }: { lead: Lead; save: (field: string, 
 
       {/* Real number row → Primary */}
       {real && editing !== 'real' && (
-        <div className="rounded-chip bg-bg p-2">
+        <div className="rounded-lg border border-gray-200 p-2 dark:border-gray-700">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold tabular-nums">{real}</span>
-            <span className="wd-flag wd-flag-amber">Primary</span>
-            <span className="wd-flag">Real #</span>
+            <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-950">Primary</span>
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">Real #</span>
             <EditLink onClick={() => setEditing('real')} />
             <div className="ml-auto"><CallText phone={real} /></div>
           </div>
@@ -81,17 +81,17 @@ export function LeadContact({ lead, save }: { lead: Lead; save: (field: string, 
 
       {/* customer_phone row (proxy or plain) */}
       {proxy && editing !== 'phone' && (
-        <div className="rounded-chip bg-bg p-2">
+        <div className="rounded-lg border border-gray-200 p-2 dark:border-gray-700">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`tabular-nums ${real ? 'text-sm text-mu' : 'font-semibold'}`}>{proxy}</span>
+            <span className={`tabular-nums ${real ? 'text-sm text-gray-500 dark:text-gray-400' : 'font-semibold'}`}>{proxy}</span>
             {lead.customer_phone_is_proxy && (
-              <span className="wd-flag">Thumbtack line</span>
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">Thumbtack line</span>
             )}
             <EditLink onClick={() => setEditing('phone')} />
             {!real && <div className="ml-auto"><CallText phone={proxy} /></div>}
           </div>
           {lead.customer_phone_is_proxy && (
-            <p className="wd-hint">Routes to the customer through Thumbtack — may stop working after the job.</p>
+            <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Routes to the customer through Thumbtack — may stop working after the job.</p>
           )}
         </div>
       )}

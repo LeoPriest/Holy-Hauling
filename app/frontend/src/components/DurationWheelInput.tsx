@@ -60,7 +60,7 @@ export function DurationWheelInput({
   }
 
   const selectClassName =
-    'wd-input !w-auto min-w-0 disabled:opacity-50'
+    'min-w-0 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white'
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -101,7 +101,7 @@ export function DurationWheelInput({
             onChange(null)
           }}
           disabled={disabled}
-          className="wd-btn-sm wd-btn-ghost !shadow-[inset_0_0_0_1.5px_var(--ln)]"
+          className="rounded-lg border border-gray-300 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           Clear
         </button>

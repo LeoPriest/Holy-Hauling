@@ -7,16 +7,12 @@ import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.lead import Lead, LeadSourceType, LeadStatus
-from app.models.lead_event import LeadEvent
 from app.models.thumbtack import ThumbtackConnection, ThumbtackWebhookEvent
-from app.services import auth_service, lead_cost_service, lead_service, push_service
-from app.services.thumbtack_mapper import map_lead_payload
+from app.services import auth_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,28 +27,6 @@ OVERSIZE_PREFIX_BYTES = 2_048
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _safe_exc_summary(exc: Exception, limit: int = 200) -> str:
-    """Exception type plus a bounded, parameter-free message.
-
-    A bare `str(exc)` on a SQLAlchemy DBAPI error includes the driver's own
-    message AND the full bound parameter list — for the Lead INSERT that is
-    customer name, phone, and the description carrying the street address.
-    Cut before whichever of SQLAlchemy's `[SQL: ...]` / `[parameters: ...]`
-    sections appears first, then hard-cap the length. Safe to write to
-    `event.error` (returned over the API) or a log line at ERROR.
-    """
-    text = str(exc)
-    cut = len(text)
-    for marker in ("[SQL:", "[parameters:"):
-        idx = text.find(marker)
-        if idx != -1:
-            cut = min(cut, idx)
-    text = text[:cut].strip()
-    if len(text) > limit:
-        text = text[:limit].rstrip() + "…"
-    return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
 
 
 def generate_credentials() -> tuple[str, str, str]:
@@ -242,339 +216,6 @@ def classify(body: object) -> tuple[str, str | None]:
     return "unknown", None
 
 
-async def _persist_lead(
-    db: AsyncSession,
-    conn: ThumbtackConnection,
-    event: ThumbtackWebhookEvent,
-    body: dict,
-) -> tuple[Optional[str], bool]:
-    """Create a Lead from a captured delivery. Returns (lead_id, created).
-
-    `created` is True only for a genuine insert on this call — never for the
-    idempotency early-return below, and never for the "not a lead" no-op.
-    Callers that need to tell a real creation from a found-existing lead (the
-    retry endpoint's response, notably) rely on this rather than inferring it
-    from a non-null lead_id.
-
-    Runs AFTER the raw body is committed, so a failure here marks the event and
-    leaves the body intact for retry. A delivery is never lost because mapping
-    broke.
-    """
-    mapped = map_lead_payload(body)
-    if mapped is None:
-        # classify() judged this body a lead by shape (leadID+request, or a
-        # bare negotiationID), but the stricter mapper disagrees — usually
-        # there is no data.negotiationID. Leaving the event `received` with
-        # no error makes it indistinguishable from a delivery nobody has
-        # looked at, with nothing anywhere acting on it. Flag it instead.
-        event.status = "failed"
-        event.error = "Could not map this delivery as a Thumbtack lead (no data.negotiationID)"
-        await db.commit()
-        return None, False
-
-    existing = await db.execute(
-        select(Lead).where(
-            Lead.source_reference_id == mapped.source_reference_id,
-            Lead.source_type == LeadSourceType.thumbtack_api,
-        ).limit(1)
-    )
-    already = existing.scalar_one_or_none()
-    if already is not None:
-        # A second delivery for a lead we already have (a Thumbtack
-        # redelivery lands as its own event row, and so does a retry of a
-        # delivery that failed before the lead existed and maps fine now).
-        # Recorded as processed and linked to the lead it maps to — not left
-        # `received` forever, indistinguishable from a delivery nobody
-        # looked at.
-        event.lead_id = already.id
-        event.status = "processed"
-        # Only cleared when the lead this delivery maps to is genuinely
-        # healthy — has its expense booked, or is refunded and legitimately
-        # carries none. A real unresolved problem (known cost with no
-        # transaction yet; an unparseable price) is left exactly as it was:
-        # this early return does not fix it, and must not report it as
-        # fixed. retry_event's heal gate is what actually attempts a repair,
-        # from the payload, when there is one to attempt.
-        if already.lead_cost_finance_transaction_id is not None or already.lead_refunded_at is not None:
-            event.error = None
-        event.processed_at = _now()
-        await db.commit()
-        return already.id, False   # Thumbtack retries; one delivery, one lead
-
-    quote_context = mapped.quote_context
-    if mapped.location_mismatch:
-        # Stored here rather than a new column: the spec forbids a migration,
-        # and quote_context is carried into the AI review, which is where a
-        # "this may be elsewhere" warning is most useful.
-        quote_context = "\n\n".join(
-            p for p in (quote_context, f"[WARNING] {mapped.location_mismatch}") if p
-        )
-
-    lead = Lead(
-        id=lead_service._id(),
-        city_id=conn.city_id,
-        source_type=LeadSourceType.thumbtack_api,
-        source_reference_id=mapped.source_reference_id,
-        customer_name=mapped.customer_name,
-        customer_phone=mapped.customer_phone,
-        # A Thumbtack number routes to the customer and is not theirs.
-        customer_phone_is_proxy=bool(mapped.customer_phone),
-        service_type=mapped.service_type,
-        job_location=mapped.job_location,
-        scope_notes=mapped.scope_notes,
-        quote_context=quote_context,
-        move_date_options=json.dumps(mapped.move_date_options) if mapped.move_date_options else None,
-        lead_cost_cents=mapped.lead_cost_cents,
-        lead_cost_gross_cents=mapped.lead_cost_gross_cents,
-        raw_payload=event.raw_body,
-        status=LeadStatus.new,
-        urgency_flag=False,
-        ingested_by="thumbtack_webhook",
-        created_at=lead_service._now(),
-        updated_at=lead_service._now(),
-    )
-    db.add(lead)
-    # Lead is constructed directly rather than via lead_service.create_lead
-    # (correct here — create_lead's LeadCreate/city-scoping machinery is for
-    # the human-facing form), but that means create_lead's own `created`
-    # LeadEvent has to be replicated by hand or a webhook lead opens with an
-    # empty timeline, unlike every lead created any other way.
-    db.add(LeadEvent(
-        id=lead_service._id(), lead_id=lead.id,
-        event_type="created", to_status=lead.status.value,
-        actor="thumbtack_webhook",
-    ))
-    await db.commit()
-    await db.refresh(lead)
-    # Captured now, not read off `lead` after a possible rollback below — same
-    # expired-instance trap as `conn.id` in record_event.
-    lead_id = lead.id
-    # Push message values captured here too: `conn` is bound to `db` and a
-    # rollback in either branch below would expire it just like `lead`. None
-    # of these are ORM instances once copied out, so they survive the rollback.
-    push_city_id = conn.city_id
-    push_first_name = (mapped.customer_name or "New lead").split(" ")[0]
-    push_category = mapped.service_type.value if mapped.service_type else "lead"
-    push_where = mapped.job_location or conn.city_id
-    push_location_mismatch = mapped.location_mismatch
-
-    # A failure past this point must never look like a failed delivery: the
-    # Lead row is already committed and real. It is marked `processed`
-    # either way; any problem is surfaced as a loud `event.error`, not a
-    # `failed` status that would invite a retry that (per the idempotency
-    # lookup above) can never actually retry the sync. Set unconditionally
-    # at the bottom of this function (never only under an `if`), so a retry
-    # that succeeds clears whatever stale error the previous attempt left —
-    # otherwise a fixed delivery keeps a permanent red error and a Retry
-    # button nobody needs to press again.
-    event_error: str | None = None
-
-    if mapped.is_refunded:
-        # Signature is mark_refunded(db, lead_id, on, actor=..., city_id=...) —
-        # `on` is a required positional, not a keyword with a default.
-        # mark_refunded calls sync_lead_cost_expense internally, so this is
-        # also where a refunded lead's cost sync can fail — no separate direct
-        # call follows for a refunded lead (it would just repeat this one).
-        try:
-            await lead_service.mark_refunded(
-                db, lead_id, True, actor="thumbtack_webhook", city_id=conn.city_id
-            )
-        except Exception as exc:
-            await db.rollback()
-            # logger.error, not logger.exception: see the same rationale on
-            # the "Mapping failed" sites above — a DBAPI error's traceback
-            # dump would carry the very bound-parameter text
-            # _safe_exc_summary exists to keep out of event.error.
-            logger.error(
-                "thumbtack lead refund sync failed lead=%s error=%s",
-                lead_id, _safe_exc_summary(exc),
-            )
-            event_error = f"lead created but lead cost sync failed: {_safe_exc_summary(exc)}"
-    elif mapped.lead_cost_cents is not None:
-        # Mirrors a manually entered cost into finance. Idempotent via
-        # lead_cost_finance_transaction_id, so a redelivery adds no second expense.
-        try:
-            await lead_cost_service.sync_lead_cost_expense(db, lead)
-            await db.commit()
-        except Exception as exc:
-            await db.rollback()
-            logger.error(
-                "thumbtack lead cost sync failed lead=%s error=%s",
-                lead_id, _safe_exc_summary(exc),
-            )
-            event_error = f"lead created but lead cost sync failed: {_safe_exc_summary(exc)}"
-    else:
-        # parse_cents returned None for a lead the mapper judged real: a
-        # missing leadPrice, "Free", or unparseable junk. Keep the lead —
-        # this is not a reason to fail the delivery — and leave the cost
-        # unset (never substitute 0 for unknown), but flag it, or
-        # cost-per-lead silently understates with no trace anywhere.
-        event_error = (
-            "lead created, but Thumbtack's lead price could not be parsed "
-            "— cost left unset"
-        )
-
-    # The notification is why any of this matters — he works leads from a truck
-    # between other jobs and will not be watching the app. Built from the
-    # locals captured above, not from `lead`/`mapped` reads that could follow
-    # a rollback.
-    message = f"New Thumbtack lead — {push_first_name} · {push_category} · {push_where}"
-    if push_location_mismatch:
-        message += " · WARNING address may be out of area"
-
-    try:
-        await push_service.send_push_to_roles(
-            db, ["facilitator", "admin"], message, city_id=push_city_id
-        )
-    except Exception:
-        # A lead that landed with no ping still beats no lead. Log the lead id
-        # only — the message text carries the customer's name and is PII.
-        logger.exception("thumbtack lead push failed lead=%s", lead_id)
-
-    event.lead_id = lead_id
-    event.status = "processed"
-    # Unconditional, not `if event_error:` — a retry that succeeds this time
-    # must clear a stale error from a previous failed attempt, not just
-    # leave it in place because nothing in *this* attempt happened to set it.
-    event.error = event_error
-    event.processed_at = _now()
-    await db.commit()
-
-    return lead_id, True
-
-
-def _is_stored_oversize_rejection(event: ThumbtackWebhookEvent) -> bool:
-    """True for a delivery record_oversize captured — a truncated prefix,
-    never valid JSON and never meant to be, whose only value is the size
-    diagnostic already sitting in event.error. There is no dedicated column
-    for this (no migration this round), so the fixed text record_oversize
-    always writes is the signal.
-    """
-    return bool(event.error) and event.error.startswith("Delivery rejected: body exceeds")
-
-
-async def retry_event(
-    db: AsyncSession, event_id: str
-) -> tuple[Optional[ThumbtackWebhookEvent], bool]:
-    """Re-run mapping over a stored delivery. Returns (event, created).
-
-    `event` is None when the event does not exist. `created` is True only
-    when this call actually inserted a new Lead — never for a retry that
-    found an existing one via _persist_lead's idempotency lookup, and never
-    for the cost-sync heal below, which repairs an existing lead rather than
-    making one. Callers must not infer "created" from a non-null lead_id;
-    a found-existing retry has one too.
-    """
-    result = await db.execute(
-        select(ThumbtackWebhookEvent).where(ThumbtackWebhookEvent.id == event_id).limit(1)
-    )
-    event = result.scalar_one_or_none()
-    if event is None:
-        return None, False
-
-    if _is_stored_oversize_rejection(event):
-        # The stored body is a 2KB truncated prefix — attempting to json.loads
-        # it below would fail and overwrite the one thing this row can tell
-        # the operator (why it was rejected, and how big it really was) with
-        # a generic "Body is not valid JSON". Refuse instead of retrying.
-        return event, False
-
-    conn = await get_by_id(db, event.connection_id)
-    if conn is None:
-        event.status = "failed"
-        event.error = "Connection no longer exists"
-        await db.commit()
-        return event, False
-
-    if event.kind != "lead":
-        # record_event only ever calls _persist_lead for kind=="lead". A
-        # MessageCreatedV4 body also carries data.negotiationID, so mapping
-        # it here would create a hollow Lead with no name, phone, or cost —
-        # and that hollow Lead would win the idempotency lookup on the same
-        # negotiationID, permanently blocking the real lead from ever
-        # landing. Refuse anything retry_event's caller didn't gate on kind
-        # the way record_event does.
-        return event, False
-
-    try:
-        parsed = json.loads(event.raw_body)
-    except (json.JSONDecodeError, ValueError) as exc:
-        event.status = "failed"
-        event.error = f"Body is not valid JSON: {exc}"
-        await db.commit()
-        return event, False
-
-    created = False
-    try:
-        lead_id, created = await _persist_lead(db, conn, event, parsed)
-    except Exception as exc:
-        await db.rollback()
-        event.status = "failed"
-        event.error = f"Mapping failed: {_safe_exc_summary(exc)}"
-        await db.commit()
-        # logger.error, not logger.exception: the latter's traceback dump
-        # would carry the very unbounded exception text (bound INSERT
-        # parameters — customer name, phone, address) event.error was just
-        # bounded to keep out of exactly this log, at exactly this level.
-        logger.error("thumbtack retry failed event=%s error=%s", event.id, _safe_exc_summary(exc))
-    else:
-        # _persist_lead's own idempotency lookup means a retry of an
-        # already-persisted delivery returns the existing lead id without
-        # touching cost sync or push — so a `processed` event that still
-        # carries Task 3's "lead created but lead cost sync failed" error
-        # would otherwise never heal. Do that here, on the retry path only:
-        # load the lead and, if there is a repairable cost problem, run the
-        # same idempotent sync_lead_cost_expense the original delivery would
-        # have run. This heals an existing lead — it must never flip
-        # `created` to True.
-        if lead_id is not None:
-            lead_result = await db.execute(select(Lead).where(Lead.id == lead_id).limit(1))
-            lead = lead_result.scalar_one_or_none()
-            # Gate on the payload's own chargeState (re-derived from the
-            # stored body), not lead.lead_refunded_at. A refund that failed
-            # to record (mark_refunded threw, rollback) leaves that column
-            # NULL even though Thumbtack refunded the lead — trusting the
-            # column would let this heal book a full-price expense for a
-            # refunded lead and report success. The payload never lies.
-            retry_mapped = map_lead_payload(parsed)
-            can_heal = (
-                lead is not None
-                and lead.lead_cost_finance_transaction_id is None
-                and retry_mapped is not None
-                and not retry_mapped.is_refunded
-            )
-            if can_heal and lead.lead_cost_cents is None and retry_mapped.lead_cost_cents is not None:
-                # The cost was unparseable at ingest time (Fix 3's flag is
-                # correct and stays — 0 is never substituted for unknown).
-                # Retry re-reads the same stored raw body, so if parse_cents
-                # is fixed later, re-mapping it now can yield a real price.
-                # Fill it in from the payload — never invented — then sync
-                # below like any other now-known cost.
-                lead.lead_cost_cents = retry_mapped.lead_cost_cents
-                lead.lead_cost_gross_cents = retry_mapped.lead_cost_gross_cents
-            if can_heal and lead.lead_cost_cents is not None:
-                try:
-                    await lead_cost_service.sync_lead_cost_expense(db, lead)
-                    # The stale "cost sync failed" / "could not be parsed"
-                    # string is now false.
-                    event.error = None
-                    await db.commit()
-                except Exception as exc:
-                    await db.rollback()
-                    logger.error(
-                        "thumbtack retry cost sync heal failed lead=%s error=%s",
-                        lead_id, _safe_exc_summary(exc),
-                    )
-                    event.error = f"lead created but lead cost sync failed: {_safe_exc_summary(exc)}"
-                    await db.commit()
-            # can_heal True but lead.lead_cost_cents still None here means the
-            # re-mapped body still will not parse — the error correctly
-            # remains untouched.
-
-    await db.refresh(event)
-    return event, created
-
-
 async def record_event(
     db: AsyncSession, conn: ThumbtackConnection, raw_body: bytes
 ) -> ThumbtackWebhookEvent:
@@ -599,15 +240,8 @@ async def record_event(
         status = "failed"
         error = f"Body is not valid JSON: {exc}"
 
-    # Captured now, not read off `conn` after the block below: a mapping
-    # failure rolls back the session, which expires `conn` (expire_on_rollback
-    # defaults to True even though this app runs with expire_on_commit=False),
-    # and a plain attribute access on an expired ORM instance outside an
-    # awaited SQLAlchemy call raises MissingGreenlet.
-    conn_id = conn.id
-
     event = ThumbtackWebhookEvent(
-        connection_id=conn_id,
+        connection_id=conn.id,
         kind=kind,
         external_id=external_id,
         raw_body=text,
@@ -623,32 +257,10 @@ async def record_event(
 
     await db.commit()
     await db.refresh(event)
-
-    # Everything past this point is best-effort. The body is already committed,
-    # so a mapping failure marks the event and can never lose the delivery.
-    if kind == "lead" and status == "received":
-        try:
-            await _persist_lead(db, conn, event, parsed)
-        except Exception as exc:
-            await db.rollback()
-            event.status = "failed"
-            event.error = f"Mapping failed: {_safe_exc_summary(exc)}"
-            await db.commit()
-            # logger.error, not logger.exception: the latter's traceback dump
-            # would carry the very unbounded exception text (bound INSERT
-            # parameters — customer name, phone, address) event.error was
-            # just bounded to keep out of exactly this log, at exactly this
-            # level — see the "Deliberately not logging the body" comment
-            # three lines below, which this would otherwise contradict.
-            logger.error(
-                "thumbtack lead mapping failed event=%s error=%s",
-                event.id, _safe_exc_summary(exc),
-            )
-
     # Deliberately not logging the body: it carries customer name, phone, and address.
     logger.info(
         "thumbtack webhook recorded connection=%s kind=%s status=%s",
-        conn_id, kind, event.status,
+        conn.id, kind, status,
     )
     return event
 

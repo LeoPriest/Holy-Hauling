@@ -4,8 +4,6 @@ import { BottomNav } from '../components/BottomNav'
 import { useCity } from '../context/CityContext'
 import { fetchAdminMetrics } from '../services/api'
 import type { AdminMetrics } from '../types/metrics'
-import { ScreenHeader } from '../components/ScreenHeader'
-import { Working } from '../components/Logo'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -25,27 +23,27 @@ function fmtHours(h: number | null) {
 
 function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="flex-1 bg-sf rounded-card border p-4 min-w-0">
-      <p className="text-xs font-medium text-mu leading-tight">{label}</p>
-      <p className="text-2xl font-bold text-ink mt-1 leading-none">{value}</p>
-      {sub && <p className="text-[10px] text-mu mt-1">{sub}</p>}
+    <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4 min-w-0">
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 leading-tight">{label}</p>
+      <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1 leading-none">{value}</p>
+      {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
     </div>
   )
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="text-xs font-semibold text-mu uppercase tracking-wider px-1 mb-2">
+    <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 mb-2">
       {children}
     </h2>
   )
 }
 
-function MiniBar({ value, max, color = 'bg-pr' }: { value: number; max: number; color?: string }) {
+function MiniBar({ value, max, color = 'bg-indigo-500' }: { value: number; max: number; color?: string }) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0
   return (
     <div className="flex items-center gap-2 min-w-0 flex-1">
-      <div className="flex-1 h-1.5 bg-bg rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -59,10 +57,10 @@ function PeriodPicker({ value, onChange }: { value: number; onChange: (d: number
         <button
           key={d}
           onClick={() => onChange(d)}
-          className={`min-h-11 min-w-11 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
             value === d
-              ? 'bg-pr text-white'
-              : 'bg-sf border text-mu'
+              ? 'bg-indigo-600 text-white'
+              : 'bg-white dark:bg-gray-800 border dark:border-gray-700 text-gray-600 dark:text-gray-400'
           }`}
         >
           {d}d
@@ -95,31 +93,40 @@ export function AdminMetricsScreen() {
   const sourceMax = metrics ? Math.max(...metrics.sources_30d.map(s => s.count), 1) : 1
 
   const PIPELINE_COLORS: Record<string, string> = {
-    new: 'bg-ac',
-    in_review: 'bg-mu',
-    replied: 'bg-mu',
-    waiting_on_customer: 'bg-ln',
-    ready_for_quote: 'bg-pr',
-    ready_for_booking: 'bg-pr',
-    booked: 'bg-pr',
+    new: 'bg-gray-400',
+    in_review: 'bg-blue-400',
+    replied: 'bg-teal-500',
+    waiting_on_customer: 'bg-amber-400',
+    ready_for_quote: 'bg-orange-400',
+    ready_for_booking: 'bg-purple-500',
+    booked: 'bg-green-500',
   }
 
   return (
-    <div className="min-h-screen bg-bg pb-20">
-      <ScreenHeader title="Metrics" onBack={() => navigate('/admin')} />
-      <div className="mx-auto flex max-w-3xl flex-wrap gap-2 px-3.5 pt-3">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
+      <header className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center gap-3">
+        <button
+          onClick={() => navigate('/admin')}
+          className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          aria-label="Back"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white flex-1">Metrics</h1>
         <PeriodPicker value={days} onChange={setDays} />
-      </div>
+      </header>
 
       {loading && (
         <div className="flex items-center justify-center py-24">
-          <Working label="Loading metrics…" />
+          <p className="text-sm text-gray-400">Loading…</p>
         </div>
       )}
 
       {error && (
-        <div className="m-4 rounded-card bg-bg border border-danger p-4">
-          <p className="text-sm text-danger">{error}</p>
+        <div className="m-4 rounded-xl bg-red-50 border border-red-200 p-4">
+          <p className="text-sm text-red-700">{error}</p>
         </div>
       )}
 
@@ -158,12 +165,12 @@ export function AdminMetricsScreen() {
           {/* ── Pipeline funnel ──────────────────────────────── */}
           <div>
             <SectionTitle>Pipeline</SectionTitle>
-            <div className="bg-sf rounded-card border divide-y">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 divide-y dark:divide-gray-700">
               {metrics.pipeline.map(stage => (
                 <div key={stage.status} className="flex items-center gap-3 px-4 py-3">
-                  <span className="text-sm text-ink w-36 shrink-0">{stage.label}</span>
-                  <MiniBar value={stage.count} max={pipelineMax} color={PIPELINE_COLORS[stage.status] ?? 'bg-pr'} />
-                  <span className={`text-sm font-semibold w-8 text-right shrink-0 ${stage.count > 0 ? 'text-ink ' : 'text-mu '}`}>
+                  <span className="text-sm text-gray-700 dark:text-gray-300 w-36 shrink-0">{stage.label}</span>
+                  <MiniBar value={stage.count} max={pipelineMax} color={PIPELINE_COLORS[stage.status] ?? 'bg-indigo-400'} />
+                  <span className={`text-sm font-semibold w-8 text-right shrink-0 ${stage.count > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-300 dark:text-gray-600'}`}>
                     {stage.count}
                   </span>
                 </div>
@@ -175,15 +182,15 @@ export function AdminMetricsScreen() {
           {metrics.revenue_pipeline > 0 && (
             <div>
               <SectionTitle>Revenue Pipeline</SectionTitle>
-              <div className="bg-sf rounded-card border p-4">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 p-4">
                 <div className="flex items-end justify-between">
                   <div>
-                    <p className="text-xs text-mu">Quoted — in progress</p>
-                    <p className="text-3xl font-bold text-ink mt-1">{fmt$(metrics.revenue_pipeline)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Quoted — in progress</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{fmt$(metrics.revenue_pipeline)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-mu">Booked this month</p>
-                    <p className="text-xl font-bold text-ok mt-1">{fmt$(metrics.revenue_booked_mtd)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Booked this month</p>
+                    <p className="text-xl font-bold text-green-600 mt-1">{fmt$(metrics.revenue_booked_mtd)}</p>
                   </div>
                 </div>
               </div>
@@ -194,12 +201,12 @@ export function AdminMetricsScreen() {
           {metrics.sources_30d.length > 0 && (
             <div>
               <SectionTitle>Sources — last {days} days</SectionTitle>
-              <div className="bg-sf rounded-card border divide-y">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border dark:border-gray-700 divide-y dark:divide-gray-700">
                 {metrics.sources_30d.map(s => (
                   <div key={s.source_type} className="flex items-center gap-3 px-4 py-3">
-                    <span className="text-sm text-ink w-40 shrink-0 truncate">{s.label}</span>
-                    <MiniBar value={s.count} max={sourceMax} color="bg-pr" />
-                    <span className="text-sm font-semibold text-ink w-8 text-right shrink-0">{s.count}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 w-40 shrink-0 truncate">{s.label}</span>
+                    <MiniBar value={s.count} max={sourceMax} color="bg-blue-400" />
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white w-8 text-right shrink-0">{s.count}</span>
                   </div>
                 ))}
               </div>

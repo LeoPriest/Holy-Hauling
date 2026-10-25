@@ -5,7 +5,7 @@ import { buildUploadUrl } from '../../services/api'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { mergeDateOptions, parseDateOptions, serializeDateOptions } from '../../utils/dateOptions'
-import { fmtLocalDateTime } from '../../utils/time'
+import { fmtDurationMinutes, fmtLocalDateTime, fmtTimeSlot } from '../../utils/time'
 import {
   useAddNote,
   useApplyOcrFields,
@@ -52,9 +52,6 @@ const EVENT_LABELS: Record<string, string> = {
   ocr_fields_applied: 'Extraction applied',
 }
 
-/** The log shows the latest few entries until asked for the whole history. */
-const HISTORY_PREVIEW = 6
-
 interface Props {
   lead: Lead
   leadId: string
@@ -76,7 +73,6 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
   const [noteBody, setNoteBody] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [showEscalate, setShowEscalate] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const [extractResults, setExtractResults] = useState<Record<string, OcrResult>>({})
   const [applyDraft, setApplyDraft] = useState<Record<string, Record<string, string>>>({})
   const fileRef = useRef<HTMLInputElement>(null)
@@ -137,73 +133,16 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
   }
 
   const handleDelete = () => {
-    deleteLead.mutate(leadId, { onSuccess: () => navigate('/') })
+    if (window.confirm('Permanently delete this lead and all its data? This cannot be undone.')) {
+      deleteLead.mutate(leadId, { onSuccess: () => navigate('/') })
+    }
   }
-
-  const events = lead.events ?? []
-  const shownEvents = showHistory ? events : events.slice(-HISTORY_PREVIEW)
 
   return (
     <>
-      <div className="wd-pane flex flex-col gap-3 px-3.5 pb-6 pt-3">
-        <section className="wd-box wd-box-soft">
-          <h3 className="wd-fl">Activity</h3>
-          {events.length === 0 ? (
-            <p className="text-sm text-mu">Nothing logged yet.</p>
-          ) : (
-            <>
-              {events.length > HISTORY_PREVIEW && (
-                <button
-                  type="button"
-                  onClick={() => setShowHistory(current => !current)}
-                  className="wd-btn-sm wd-btn-ghost mb-3 w-full"
-                >
-                  {showHistory ? 'Show latest only' : `Show all ${events.length}`}
-                </button>
-              )}
-              <ol className="flex flex-col" aria-label="Activity">
-                {shownEvents.map((event, i) => (
-                  <li key={event.id} className={`wd-tl-i ${i === shownEvents.length - 1 ? 'hot' : ''}`}>
-                    <span className="wd-tl-d" aria-hidden="true" />
-                    <div className="min-w-0">
-                      <p className="wd-tl-t">
-                        {EVENT_LABELS[event.event_type] ?? event.event_type}
-                        {event.from_status && event.to_status && (
-                          <span className="font-normal text-mu">
-                            {' '}· {event.from_status.replace(/_/g, ' ')} to {event.to_status.replace(/_/g, ' ')}
-                          </span>
-                        )}
-                      </p>
-                      {event.note && event.event_type === 'note_added' && (
-                        <p className="mt-0.5 text-sm italic [overflow-wrap:anywhere]">"{event.note}"</p>
-                      )}
-                      <p className="wd-tl-s">
-                        {event.actor ? `${event.actor} · ` : ''}{fmtLocalDateTime(event.created_at)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </>
-          )}
-        </section>
-
-        <form onSubmit={handleNoteSubmit} className="flex gap-2">
-          <input
-            className="wd-input min-w-0 flex-1"
-            placeholder="Add a note…"
-            aria-label="Note"
-            value={noteBody}
-            onChange={event => setNoteBody(event.target.value)}
-          />
-          <button type="submit" disabled={addNote.isPending || !noteBody.trim()} className="wd-btn shrink-0">
-            {addNote.isPending ? 'Saving…' : 'Add'}
-          </button>
-        </form>
-        {addNote.isError && <p className="wd-err -mt-1 px-1">Couldn't save the note. Try again.</p>}
-
-        <section className="wd-box wd-box-soft">
-          <h3 className="wd-fl">Move to status</h3>
+      <div className="space-y-5 p-4 pb-24">
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Move to Status</h3>
           <div className="flex flex-wrap gap-2">
             {ALL_STATUSES.map(status => {
               const isCurrent = status === lead.status
@@ -212,10 +151,9 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
                   key={status}
                   onClick={() => !isCurrent && handleStatusChange(status)}
                   disabled={isCurrent || updateStatus.isPending}
-                  aria-pressed={isCurrent}
                   className={isCurrent
-                    ? 'wd-btn-sm !bg-ink !text-bg !opacity-100'
-                    : 'wd-btn-sm wd-btn-ghost !shadow-[inset_0_0_0_1.5px_var(--ln)]'
+                    ? 'rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white cursor-default dark:border-indigo-500 dark:bg-indigo-500'
+                    : 'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700'
                   }
                 >
                   {STATUS_LABELS[status]}
@@ -223,26 +161,45 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
               )
             })}
           </div>
-          {updateStatus.isError && <p className="wd-err mt-2">Couldn't change the status. Try again.</p>}
           <button
             onClick={() => setShowEscalate(true)}
-            className="wd-btn-sm wd-btn-ghost mt-3 !shadow-[inset_0_0_0_1.5px_var(--ac)]"
+            className="mt-3 min-h-11 rounded-lg border border-amber-500 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-50 dark:border-amber-600 dark:text-amber-300 dark:hover:bg-amber-900/20"
           >
             ⚠ Escalate to owner
           </button>
         </section>
 
-        <section className="wd-box wd-box-soft">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="wd-fl !mb-0">
+        <section>
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Add Note</h3>
+          <form onSubmit={handleNoteSubmit} className="space-y-2">
+            <textarea
+              rows={2}
+              className="w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              placeholder="Called customer, left voicemail, requested gate code."
+              value={noteBody}
+              onChange={event => setNoteBody(event.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={addNote.isPending || !noteBody.trim()}
+              className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {addNote.isPending ? 'Saving...' : 'Add Note'}
+            </button>
+          </form>
+        </section>
+
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
               Screenshots {lead.screenshots && lead.screenshots.length > 0 && `(${lead.screenshots.length})`}
             </h3>
             <button
               onClick={() => fileRef.current?.click()}
               disabled={uploadShot.isPending}
-              className="wd-btn-sm wd-btn-ghost"
+              className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              {uploadShot.isPending ? 'Uploading…' : '+ Add screenshot'}
+              {uploadShot.isPending ? 'Uploading...' : '+ Add Screenshot'}
             </button>
             <input
               ref={fileRef}
@@ -252,9 +209,8 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
               onChange={handleAddScreenshot}
             />
           </div>
-          {uploadShot.isError && <p className="wd-err mb-2">Upload failed. Try again.</p>}
 
-          {lead.screenshots && lead.screenshots.length > 0 ? (
+          {lead.screenshots && lead.screenshots.length > 0 && (
             <div className="space-y-3">
               {lead.screenshots.map(screenshot => {
                 const result = extractResults[screenshot.id]
@@ -271,25 +227,25 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
                   (triggerExtract.variables as { leadId: string; screenshotId: string } | undefined)?.screenshotId === screenshot.id
 
                 return (
-                  <div key={screenshot.id} className="space-y-3 rounded-card bg-bg p-3">
+                  <div key={screenshot.id} className="space-y-3 rounded-xl border bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
                     <div className="flex items-center justify-between gap-2">
                       <a
                         href={buildUploadUrl(screenshot.stored_path)}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex min-h-11 min-w-0 flex-1 items-center truncate text-sm font-medium text-ok underline"
+                        className="flex-1 truncate text-xs text-blue-600 hover:underline dark:text-blue-400"
                       >
                         {screenshot.original_filename}
                       </a>
                       <div className="flex shrink-0 items-center gap-2">
                         {screenshot.ocr_status && (
                           <span
-                            className={`wd-st ${
+                            className={`rounded px-1.5 py-0.5 text-xs font-medium ${
                               screenshot.ocr_status === 'done'
-                                ? 'wd-st-green'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                 : screenshot.ocr_status === 'failed'
-                                  ? 'wd-st-red'
-                                  : 'wd-st-new'
+                                  ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300'
+                                  : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
                             }`}
                           >
                             {screenshot.ocr_status}
@@ -298,45 +254,48 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
                         <button
                           onClick={() => handleExtract(screenshot.id)}
                           disabled={isExtracting}
-                          className="wd-btn-sm"
+                          className="rounded px-2.5 py-1 text-xs text-white bg-gray-700 hover:bg-gray-600 disabled:opacity-50"
                         >
-                          {isExtracting ? 'Reading…' : 'Extract'}
+                          {isExtracting ? 'Extracting...' : 'Extract'}
                         </button>
                       </div>
                     </div>
-                    {triggerExtract.isError && isExtracting === false && (triggerExtract.variables as { screenshotId: string } | undefined)?.screenshotId === screenshot.id && (
-                      <p className="wd-err">Couldn't read this screenshot. Try again.</p>
-                    )}
 
                     {extractedFields.length > 0 && (
                       <div className="space-y-2">
-                        <p className="text-xs font-medium text-mu">Extracted fields. Review before applying.</p>
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Extracted fields. Review before applying.</p>
                         {showRequestedDatesEditor && (
-                          <div className="space-y-2 rounded-card bg-sf p-3">
+                          <div className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
                             <div>
-                              <span className="wd-fl !mb-1">Requested dates</span>
-                              <DateOptionsEditor
-                                values={requestedDates}
-                                onChange={values =>
-                                  setApplyDraft(prev => ({
-                                    ...prev,
-                                    [screenshot.id]: {
-                                      ...prev[screenshot.id],
-                                      move_date_options: serializeDateOptions(values),
-                                    },
-                                  }))
-                                }
-                              />
-                              <p className="wd-hint">
+                              <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Requested Dates
+                              </span>
+                              <div className="mt-1">
+                                <DateOptionsEditor
+                                  values={requestedDates}
+                                  onChange={values =>
+                                    setApplyDraft(prev => ({
+                                      ...prev,
+                                      [screenshot.id]: {
+                                        ...prev[screenshot.id],
+                                        move_date_options: serializeDateOptions(values),
+                                      },
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
                                 Keep every date option shown in the screenshot here.
                               </p>
                             </div>
 
                             <label className="block">
-                              <span className="wd-fl !mb-1">Actual booking date</span>
+                              <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Actual Booking Date
+                              </span>
                               <input
                                 type="date"
-                                className="wd-input"
+                                className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                                 value={draft.job_date_requested ?? ''}
                                 onChange={event =>
                                   setApplyDraft(prev => ({
@@ -354,12 +313,12 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
                         {extractedFields
                           .filter(field => field.field !== 'move_date_options' && field.field !== 'job_date_requested')
                           .map(field => (
-                          <label key={field.field} className="flex items-center gap-2">
-                            <span className="w-28 shrink-0 text-xs capitalize text-mu">
+                          <div key={field.field} className="flex items-center gap-2">
+                            <span className="w-28 shrink-0 text-xs capitalize text-gray-500 dark:text-gray-400">
                               {field.field.replace(/_/g, ' ')}
                             </span>
                             <input
-                              className="wd-input min-w-0 flex-1"
+                              className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                               value={draft[field.field] ?? field.value}
                               onChange={event =>
                                 setApplyDraft(prev => ({
@@ -371,52 +330,68 @@ export function LogPanel({ lead, leadId, onGoToQuote }: Props) {
                                 }))
                               }
                             />
-                          </label>
+                          </div>
                           ))}
                         <button
                           onClick={() => handleApply(screenshot.id)}
                           disabled={applyOcr.isPending}
-                          className="wd-btn w-full"
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
                         >
-                          {applyOcr.isPending ? 'Applying…' : 'Apply to lead'}
+                          {applyOcr.isPending ? 'Applying...' : 'Apply to Lead'}
                         </button>
-                        {applyOcr.isError && <p className="wd-err">Couldn't apply these fields. Try again.</p>}
                       </div>
                     )}
                   </div>
                 )
               })}
             </div>
-          ) : (
-            <p className="text-sm text-mu">No screenshots on this lead.</p>
           )}
         </section>
 
-        <section className="pt-2">
-          {!confirmDelete ? (
+        {lead.events && lead.events.length > 0 && (
+          <section>
             <button
-              onClick={() => setConfirmDelete(true)}
-              disabled={deleteLead.isPending}
-              className="wd-btn-sm wd-btn-ghost !text-danger !shadow-[inset_0_0_0_1.5px_var(--red)]"
+              onClick={() => setShowHistory(current => !current)}
+              className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-gray-400"
             >
-              Delete lead
+              Activity ({lead.events.length}) {showHistory ? 'Hide' : 'Show'}
             </button>
-          ) : (
-            <div className="wd-box !shadow-[inset_0_0_0_1.5px_var(--red)]" role="alertdialog" aria-label="Delete this lead">
-              <p className="text-sm font-semibold">Delete this lead and all its data?</p>
-              <p className="mt-1 text-xs text-mu">This can't be undone.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button onClick={handleDelete} disabled={deleteLead.isPending} className="wd-btn-sm !bg-danger">
-                  {deleteLead.isPending ? 'Deleting…' : 'Yes, delete for good'}
-                </button>
-                <button onClick={() => setConfirmDelete(false)} disabled={deleteLead.isPending} className="wd-btn-sm wd-btn-ghost">
-                  Keep it
-                </button>
+            {showHistory && (
+              <div className="space-y-2">
+                {lead.events.map(event => (
+                  <div key={event.id} className="flex gap-2 text-xs text-gray-600 dark:text-gray-300">
+                    <span className="mt-0.5 shrink-0 text-gray-300 dark:text-gray-600">•</span>
+                    <div>
+                      <span className="font-medium">{EVENT_LABELS[event.event_type] ?? event.event_type}</span>
+                      {event.from_status && event.to_status && (
+                        <span className="text-gray-400 dark:text-gray-500">
+                          {' '}
+                          - {event.from_status.replace(/_/g, ' ')} to {event.to_status.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                      {event.actor && <span className="text-gray-400 dark:text-gray-500"> - {event.actor}</span>}
+                      {event.note && event.event_type === 'note_added' && (
+                        <p className="mt-0.5 italic text-blue-600 dark:text-blue-400">"{event.note}"</p>
+                      )}
+                      <p className="mt-0.5 text-gray-300 dark:text-gray-500">{fmtLocalDateTime(event.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+            )}
+          </section>
+        )}
+
+        <section className="border-t pt-2 dark:border-gray-700">
+          <button
+            onClick={handleDelete}
+            disabled={deleteLead.isPending}
+            className="rounded-lg border border-red-300 px-4 py-2 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-900/20"
+          >
+            {deleteLead.isPending ? 'Deleting...' : 'Delete Lead Permanently'}
+          </button>
           {deleteLead.isError && (
-            <p className="wd-err mt-2">
+            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
               {(deleteLead.error as Error)?.message ?? 'Delete failed'}
             </p>
           )}

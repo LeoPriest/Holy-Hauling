@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav'
 import { LeadCard } from '../components/LeadCard'
+import { IngestProgressFlow } from '../components/IngestProgressFlow'
 import { useLeads, useMarkCustomerResponded, useMarkRefunded } from '../hooks/useLeads'
 import { isRefundCandidate } from '../utils/refund'
 import { useSettings } from '../hooks/useSettings'
@@ -10,12 +11,11 @@ import { useUsers } from '../hooks/useUsers'
 import { useRentals } from '../hooks/useTruckRental'
 import { useOpenEscalations } from '../hooks/useEscalation'
 import { LEVEL_LABELS } from '../types/escalation'
+import { LeadCreate } from './LeadCreate'
 import type { LeadSourceType, LeadStatus } from '../types/lead'
 import { useAuth } from '../context/AuthContext'
 import { CitySwitcher } from '../components/CitySwitcher'
 import { useCity } from '../context/CityContext'
-import { leadTitle, leadTown, sourceShort } from '../utils/leadCard'
-import { Working } from '../components/Logo'
 
 const ACTIVE_STAGES: { status: LeadStatus; label: string }[] = [
   { status: 'new', label: 'New' },
@@ -34,25 +34,6 @@ const CLOSED_STAGES: { status: LeadStatus; label: string }[] = [
 
 const CLOSED_STATUSES = new Set<LeadStatus>(['released', 'lost'])
 
-type Chip = 'all' | 'new' | 'review' | 'quote' | 'closed'
-
-// Which active statuses each filter chip shows. "All" shows every active stage.
-const CHIP_STATUSES: Record<Exclude<Chip, 'all' | 'closed'>, Set<LeadStatus>> = {
-  new: new Set(['new']),
-  review: new Set(['in_review', 'replied']),
-  quote: new Set(['ready_for_quote', 'ready_for_booking']),
-}
-
-function greeting(now = new Date()) {
-  const h = now.getHours()
-  return h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening'
-}
-
-function waitingLine(n: number) {
-  if (n === 0) return 'Nobody is waiting on us right now.'
-  return `${n} ${n === 1 ? 'person is' : 'people are'} waiting on us.`
-}
-
 function fmtMoney(amount: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -61,27 +42,13 @@ function fmtMoney(amount: number) {
   }).format(amount)
 }
 
-/** A lead that just landed opens its row from nothing, pushing the rest down. */
-function DropSlot({ entering, children }: { entering: boolean; children: React.ReactNode }) {
-  const [closed, setClosed] = useState(entering)
-  useEffect(() => {
-    if (!closed) return
-    const frame = requestAnimationFrame(() => requestAnimationFrame(() => setClosed(false)))
-    return () => cancelAnimationFrame(frame)
-  }, [closed])
-  return (
-    <div className={`wd-slot ${closed ? 'enter' : ''}`}>
-      <div>{children}</div>
-    </div>
-  )
-}
-
 export function LeadQueue() {
   const navigate = useNavigate()
-  const [chip, setChip] = useState<Chip>('all')
-  const view: 'active' | 'released' = chip === 'closed' ? 'released' : 'active'
+  const [view, setView] = useState<'active' | 'released'>('active')
   const [sourceFilter, setSourceFilter] = useState<LeadSourceType | ''>('')
   const [assignedFilter, setAssignedFilter] = useState('')
+  const [showIngest, setShowIngest] = useState(false)
+  const [showManual, setShowManual] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<LeadStatus>>(new Set())
 
   const { data: leads = [], isLoading, error } = useLeads({
@@ -93,7 +60,7 @@ export function LeadQueue() {
   const { agingIds, overdueIds, idleMinuteMap } = useStaleLeads(leads, settings)
   const { data: teamMembers = [] } = useUsers()
   const { user } = useAuth()
-  const { isAllCities, selectedCity, cityQueryId } = useCity()
+  const { isAllCities } = useCity()
   const { data: rentals = [] } = useRentals()
   const rentalLeadIds = useMemo(() => new Set(rentals.map(r => r.lead_id)), [rentals])
 
@@ -107,72 +74,13 @@ export function LeadQueue() {
 
   const showQuote = user?.role === 'admin' || user?.role === 'facilitator'
 
-  const activeLeads = leads.filter(l => !CLOSED_STATUSES.has(l.status))
-  const displayLeads = chip === 'closed'
-    ? leads.filter(l => CLOSED_STATUSES.has(l.status))
-    : chip === 'all'
-      ? activeLeads
-      : activeLeads.filter(l => CHIP_STATUSES[chip].has(l.status))
-  const newCount = activeLeads.filter(l => l.status === 'new').length
-
-  // New leads that land while the queue is open drop in at the top with an
-  // amber toast. The first load, and the first load after a filter change,
-  // only records what is already there. Worked out while rendering, not in an
-  // effect, so an arriving card and its row know it from their first frame.
-  const listKey = [sourceFilter, assignedFilter.trim(), cityQueryId ?? ''].join('|')
-  const [seen, setSeen] = useState<{ key: string; ids: Set<string> } | null>(null)
-  const [droppedIds, setDroppedIds] = useState<Set<string>>(new Set())
-  const [dropBatch, setDropBatch] = useState<Set<string> | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
-  const [bumpKey, setBumpKey] = useState(0)
-  if (!isLoading && !error) {
-    const changed = !seen || seen.key !== listKey || seen.ids.size !== leads.length || leads.some(l => !seen.ids.has(l.id))
-    if (changed) {
-      const arrived = seen && seen.key === listKey ? leads.filter(l => !seen.ids.has(l.id) && l.status === 'new') : []
-      setSeen({ key: listKey, ids: new Set(leads.map(l => l.id)) })
-      if (arrived.length > 0) {
-        const l = arrived[0]
-        const town = leadTown(l)
-        const batch = new Set(arrived.map(a => a.id))
-        setToast([leadTitle(l), town, sourceShort(l.source_type)].filter(Boolean).join(' · '))
-        setDroppedIds(prev => new Set([...prev, ...batch]))
-        setDropBatch(batch)
-        setBumpKey(k => k + 1)
-      }
-    }
-  }
-  // Each arrival's drop clears on its own clock, so a second lead landing
-  // doesn't cut the first one's short or hold it longer.
-  const dropTimers = useRef<ReturnType<typeof setTimeout>[]>([])
-  useEffect(() => {
-    if (!dropBatch) return
-    dropTimers.current.push(setTimeout(() => {
-      setDroppedIds(prev => new Set([...prev].filter(id => !dropBatch.has(id))))
-    }, 1000))
-  }, [dropBatch])
-  useEffect(() => () => dropTimers.current.forEach(clearTimeout), [])
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 2200)
-    return () => clearTimeout(t)
-  }, [toast])
+  const displayLeads = view === 'active'
+    ? leads.filter(l => !CLOSED_STATUSES.has(l.status))
+    : leads.filter(l => CLOSED_STATUSES.has(l.status))
 
   const refundCandidates = useMemo(() => displayLeads.filter(l => isRefundCandidate(l)), [displayLeads])
 
-  // Green pill slides under the selected chip.
-  const chipsRef = useRef<HTMLDivElement>(null)
-  const [pill, setPill] = useState<{ left: number; width: number } | null>(null)
-  useLayoutEffect(() => {
-    let live = true
-    const place = () => {
-      const on = chipsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')
-      if (live && on) setPill({ left: on.offsetLeft, width: on.offsetWidth })
-    }
-    place()
-    // Chip widths change once the condensed display font arrives.
-    document.fonts?.ready.then(place)
-    return () => { live = false }
-  }, [chip, newCount])
+  const unackedCount = leads.filter(l => !l.acknowledged_at && !CLOSED_STATUSES.has(l.status)).length
 
   const groups = useMemo(() => {
     const stages = view === 'active' ? ACTIVE_STAGES : CLOSED_STAGES
@@ -206,243 +114,242 @@ export function LeadQueue() {
     })
   }
 
-  const cityName = selectedCity?.name ?? user?.city_name ?? null
-  const chips: { key: Chip; label: string; count?: number }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'new', label: 'New', count: newCount },
-    { key: 'review', label: 'Review' },
-    { key: 'quote', label: 'Quote' },
-    { key: 'closed', label: 'Closed' },
-  ]
-  let cardIndex = 0
-
   return (
-    <div className="min-h-screen bg-bg text-ink">
-      <div className={`wd-toast ${toast ? 'show' : ''}`} role="status" aria-live="polite">
-        {toast && <>New lead<br /><span className="text-[13px] font-semibold normal-case tracking-normal">{toast}</span></>}
-      </div>
-
-      <header className="wd-hdr flex items-center justify-between gap-3">
-        <img src="/brand/logo-mark-white.png" alt="Holy Hauling" className="h-auto w-11" />
-        {user?.role === 'admin'
-          ? <CitySwitcher variant="pill" />
-          : cityName && <span className="wd-city">{cityName}</span>}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div>
+          <h1 className="font-bold text-gray-900 dark:text-white text-lg leading-tight">Lead Queue</h1>
+          {unackedCount > 0 && (
+            <p className="text-xs text-red-500 font-medium">{unackedCount} unacknowledged</p>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 flex-wrap">
+          {user?.role === 'admin' && <CitySwitcher />}
+          <button
+            onClick={() => setShowManual(true)}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 font-medium px-2 py-1"
+          >
+            Manual
+          </button>
+          <button
+            onClick={() => setShowIngest(true)}
+            className="bg-indigo-600 text-white rounded-lg px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium hover:bg-indigo-700 active:bg-indigo-800 flex items-center gap-2 whitespace-nowrap"
+          >
+            <span aria-hidden="true">📷</span>
+            <span className="sm:hidden">New Lead</span>
+            <span className="hidden sm:inline">New from Screenshot</span>
+          </button>
+        </div>
       </header>
 
-      <div className="mx-auto max-w-3xl">
-        <div className="flex items-baseline justify-between gap-3 px-5 pt-4">
-          <h1 className="wd-disp text-[30px] leading-none">Lead queue</h1>
-          <span key={bumpKey} className={`inline-block text-[13px] text-mu ${bumpKey ? 'wd-bump' : ''}`}>
-            {activeLeads.length} open
-          </span>
-        </div>
-        <p className="px-5 pb-3 pt-1.5 text-[13px] text-mu">
-          {greeting()}{user?.username ? `, ${user.username}` : ''}. {waitingLine(activeLeads.length)}
-        </p>
+      <div className="flex border-b bg-white dark:bg-gray-800 dark:border-gray-700 px-4">
+        <button
+          onClick={() => setView('active')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            view === 'active'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          Active
+        </button>
+        <button
+          onClick={() => setView('released')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            view === 'released'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          Closed
+        </button>
+      </div>
 
-        <div ref={chipsRef} role="tablist" aria-label="Filter leads" className="wd-chips mx-3.5 px-1.5 pb-3">
-          {pill && <div className="wd-chip-pill" style={{ left: pill.left, width: pill.width }} aria-hidden="true" />}
-          {chips.map(c => (
+      <div className="px-4 py-3 flex gap-2 flex-wrap border-b bg-white dark:bg-gray-800 dark:border-gray-700">
+        <select
+          className="border rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          value={sourceFilter}
+          onChange={e => setSourceFilter(e.target.value as LeadSourceType | '')}
+        >
+          <option value="">All Sources</option>
+          <option value="thumbtack_api">Thumbtack API</option>
+          <option value="thumbtack_screenshot">Thumbtack OCR</option>
+          <option value="yelp_screenshot">Yelp OCR</option>
+          <option value="google_screenshot">Google OCR</option>
+          <option value="website_form">Website</option>
+          <option value="manual">Manual</option>
+        </select>
+
+        <select
+          className="border rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-white w-36"
+          value={assignedFilter}
+          onChange={e => setAssignedFilter(e.target.value)}
+        >
+          <option value="">All handlers</option>
+          {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {
+            const members = teamMembers.filter(m => m.role === role)
+            if (members.length === 0) return null
+            return (
+              <optgroup key={role} label={role.charAt(0).toUpperCase() + role.slice(1)}>
+                {members.map(m => (
+                  <option key={m.id} value={m.username}>{m.username}</option>
+                ))}
+              </optgroup>
+            )
+          })}
+        </select>
+      </div>
+
+      <div className="px-4 pt-3 pb-1">
+        <p className="text-xs text-gray-400">{displayLeads.length} lead{displayLeads.length !== 1 ? 's' : ''}</p>
+      </div>
+
+      <main className="px-4 pb-10 space-y-4">
+        {view === 'active' && openEscalations.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20">
             <button
-              key={c.key}
-              type="button"
-              role="tab"
-              aria-selected={chip === c.key}
-              onClick={() => setChip(c.key)}
-              className="wd-chip"
+              onClick={() => setEscBandOpen(o => !o)}
+              className="flex w-full min-h-12 items-center justify-between px-3 py-2 text-left"
+              aria-expanded={escBandOpen}
             >
-              {c.label}
-              {c.count != null && c.count > 0 && <span>{c.count}</span>}
+              <span className="font-semibold text-amber-800 dark:text-amber-200">
+                ⚠ Escalations <span className="text-amber-600 dark:text-amber-400">{openEscalations.length}</span>
+              </span>
+              <span className={`text-amber-500 transition-transform ${escBandOpen ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
             </button>
-          ))}
-        </div>
-
-        <div className="flex gap-2 px-3.5 pb-3">
-          <select
-            aria-label="Source"
-            className="wd-ghost min-w-0 flex-1"
-            value={sourceFilter}
-            onChange={e => setSourceFilter(e.target.value as LeadSourceType | '')}
-          >
-            <option value="">All Sources</option>
-            <option value="thumbtack_api">Thumbtack API</option>
-            <option value="thumbtack_screenshot">Thumbtack OCR</option>
-            <option value="yelp_screenshot">Yelp OCR</option>
-            <option value="google_screenshot">Google OCR</option>
-            <option value="website_form">Website</option>
-            <option value="manual">Manual</option>
-          </select>
-
-          <select
-            aria-label="Handler"
-            className="wd-ghost min-w-0 flex-1"
-            value={assignedFilter}
-            onChange={e => setAssignedFilter(e.target.value)}
-          >
-            <option value="">All handlers</option>
-            {(['admin', 'facilitator', 'supervisor', 'crew'] as const).map(role => {
-              const members = teamMembers.filter(m => m.role === role)
-              if (members.length === 0) return null
-              return (
-                <optgroup key={role} label={role.charAt(0).toUpperCase() + role.slice(1)}>
-                  {members.map(m => (
-                    <option key={m.id} value={m.username}>{m.username}</option>
-                  ))}
-                </optgroup>
-              )
-            })}
-          </select>
-        </div>
-
-        <main className="space-y-3 px-3.5 pb-6">
-          {view === 'active' && openEscalations.length > 0 && (
-            <section className="wd-panel">
-              <div className="haz h-1.5" aria-hidden="true" />
-              <button
-                onClick={() => setEscBandOpen(o => !o)}
-                className="flex w-full min-h-12 items-center justify-between px-3.5 py-2 text-left"
-                aria-expanded={escBandOpen}
-              >
-                <span className="wd-disp text-[17px]">
-                  Escalations <span className="text-mu">{openEscalations.length}</span>
-                </span>
-                <span className={`text-mu transition-transform ${escBandOpen ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
-              </button>
-              {escBandOpen && (
-                <div className="space-y-1 px-2 pb-2">
-                  {openEscalations.map(e => (
+            {escBandOpen && (
+              <div className="space-y-1 px-2 pb-2">
+                {openEscalations.map(e => (
+                  <button
+                    key={e.id}
+                    onClick={() => navigate(`/leads/${e.lead_id}`)}
+                    className="flex w-full items-center justify-between gap-2 rounded-lg bg-white/70 px-3 py-2 text-left dark:bg-gray-800/60"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium text-gray-900 dark:text-white">
+                      {e.lead_customer_name ?? 'Unknown'}
+                    </span>
+                    <span className="shrink-0 text-xs text-amber-700 dark:text-amber-300">
+                      {LEVEL_LABELS[e.level]} · {e.decision_needed}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+        {view === 'active' && refundCandidates.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20">
+            <button
+              type="button"
+              onClick={() => setRefundBandOpen(o => !o)}
+              className="flex w-full min-h-12 items-center justify-between px-3 py-2 text-left"
+              aria-expanded={refundBandOpen}
+            >
+              <span className="font-semibold text-amber-800 dark:text-amber-200">
+                💸 Refund-eligible <span className="text-amber-600 dark:text-amber-400">{refundCandidates.length}</span>
+              </span>
+              <span className={`text-amber-500 transition-transform ${refundBandOpen ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
+            </button>
+            {refundBandOpen && (
+              <div className="space-y-1 px-2 pb-2">
+                {refundCandidates.map(l => (
+                  <div
+                    key={l.id}
+                    className="flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2 dark:bg-gray-800/60"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-gray-900 dark:text-white">{l.customer_name ?? 'Unknown'}</div>
+                      <div className="text-xs text-amber-700 dark:text-amber-300">Thumbtack · no response 72h+</div>
+                    </div>
                     <button
-                      key={e.id}
-                      onClick={() => navigate(`/leads/${e.lead_id}`)}
-                      className="flex w-full min-h-11 items-center justify-between gap-2 rounded-chip bg-bg px-3 py-2 text-left active:bg-tint"
+                      type="button"
+                      onClick={() => respondMut.mutate({ leadId: l.id, on: true })}
+                      className="min-h-9 rounded-lg border border-gray-300 px-2.5 text-xs font-semibold dark:border-gray-600 dark:text-white"
                     >
-                      <span className="min-w-0 truncate text-sm font-medium">
-                        {e.lead_customer_name ?? 'Unknown'}
-                      </span>
-                      <span className="shrink-0 text-xs text-mu">
-                        {LEVEL_LABELS[e.level]} · {e.decision_needed}
-                      </span>
+                      Responded
                     </button>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-          {view === 'active' && refundCandidates.length > 0 && (
-            <section className="wd-panel">
-              <div className="haz h-1.5" aria-hidden="true" />
-              <button
-                type="button"
-                onClick={() => setRefundBandOpen(o => !o)}
-                className="flex w-full min-h-12 items-center justify-between px-3.5 py-2 text-left"
-                aria-expanded={refundBandOpen}
-              >
-                <span className="wd-disp text-[17px]">
-                  Refund-eligible <span className="text-mu">{refundCandidates.length}</span>
-                </span>
-                <span className={`text-mu transition-transform ${refundBandOpen ? 'rotate-90' : ''}`} aria-hidden="true">›</span>
-              </button>
-              {refundBandOpen && (
-                <div className="space-y-1 px-2 pb-2">
-                  {refundCandidates.map(l => (
-                    <div
-                      key={l.id}
-                      className="flex items-center gap-2 rounded-chip bg-bg px-3 py-2"
+                    <button
+                      type="button"
+                      onClick={() => refundMut.mutate({ leadId: l.id, on: true })}
+                      className="min-h-9 rounded-lg bg-emerald-500 px-2.5 text-xs font-semibold text-white"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{l.customer_name ?? 'Unknown'}</div>
-                        <div className="text-xs text-mu">Thumbtack · no response 72h+</div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => respondMut.mutate({ leadId: l.id, on: true })}
-                        className="wd-btn-sm wd-btn-ghost"
-                      >
-                        Responded
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => refundMut.mutate({ leadId: l.id, on: true })}
-                        className="wd-btn-sm"
-                      >
-                        Refunded
-                      </button>
+                      Refunded
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+        {isLoading && (
+          <p className="text-sm text-gray-400 text-center py-10">Loading…</p>
+        )}
+        {!isLoading && error && (
+          <p className="text-sm text-red-500 text-center py-10">Could not load leads. Is the backend running?</p>
+        )}
+        {!isLoading && !error && displayLeads.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-10">
+            {view === 'active' ? 'No active leads. Tap 📷 New from Screenshot to add one.' : 'No closed leads yet.'}
+          </p>
+        )}
+
+        {groups.map(group => {
+          const isCollapsed = collapsed.has(group.status)
+          return (
+            <section key={group.status}>
+              <button
+                onClick={() => toggle(group.status)}
+                className="w-full min-h-12 flex items-center justify-between gap-3 px-1 py-2 text-left"
+                aria-expanded={!isCollapsed}
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <span className="font-semibold text-gray-900 dark:text-white">{group.label}</span>
+                  <span className="text-sm text-gray-400">{group.leads.length}</span>
+                  {group.overdue > 0 && (
+                    <span className="rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-[11px] font-semibold px-1.5 py-0.5">
+                      {group.overdue} overdue
+                    </span>
+                  )}
+                  {group.aging > 0 && (
+                    <span className="rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[11px] font-semibold px-1.5 py-0.5">
+                      {group.aging} aging
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {showQuote && group.value > 0 && (
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{fmtMoney(group.value)}</span>
+                  )}
+                  <span className={`text-gray-400 transition-transform ${isCollapsed ? '' : 'rotate-90'}`} aria-hidden="true">›</span>
+                </div>
+              </button>
+
+              {!isCollapsed && (
+                <div className="space-y-3 mt-1">
+                  {group.leads.map(lead => (
+                    <div key={lead.id} className="space-y-1">
+                      {isAllCities && lead.city_name && (
+                        <p className="px-1 text-xs font-semibold text-indigo-500 dark:text-indigo-300">{lead.city_name}</p>
+                      )}
+                      <LeadCard
+                        lead={lead}
+                        onClick={id => navigate(`/leads/${id}`)}
+                        staleness={overdueIds.has(lead.id) ? 'overdue' : agingIds.has(lead.id) ? 'aging' : null}
+                        idleMinutes={idleMinuteMap.get(lead.id)}
+                        hasTruckRental={rentalLeadIds.has(lead.id)}
+                        isEscalated={escalatedLeadIds.has(lead.id)}
+                      />
                     </div>
                   ))}
                 </div>
               )}
             </section>
-          )}
-          {isLoading && (
-            <Working label="Loading leads…" />
-          )}
-          {!isLoading && error && (
-            <p className="py-10 text-center text-sm text-danger">Could not load leads. Is the backend running?</p>
-          )}
-          {!isLoading && !error && displayLeads.length === 0 && (
-            <p className="py-10 text-center text-sm text-mu">
-              {chip === 'closed'
-                ? 'No closed leads yet.'
-                : chip === 'all'
-                  ? 'No active leads. Tap + to add one.'
-                  : 'No leads here right now.'}
-            </p>
-          )}
+          )
+        })}
+      </main>
 
-          {groups.map(group => {
-            const isCollapsed = collapsed.has(group.status)
-            return (
-              <section key={group.status}>
-                <button
-                  onClick={() => toggle(group.status)}
-                  className="flex w-full min-h-11 items-center justify-between gap-3 px-0.5 py-1 text-left"
-                  aria-expanded={!isCollapsed}
-                >
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="wd-label">{group.label}</span>
-                    <span className="text-xs text-mu">{group.leads.length}</span>
-                    {group.overdue > 0 && (
-                      <span className="wd-flag wd-flag-red">{group.overdue} overdue</span>
-                    )}
-                    {group.aging > 0 && (
-                      <span className="wd-flag wd-flag-amber">{group.aging} aging</span>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {showQuote && group.value > 0 && (
-                      <span className="text-sm tabular-nums text-mu">{fmtMoney(group.value)}</span>
-                    )}
-                    <span className={`text-mu transition-transform ${isCollapsed ? '' : 'rotate-90'}`} aria-hidden="true">›</span>
-                  </div>
-                </button>
-
-                {!isCollapsed && (
-                  <div className="mt-1 space-y-3">
-                    {group.leads.map(lead => (
-                      <DropSlot key={lead.id} entering={droppedIds.has(lead.id)}>
-                        {isAllCities && lead.city_name && (
-                          <p className="wd-label px-1 pb-1 text-ok">{lead.city_name}</p>
-                        )}
-                        <LeadCard
-                          lead={lead}
-                          index={cardIndex++}
-                          dropped={droppedIds.has(lead.id)}
-                          onClick={id => navigate(`/leads/${id}`)}
-                          staleness={overdueIds.has(lead.id) ? 'overdue' : agingIds.has(lead.id) ? 'aging' : null}
-                          idleMinutes={idleMinuteMap.get(lead.id)}
-                          hasTruckRental={rentalLeadIds.has(lead.id)}
-                          isEscalated={escalatedLeadIds.has(lead.id)}
-                        />
-                      </DropSlot>
-                    ))}
-                  </div>
-                )}
-              </section>
-            )
-          })}
-        </main>
-      </div>
-
+      {showIngest && <IngestProgressFlow onClose={() => setShowIngest(false)} />}
+      {showManual && <LeadCreate onClose={() => setShowManual(false)} />}
       <BottomNav />
     </div>
   )

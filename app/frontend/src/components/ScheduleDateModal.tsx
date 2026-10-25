@@ -42,74 +42,82 @@ export function ScheduleDateModal({ lead, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-[rgba(10,12,11,.45)]" aria-hidden="true" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        aria-label="Close"
+        onClick={onClose}
+      />
 
-      <div role="dialog" aria-label="Schedule job" className="relative z-10 max-h-[92dvh] overflow-y-auto w-full max-w-lg rounded-t-sheet bg-bg px-4 pb-[calc(env(safe-area-inset-bottom)+16px)] pt-2.5 text-ink">
-        <div className="wd-grab" aria-hidden="true" />
-        <div className="flex items-start justify-between gap-3">
+      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+        <div className="flex items-start justify-between gap-3 border-b px-5 py-4 dark:border-gray-700">
           <div>
-            <h3 className="wd-disp text-[22px] leading-none">Schedule job</h3>
-            <p className="mt-1 text-sm text-mu">Set the date and time for this job.</p>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Schedule Job</h3>
+            <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">Set the date and time for this job.</p>
           </div>
-          <button type="button" onClick={onClose} className="wd-btn-sm wd-btn-ghost !shadow-none">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          >
             Close
           </button>
         </div>
 
-        <div className="space-y-4 py-3">
+        <div className="space-y-4 px-5 py-4">
           <label className="block space-y-1">
-            <span className="wd-label">Job date</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Job Date</span>
             <input
               type="date"
               value={jobDate}
               onChange={e => setJobDate(e.target.value)}
-              className="wd-input"
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
           </label>
 
           <label className="block space-y-1">
-            <span className="wd-label">Time slot</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Time Slot</span>
             <input
               type="time"
               value={timeSlot}
               onChange={e => setTimeSlot(e.target.value)}
-              className="wd-input"
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
           </label>
 
           <div className="space-y-1">
-            <span className="wd-label">Estimated duration</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Estimated Duration</span>
             <DurationWheelInput value={duration} onChange={setDuration} allowClear />
           </div>
 
           <label className="block space-y-1">
-            <span className="wd-label">
-              End date{' '}
-              <span className="normal-case font-normal text-mu">(multi-day only)</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+              End Date{' '}
+              <span className="normal-case font-normal text-gray-400">(multi-day only)</span>
             </span>
             <input
               type="date"
               value={jobDateEnd}
               onChange={e => setJobDateEnd(e.target.value)}
               min={jobDate || undefined}
-              className="wd-input"
+              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             />
           </label>
         </div>
 
         {patch.isError && (
-          <p className="wd-err pb-2">
+          <p className="px-5 pb-2 text-sm text-red-600 dark:text-red-400">
             {(patch.error as Error)?.message ?? 'Save failed'}
           </p>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-4 dark:border-gray-700">
           <button
             type="button"
             onClick={onClose}
             disabled={patch.isPending}
-            className="wd-btn wd-btn-ghost flex-1"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             Cancel
           </button>
@@ -117,9 +125,9 @@ export function ScheduleDateModal({ lead, onClose }: Props) {
             type="button"
             onClick={handleSave}
             disabled={patch.isPending}
-            className="wd-btn flex-1"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {patch.isPending ? 'Saving…' : 'Save'}
+            {patch.isPending ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

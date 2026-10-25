@@ -63,13 +63,13 @@ export function LeadCostCard(props: LeadCostCardProps) {
   }
 
   return (
-    <div className="wd-box wd-box-soft space-y-3">
+    <div className="space-y-3 rounded-xl border bg-white p-4 dark:bg-gray-800 dark:border-gray-700">
       <div className="flex items-center justify-between">
-        <p className="wd-label">Lead cost</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Lead cost</p>
         {hasCost && badge && (
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            badge === 'ocr' ? 'bg-tint text-ok'
-                            : 'bg-bg text-mu'}`}>
+            badge === 'ocr' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}>
             {badge === 'ocr' ? 'From photo' : 'Manual'}
           </span>
         )}
@@ -79,19 +79,19 @@ export function LeadCostCard(props: LeadCostCardProps) {
         <>
           {hasCost ? (
             <div className="text-sm">
-              <div className="flex justify-between py-0.5"><span className="text-mu">Direct lead</span><span>{fmt(leadCostGrossCents)}</span></div>
-              <div className="flex justify-between py-0.5"><span className="text-mu">Bonus</span><span className="text-ok">{leadCostBonusCents != null ? `−${fmt(leadCostBonusCents)}` : '—'}</span></div>
-              <div className="mt-1 flex justify-between border-t border-ln pt-1"><span className="font-semibold">Total paid</span><span className="text-lg font-extrabold">{fmt(leadCostCents)}</span></div>
+              <div className="flex justify-between py-0.5"><span className="text-gray-500 dark:text-gray-400">Direct lead</span><span>{fmt(leadCostGrossCents)}</span></div>
+              <div className="flex justify-between py-0.5"><span className="text-gray-500 dark:text-gray-400">Bonus</span><span className="text-emerald-600 dark:text-emerald-400">{leadCostBonusCents != null ? `−${fmt(leadCostBonusCents)}` : '—'}</span></div>
+              <div className="mt-1 flex justify-between border-t border-gray-100 pt-1 dark:border-gray-700"><span className="font-semibold">Total paid</span><span className="text-lg font-extrabold">{fmt(leadCostCents)}</span></div>
             </div>
           ) : (
-            <p className="text-sm text-mu">No lead cost captured yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No lead cost captured yet.</p>
           )}
           {(prosContacted != null || prosResponded != null) && (
-            <p className="text-xs text-mu">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Contacted {prosContacted ?? '—'} pros · {prosResponded ?? '—'} responded
             </p>
           )}
-          <button type="button" onClick={beginEdit} className="wd-btn-sm wd-btn-ghost">
+          <button type="button" onClick={beginEdit} className="min-h-11 rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">
             {hasCost ? 'Edit cost' : 'Add cost'}
           </button>
         </>
@@ -100,17 +100,17 @@ export function LeadCostCard(props: LeadCostCardProps) {
       {editing && (
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            <label className="flex flex-col gap-1 text-xs text-mu">Direct lead
-              <input value={gross} onChange={e => setGross(e.target.value)} inputMode="decimal" className="wd-input" /></label>
-            <label className="flex flex-col gap-1 text-xs text-mu">Bonus
-              <input value={bonus} onChange={e => setBonus(e.target.value)} inputMode="decimal" className="wd-input" /></label>
+            <label className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">Direct lead
+              <input value={gross} onChange={e => setGross(e.target.value)} inputMode="decimal" className="min-h-11 rounded-lg border border-gray-200 bg-white px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></label>
+            <label className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">Bonus
+              <input value={bonus} onChange={e => setBonus(e.target.value)} inputMode="decimal" className="min-h-11 rounded-lg border border-gray-200 bg-white px-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /></label>
           </div>
-          <label className="flex flex-col gap-1 text-xs text-mu">Total paid
-            <input value={total} onChange={e => setTotal(e.target.value)} inputMode="decimal" className="wd-input" /></label>
+          <label className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">Total paid
+            <input value={total} onChange={e => setTotal(e.target.value)} inputMode="decimal" className="min-h-11 rounded-lg border border-emerald-400 bg-white px-2 text-sm dark:bg-gray-700 dark:text-white" /></label>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={save} disabled={saving || !total.trim()} className="wd-btn-sm">{saving ? 'Saving…' : 'Save'}</button>
-            <button type="button" onClick={() => setEditing(false)} className="wd-btn-sm wd-btn-ghost">Cancel</button>
-            {error && <span className="text-xs text-danger">Couldn't save. Try again.</span>}
+            <button type="button" onClick={save} disabled={saving || !total.trim()} className="min-h-11 rounded-lg bg-emerald-500 px-4 text-sm font-semibold text-white disabled:opacity-40">{saving ? 'Saving…' : 'Save'}</button>
+            <button type="button" onClick={() => setEditing(false)} className="min-h-11 rounded-lg bg-gray-100 px-4 text-sm font-semibold text-gray-700 dark:bg-gray-700 dark:text-white">Cancel</button>
+            {error && <span className="text-xs text-red-500">Couldn't save. Try again.</span>}
           </div>
         </div>
       )}

@@ -195,22 +195,13 @@ class ScreenshotOut(BaseModel):
 
 
 class LeadOut(BaseModel):
-    """The response model for every lead route except the single-lead detail
-    view. Deliberately carries no raw_payload field at all -- not "redacted",
-    absent -- so a new route that returns a lead through this model is safe
-    by construction, with nothing for its author to remember. Thumbtack's
-    captured webhook body (business.accessCode, a working refundRequestLink
-    into Thumbtack's own refund flow, customerID, requestID) is a real
-    privilege step-up over the name/phone/description already visible here
-    as first-class columns; the one place that field is reachable at all is
-    LeadDetailOut below, and only under an explicit per-role check there."""
-
     id: str
     city_id: str
     city_name: Optional[str] = None
     city_slug: Optional[str] = None
     source_type: LeadSourceType
     source_reference_id: Optional[str]
+    raw_payload: Optional[str]
     status: LeadStatus
     urgency_flag: bool
     # None for ingest stubs not yet confirmed by OCR or the facilitator
@@ -320,10 +311,5 @@ class LeadOut(BaseModel):
 
 
 class LeadDetailOut(LeadOut):
-    """GET /leads/{id} only. The one route where a raw webhook payload is
-    structurally reachable -- the router redacts it per-role via
-    lead_service.visible_raw_payload before returning."""
-
-    raw_payload: Optional[str] = None
     events: list[LeadEventOut] = []
     screenshots: list[ScreenshotOut] = []

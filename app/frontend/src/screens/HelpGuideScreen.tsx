@@ -4,7 +4,6 @@ import { BottomNav } from '../components/BottomNav'
 import { AccordionSection } from '../components/AccordionSection'
 import { guideForRole } from '../content/helpContent'
 import { useAuth } from '../context/AuthContext'
-import { ScreenHeader } from '../components/ScreenHeader'
 
 export function HelpGuideScreen() {
   const navigate = useNavigate()
@@ -20,17 +19,20 @@ export function HelpGuideScreen() {
     })
 
   return (
-    <div className="min-h-screen bg-bg pb-20">
-      <ScreenHeader title={guide.title} onBack={() => navigate('/settings')} />
+    <div className="min-h-screen bg-gray-50 pb-20 dark:bg-gray-900">
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+        <button type="button" onClick={() => navigate('/settings')} aria-label="Back" className="text-gray-400">‹</button>
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white">{guide.title}</h1>
+      </header>
 
       <div className="space-y-2.5 p-4">
-        <p className="text-xs leading-relaxed text-mu">{guide.intro}</p>
+        <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{guide.intro}</p>
 
         {guide.sections.map(section => (
           <AccordionSection key={section.id} section={section} isOpen={open.has(section.id)} onToggle={() => toggle(section.id)} />
         ))}
 
-        <div className="flex items-center gap-2 rounded-card border border-dashed border-ln px-4 py-3 text-xs text-mu">
+        <div className="flex items-center gap-2 rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400">
           🛟 Something off or missing in this guide? Tell Ron.
         </div>
       </div>

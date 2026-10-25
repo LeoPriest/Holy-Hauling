@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useChatMessages, useSendChatMessage } from '../hooks/useLeads'
 import { fmtLocalTime } from '../utils/time'
-import { Working } from './Logo'
 
 interface Props {
   leadId: string
@@ -15,18 +14,10 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
   const [input, setInput] = useState('')
   const [contextFlash, setContextFlash] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  // Only messages that arrive after the thread loads scroll it into view. The
-  // thread sits at the bottom of the Quote tab, so scrolling on load would carry
-  // the screen away from the price and the Lock & book message.
-  const seen = useRef<number | null>(null)
 
   useEffect(() => {
-    if (isLoading) return
-    if (seen.current != null && messages.length > seen.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-    }
-    seen.current = messages.length
-  }, [messages, isLoading])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,19 +43,23 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
 
       {/* Thread */}
       <div className="space-y-3 min-h-[4rem]">
-        {isLoading && <Working label="Loading chat…" className="sm" />}
+        {isLoading && <p className="text-xs text-gray-400">Loading chat…</p>}
         {!isLoading && messages.length === 0 && (
-          <p className="text-xs text-mu italic">
+          <p className="text-xs text-gray-400 italic">
             No messages yet. Challenge the pricing or add context.
           </p>
         )}
         {messages.map(m => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`wd-bub ${m.role === 'user' ? 'wd-bub-me' : 'wd-bub-ai'}`}
+              className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                m.role === 'user'
+                  ? 'bg-indigo-600 text-white rounded-br-sm'
+                  : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
+              }`}
             >
               <p className="whitespace-pre-wrap">{m.content}</p>
-              <p className={`text-[10px] mt-1 ${m.role === 'user' ? 'text-white/70' : 'text-mu'}`}>
+              <p className={`text-[10px] mt-1 ${m.role === 'user' ? 'text-indigo-300' : 'text-gray-400'}`}>
                 {fmtLocalTime(m.created_at)}
               </p>
             </div>
@@ -72,7 +67,7 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
         ))}
         {sendMessage.isPending && (
           <div className="flex justify-start">
-            <div className="wd-bub wd-bub-ai text-mu">
+            <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-xs text-gray-400">
               Thinking…
             </div>
           </div>
@@ -82,7 +77,7 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
 
       {/* Context update flash */}
       {contextFlash && (
-        <div className="text-xs text-ok bg-tint border border-ln rounded-chip px-3 py-1.5 mt-2 flex items-center gap-1.5">
+        <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 mt-2 flex items-center gap-1.5">
           <span>↑</span>
           <span>Context updated above — re-run AI Review to apply.</span>
         </div>
@@ -90,7 +85,7 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
 
       {/* Error */}
       {sendMessage.isError && (
-        <p className="text-xs text-danger mt-2">
+        <p className="text-xs text-red-600 mt-2">
           {(sendMessage.error as Error)?.message ?? 'Send failed'}
         </p>
       )}
@@ -98,8 +93,7 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
       {/* Input */}
       <form onSubmit={handleSend} className="flex gap-2 mt-3">
         <input
-          className="wd-input min-w-0 flex-1 disabled:opacity-60"
-          aria-label="Message"
+          className="flex-1 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-50"
           placeholder="Challenge this or add context…"
           value={input}
           onChange={e => setInput(e.target.value)}
@@ -108,7 +102,7 @@ export function AiChatThread({ leadId, aiReviewId, onContextUpdate }: Props) {
         <button
           type="submit"
           disabled={!input.trim() || sendMessage.isPending}
-          className="wd-btn shrink-0"
+          className="bg-indigo-600 text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 shrink-0"
         >
           Send
         </button>

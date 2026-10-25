@@ -65,7 +65,7 @@ export const STATUS_LABELS: Record<TruckRentalStatus, string> = {
 }
 
 export const STATUS_COLORS: Record<TruckRentalStatus, string> = {
-  reserved: 'bg-bg text-[#b86e00]',
-  confirmed: 'bg-tint text-ok',
-  completed: 'bg-bg text-ink',
+  reserved: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
+  confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  completed: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
 }
