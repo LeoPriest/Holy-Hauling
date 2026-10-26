@@ -3,8 +3,8 @@ self.addEventListener('push', event => {
   const title = data.title || 'Holy Hauling'
   const options = {
     body: data.body || 'New notification',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     data: { path: data.path || '/jobs' },
   }
   event.waitUntil(self.registration.showNotification(title, options))
